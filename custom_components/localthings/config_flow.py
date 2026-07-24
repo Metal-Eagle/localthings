@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import re
 import selectors
@@ -15,6 +16,10 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
+    ObjectSelector,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -396,22 +401,44 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class LocalThingsOptionsFlow(config_entries.OptionsFlow):
-    """Per-device override of the remote-control-off write block (issue
-    #54). The block exists because most devices reject writes outright
-    while remote control is off and a clear error beats a silent
+    """Per-device options: the remote-control-off write-block override
+    (issue #54) plus a debug panel for writing an arbitrary body to an
+    arbitrary resource href, so a user can pin down device-specific write
+    behavior without waiting on a new release.
+
+    The remote-control override exists because most devices reject writes
+    outright while remote control is off and a clear error beats a silent
     device-side rejection -- but not every model actually enforces that,
     so this lets a user who's confirmed their device accepts writes anyway
     turn the block off for just that device rather than it being
-    hardcoded on for everyone."""
+    hardcoded on for everyone. The debug panel goes further: it bypasses
+    that block (and every write_fn/validate_fn) entirely, sending exactly
+    the body the user types to whatever href they pick.
+    """
+
+    def __init__(self) -> None:
+        self._debug_href: str = ""
+        self._debug_result: tuple[int, dict] | None = None
+
+    def _coordinator(self):
+        return self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
 
     async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["settings", "debug_write"],
+        )
+
+    async def async_step_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
 
         return self.async_show_form(
-            step_id="init",
+            step_id="settings",
             data_schema=vol.Schema({
                 vol.Required(
                     CONF_BYPASS_REMOTE_CONTROL,
@@ -421,3 +448,96 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
                 ): bool,
             }),
         )
+
+    async def async_step_debug_write(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        coord = self._coordinator()
+        if coord is None:
+            return self.async_abort(reason="not_loaded")
+
+        if user_input is not None:
+            self._debug_href = user_input["href"]
+            return await self.async_step_debug_edit()
+
+        hrefs = sorted(coord.last_resources.keys())
+        return self.async_show_form(
+            step_id="debug_write",
+            data_schema=vol.Schema({
+                vol.Required("href"): SelectSelector(SelectSelectorConfig(
+                    options=hrefs,
+                    custom_value=True,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )),
+            }),
+        )
+
+    def _show_debug_edit_form(
+        self, href: str, current: dict, errors: dict[str, str], payload,
+    ) -> FlowResult:
+        return self.async_show_form(
+            step_id="debug_edit",
+            data_schema=vol.Schema({
+                vol.Required(
+                    "payload", default=(payload if payload is not None else {}),
+                ): ObjectSelector(),
+            }),
+            errors=errors,
+            description_placeholders={
+                "href": href,
+                "current_value": (
+                    json.dumps(current, indent=2, ensure_ascii=False)
+                    if current else "(no cached value)"
+                ),
+            },
+        )
+
+    async def async_step_debug_edit(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        coord = self._coordinator()
+        if coord is None:
+            return self.async_abort(reason="not_loaded")
+
+        href = self._debug_href
+        current = coord.resource(href)
+
+        if user_input is not None:
+            payload = user_input.get("payload") or {}
+            if not isinstance(payload, dict) or not payload:
+                return self._show_debug_edit_form(
+                    href, current, {"payload": "empty_payload"}, payload
+                )
+            try:
+                code, new_rep = await coord.async_raw_write(href, payload)
+            except Exception:  # noqa: BLE001 - surfaced to the user below
+                _LOGGER.exception("debug raw write failed for %s", href)
+                return self._show_debug_edit_form(
+                    href, current, {"base": "write_failed"}, payload
+                )
+            self._debug_result = (code, new_rep)
+            return await self.async_step_debug_result()
+
+        return self._show_debug_edit_form(href, current, {}, None)
+
+    async def async_step_debug_result(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        code, new_rep = self._debug_result or (0, {})
+        return self.async_show_menu(
+            step_id="debug_result",
+            menu_options=["debug_write", "finish"],
+            description_placeholders={
+                "code": f"{code >> 5}.{code & 0x1f:02d} ({code:#04x})",
+                "new_value": (
+                    json.dumps(new_rep, indent=2, ensure_ascii=False)
+                    if new_rep else "(no value returned)"
+                ),
+            },
+        )
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        # Close the flow without altering saved options.
+        return self.async_create_entry(data=dict(self.config_entry.options))

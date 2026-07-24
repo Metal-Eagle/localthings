@@ -250,11 +250,47 @@
     "step": {
       "init": {
         "title": "Local Things Options",
+        "menu_options": {
+          "settings": "Remote control write settings",
+          "debug_write": "Debug: write to a resource"
+        }
+      },
+      "settings": {
+        "title": "Remote control write settings",
         "description": "Some devices accept certain writes (e.g. default detergent/softener dosing on a washer) even while reporting remote control off. By default, LocalThings blocks every write with a clear error whenever a device reports remote control off, rather than letting the device silently reject it. Only enable this if you've confirmed writes actually work on this device with remote control off -- otherwise you'll trade that clear error for a silent failure.",
         "data": {
           "bypass_remote_control_lock": "Allow writes even when remote control is reported off"
         }
+      },
+      "debug_write": {
+        "title": "Debug: write to a resource",
+        "description": "Power-user tool for pinning down device-specific write behavior. Pick the resource (href) you want to write to, or type a custom one that isn't listed. This bypasses the remote-control-off block and sends exactly the fields you provide -- it can misconfigure your appliance, so use it deliberately.",
+        "data": {
+          "href": "Resource href"
+        }
+      },
+      "debug_edit": {
+        "title": "Debug write: {href}",
+        "description": "Current value of `{href}`:\n```\n{current_value}\n```\nEnter ONLY the field(s) you want to change below. What you enter is sent to the device as-is (a partial update); it is NOT merged with the fields shown above, so don't paste the whole value back. Mind the types: a numeric string like \"1\" must stay quoted -- a bare 1 is sent as an integer, which some devices reject.",
+        "data": {
+          "payload": "Payload to write"
+        }
+      },
+      "debug_result": {
+        "title": "Debug write result",
+        "description": "The device returned CoAP code {code}. A 2.xx class means the write was accepted; 4.xx/5.xx means it was rejected. The resource now reads:\n```\n{new_value}\n```\nIf the value is unchanged, the device likely dropped the write. Pick what to do next:",
+        "menu_options": {
+          "debug_write": "Write another resource",
+          "finish": "Finish"
+        }
       }
+    },
+    "error": {
+      "empty_payload": "Enter at least one field to write.",
+      "write_failed": "The write failed. Check the Home Assistant logs for details."
+    },
+    "abort": {
+      "not_loaded": "This device isn't connected yet. Try again once it has loaded."
     }
   },
   "issues": {
