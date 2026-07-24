@@ -129,8 +129,14 @@ def _display(value, translation_key: Optional[str]):
     """
     if not isinstance(value, str):
         return value
-    if translation_key and (translated := _translation_state(value, translation_key)):
-        return translated
+    if translation_key:
+        if translated := _translation_state(value, translation_key):
+            return translated
+        if translation_key not in TRANSLATED_SELECT_STATES:
+            # The entity name is translated, but this select deliberately has
+            # no static state catalog (for example an unknown course table).
+            # Keep its opaque device value untouched.
+            return value
     if value.islower():
         return value.replace('_', ' ').title()
     return _CAMEL_BOUNDARY_RE.sub(' ', value)

@@ -488,6 +488,9 @@
       "filter_progress": {
         "name": "Filterverbruik"
       },
+      "filter_usage": {
+        "name": "Filtergebruik"
+      },
       "fine_dust": {
         "name": "Fijnstof"
       },

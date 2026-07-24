@@ -2,7 +2,7 @@
 from custom_components.localthings.select import _display
 
 _UNTRANSLATED = None
-_TRANSLATED = 'door_alert'
+_TRANSLATED = 'ice_type'
 
 
 def test_display_titlecases_a_fully_lowercase_device_native_token():

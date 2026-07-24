@@ -49,7 +49,7 @@ def test_callable_options_receives_full_resource_snapshot():
         '/other/vs/0': {'codes': ['1C', '1D']},
     }
     entity = _make_select(desc, '/x/vs/0', resources)
-    assert entity.options == ['1c', '1d']
+    assert entity.options == ['1C', '1D']
     assert calls == [resources]
 
 

@@ -488,6 +488,9 @@
       "filter_progress": {
         "name": "Filter progress"
       },
+      "filter_usage": {
+        "name": "Filter usage"
+      },
       "fine_dust": {
         "name": "Fine dust"
       },

@@ -43,7 +43,11 @@ def _derive_name(state_key: str) -> str:
     Strips a trailing instance number of 0 (singleton), promotes any other
     instance number with a space: "door_cooler_open1" → "Door Cooler Open 1".
     """
-    name = re.sub(r'(\d+)$', lambda m: f' {m.group()}' if int(m.group()) > 0 else '', state_key)
+    name = re.sub(
+        r'_?(\d+)$',
+        lambda match: f' {match.group(1)}' if int(match.group(1)) > 0 else '',
+        state_key,
+    )
     return _snake_to_title(name).strip()
 
 
