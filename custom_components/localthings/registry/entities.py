@@ -8,25 +8,15 @@ where a description declares one.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional
 
 WriteFn = Optional[Callable[[Any, dict], "tuple[list[str], dict] | None"]]
-# (payload, rep, resources) -> a translatable rejection, or None to allow the
+# (payload, rep, resources) -> a translation key, or None to allow the
 # write. resources is the coordinator's full href->rep snapshot, for the same
 # cross-resource lookups exists_fn needs (e.g. reading a sibling href's live
 # option list).
-
-
-@dataclass(frozen=True)
-class ValidationIssue:
-    """A user-facing, translatable rejection from a descriptor validator."""
-
-    translation_key: str
-    translation_placeholders: Mapping[str, str] = field(default_factory=dict)
-
-
-ValidateFn = Optional[Callable[[Any, dict, dict], "ValidationIssue | None"]]
+ValidateFn = Optional[Callable[[Any, dict, dict], "str | None"]]
 
 
 def _identity(v: Any) -> Any:

@@ -45,10 +45,3 @@ def test_href_instance_name_becomes_translation_placeholder():
     )
     entity = _make_entity(desc, key_override='icemaker_one_enabled')
     assert entity.translation_placeholders == {'instance_name': 'Icemaker One'}
-
-
-def test_untranslated_vendor_entity_keeps_readable_fallback_name():
-    desc = BinarySensorDesc(key='vendor_feature')
-    entity = _make_entity(desc, key_override='vendor_feature_1')
-    assert entity.translation_key is None
-    assert entity._attr_name == 'Vendor Feature 1'

@@ -16,7 +16,7 @@ array.
 from datetime import datetime, timezone
 
 from ..capability import Capability
-from ..entities import BinarySensorDesc, SelectDesc, SensorDesc, ValidationIssue
+from ..entities import BinarySensorDesc, SelectDesc, SensorDesc
 from .laundry import (
     bool_option_exists, bool_option_switch, cycle_options, cycle_select, hex_pairs, option_value,
     replace_in_options,
@@ -282,7 +282,7 @@ def _bool_option_switch(key, name, icon, prefix, availability_field):
         if len(pairs) != len(courses):
             return None
         if pairs[courses.index(current)] != 'F0':
-            return ValidationIssue(f"{key}_unavailable_for_cycle")
+            return f"{key}_unavailable_for_cycle"
         return None
 
     return bool_option_switch(

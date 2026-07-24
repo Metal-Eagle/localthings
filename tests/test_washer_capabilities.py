@@ -355,11 +355,10 @@ class TestWashOptionToggleValidation:
 
     def test_rejected_on_an_unsupported_course(self):
         rep = {'x.com.samsung.da.options': ['Course_1C', _BUBBLE_SOAK_SET]}
-        issue = self._desc('bubble_soak').validate_fn(
+        translation_key = self._desc('bubble_soak').validate_fn(
             'On', rep, _EDIT_COURSE_RESOURCES
         )
-        assert issue.translation_key == 'bubble_soak_unavailable_for_cycle'
-        assert issue.translation_placeholders == {}
+        assert translation_key == 'bubble_soak_unavailable_for_cycle'
 
     def test_pre_wash_and_intensive_use_their_own_availableset_field(self):
         rep = {'x.com.samsung.da.options': ['Course_30', _PRE_WASH_AVAILABLE_SET]}

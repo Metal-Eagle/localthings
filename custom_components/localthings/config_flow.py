@@ -316,7 +316,7 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _create_entry(self, info: dict) -> FlowResult:
         return self.async_create_entry(
-            title=f"Samsung ({self._host})",
+            title=f"Samsung Appliance ({self._host})",
             data={
                 CONF_HOST:          self._host,
                 CONF_PORT:          info["port"],

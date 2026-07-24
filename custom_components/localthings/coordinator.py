@@ -24,7 +24,6 @@ from .registry.batch import parse_device0_batch
 from .registry.by_type import for_device, for_device_by_model, for_device_by_resources
 from .registry.capabilities.common import remote_control_enabled
 from .registry.discovery import discover, BoundEntity
-from .registry.entities import ValidationIssue
 from .registry import CAPABILITIES
 from .registry.adapter import flatten
 from .registry.identity import read_identity, DeviceIdentity
@@ -105,7 +104,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_serial = entry.data[CONF_HOST]  # placeholder until first poll
         self.device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data[CONF_HOST])},
-            name=f"Samsung ({entry.data[CONF_HOST]})",
+            name=f"Samsung Appliance ({entry.data[CONF_HOST]})",
             manufacturer="Samsung",
         )
         self._session_lock = asyncio.Lock()
@@ -318,15 +317,10 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_serial = serial
 
         ident = self._identity
+        device_type = reg.name.replace('_', ' ').title() if reg else 'Appliance'
         model_num = info.get('x.com.samsung.da.modelNum', '')
         model = model_num.split('|', 1)[0] if model_num else (ident.model if ident else '')
-        # DeviceInfo has no translation mechanism. Prefer the appliance's own
-        # OCF name, then proper-noun/model fallbacks without an English family
-        # label. Existing device/entity registry IDs remain keyed by serial.
-        name = (
-            (ident.name if ident else '')
-            or (f"Samsung {model}" if model else f"Samsung ({self._entry.data[CONF_HOST]})")
-        )
+        name  = f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
         mfr   = (ident.manufacturer if ident else '') or 'Samsung'
 
         self.device_info = DeviceInfo(
@@ -555,12 +549,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if validate_fn is not None:
             error = validate_fn(payload, rep, resources)
             if error:
-                if not isinstance(error, ValidationIssue):
-                    raise TypeError("validate_fn must return ValidationIssue or None")
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
-                    translation_key=error.translation_key,
-                    translation_placeholders=dict(error.translation_placeholders),
+                    translation_key=error,
                 )
         result = write_fn(payload, rep, href)
         if result is None:
