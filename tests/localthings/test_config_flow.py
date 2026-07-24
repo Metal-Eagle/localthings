@@ -38,6 +38,7 @@ async def test_form_second_device_reuses_creds(hass: HomeAssistant) -> None:
         DOMAIN, context={'source': 'user'}
     )
     assert result['type'] == FlowResultType.FORM
+    assert result['step_id'] == 'user_reuse'
     assert CONF_CA_CERT_PEM not in result['data_schema'].schema
     assert CONF_CA_KEY_PEM not in result['data_schema'].schema
 
@@ -217,6 +218,39 @@ async def test_unknown_type_shows_confirmation_step(
     )
     assert result['type'] == FlowResultType.CREATE_ENTRY
     assert result['data'][CONF_HOST] == MOCK_HOST
+
+
+async def test_unknown_type_without_version_uses_localized_step(
+    hass: HomeAssistant,
+) -> None:
+    """No English placeholder sentinel leaks into a translated description."""
+    probe_result = {
+        'port': MOCK_PORT,
+        'serial': MOCK_SERIAL,
+        'leaf_cert_pem': 'leaf cert',
+        'leaf_key_pem': 'leaf key',
+        'one_ui_version': '',
+        'device_type_recognized': False,
+    }
+    with patch(
+        'custom_components.localthings.config_flow._probe_and_validate',
+        return_value=probe_result,
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={'source': 'user'}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result['flow_id'],
+            {
+                CONF_HOST: MOCK_HOST,
+                CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+                CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+            },
+        )
+
+    assert result['type'] == FlowResultType.FORM
+    assert result['step_id'] == 'confirm_unknown_type_no_version'
+    assert not result.get('description_placeholders')
 
 
 async def test_duplicate_device_aborted(hass: HomeAssistant, mock_probe) -> None:

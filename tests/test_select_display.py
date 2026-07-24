@@ -34,5 +34,14 @@ def test_display_lowercases_for_translation_key_lookup():
     assert _display('Whiskey_IceBall_3', _TRANSLATED) == 'whiskey_iceball_3'
 
 
+def test_unknown_translated_vendor_value_keeps_readable_fallback():
+    """A firmware-added value must remain readable instead of being mangled."""
+    assert _display('FutureVendorMode', _TRANSLATED) == 'Future Vendor Mode'
+
+
+def test_known_camel_case_state_uses_snake_case_translation_key():
+    assert _display('ExtraHigh', 'heated_dry') == 'extra_high'
+
+
 def test_display_passes_through_non_string_values():
     assert _display(None, _UNTRANSLATED) is None

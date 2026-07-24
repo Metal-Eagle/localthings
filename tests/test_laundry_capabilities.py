@@ -173,11 +173,9 @@ class TestCycleSelectTableGating:
     codes aren't guaranteed consistent across board generations sharing
     the same /course/vs/0 contract; FlexWash's older board reports a
     different course table than every device the shipped translations
-    were confirmed against). The resolved key is built from whatever table
-    the device actually reports -- a table with no strings.json entries
-    yet just falls through Home Assistant's own missing-translation
-    handling to raw-code display, the same as any individual untranslated
-    code within an existing table."""
+    were confirmed against). The resolved key is built from a reported
+    table id. Devices without one use the generic translated Cycle entity
+    name while preserving raw option codes as a safe fallback."""
 
     def _desc(self):
         return laundry.cycle_select(
@@ -198,20 +196,17 @@ class TestCycleSelectTableGating:
         assert callable(desc.translation_key)
         assert desc.translation_key(resources) == 'washer_cycle_table_02'
 
-    def test_resolved_key_reflects_an_unbuilt_table_too(self):
-        """No gating against a hardcoded 'known good' table -- a table we
-        haven't shipped translations for yet still gets a key built for
-        it, just one strings.json has nothing under (raw-code display)."""
+    def test_untranslated_table_uses_generic_cycle_key(self):
+        """An unknown table does not claim another board's state labels."""
         desc = self._desc()
         resources = {'/st/washercourse/vs/0': {'x.com.samsung.da.st.courseTable': 'Table_00'}}
-        assert desc.translation_key(resources) == 'washer_cycle_table_00'
+        assert desc.translation_key(resources) == 'cycle'
 
-    def test_resolves_to_none_when_table_id_is_unknown(self):
-        """No href, or an empty rep, gets no translation_key at all --
-        there's nothing to build a key from."""
+    def test_resolves_to_generic_cycle_when_table_id_is_unknown(self):
+        """An absent table id still gets a translated generic entity name."""
         desc = self._desc()
-        assert desc.translation_key({}) is None
-        assert desc.translation_key({'/st/washercourse/vs/0': {}}) is None
+        assert desc.translation_key({}) == 'cycle'
+        assert desc.translation_key({'/st/washercourse/vs/0': {}}) == 'cycle'
 
 
 class TestBuzzerSound:

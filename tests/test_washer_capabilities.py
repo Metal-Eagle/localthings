@@ -64,16 +64,15 @@ class TestWasherCourse:
         """Table-scoped (issue: course codes aren't guaranteed consistent
         across board generations sharing /course/vs/0 -- FlexWash's older
         board reports Table_00, not the Table_02 every washer_cycle_table_02
-        name was confirmed against) -- see laundry.cycle_select. The key is
-        built from whatever table the device reports, not gated against a
-        hardcoded 'known good' value."""
+        name was confirmed against) -- see laundry.cycle_select. Only a
+        verified table gets table-specific state translations."""
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == 'cycle')
         assert callable(desc.translation_key)
         table_02 = {'/st/washercourse/vs/0': {'x.com.samsung.da.st.courseTable': 'Table_02'}}
         assert desc.translation_key(table_02) == 'washer_cycle_table_02'
         table_00 = {'/st/washercourse/vs/0': {'x.com.samsung.da.st.courseTable': 'Table_00'}}
-        assert desc.translation_key(table_00) == 'washer_cycle_table_00'
-        assert desc.translation_key({}) is None
+        assert desc.translation_key(table_00) == 'cycle'
+        assert desc.translation_key({}) == 'cycle'
 
     def test_reads_raw_course_code_from_options_array(self):
         """rep_fn returns the raw device code; display names come from
@@ -206,14 +205,11 @@ class TestDetergentSoftenerDosing:
         assert self._desc('detergent_quantity').rep_fn(rep) == '7'
 
     def test_translation_keys(self):
-        """detergent_quantity and softener_quantity share one translation_key
-        (same 00-03 -> None/Low/Medium/High vocabulary on both dispensers,
-        same shape as fridge.py's shared 'brightness_level' key); hardness
-        and concentration each have their own since their labels differ."""
-        assert self._desc('detergent_quantity').translation_key == 'washer_dosing_quantity'
-        assert self._desc('softener_quantity').translation_key == 'washer_dosing_quantity'
-        assert self._desc('detergent_water_hardness').translation_key == 'washer_detergent_water_hardness'
-        assert self._desc('softener_concentration').translation_key == 'washer_softener_concentration'
+        """Each entity gets its own translated name and state vocabulary."""
+        assert self._desc('detergent_quantity').translation_key == 'detergent_quantity'
+        assert self._desc('softener_quantity').translation_key == 'softener_quantity'
+        assert self._desc('detergent_water_hardness').translation_key == 'detergent_water_hardness'
+        assert self._desc('softener_concentration').translation_key == 'softener_concentration'
 
     def test_quantity_and_hardness_options_decode_supported_list(self):
         assert self._desc('detergent_quantity').options(_DOSING_RESOURCES) == ['00', '01', '02', '03']
@@ -359,8 +355,11 @@ class TestWashOptionToggleValidation:
 
     def test_rejected_on_an_unsupported_course(self):
         rep = {'x.com.samsung.da.options': ['Course_1C', _BUBBLE_SOAK_SET]}
-        msg = self._desc('bubble_soak').validate_fn('On', rep, _EDIT_COURSE_RESOURCES)
-        assert msg == "Bubble soak isn't available on the selected cycle."
+        issue = self._desc('bubble_soak').validate_fn(
+            'On', rep, _EDIT_COURSE_RESOURCES
+        )
+        assert issue.translation_key == 'bubble_soak_unavailable_for_cycle'
+        assert issue.translation_placeholders == {}
 
     def test_pre_wash_and_intensive_use_their_own_availableset_field(self):
         rep = {'x.com.samsung.da.options': ['Course_30', _PRE_WASH_AVAILABLE_SET]}
