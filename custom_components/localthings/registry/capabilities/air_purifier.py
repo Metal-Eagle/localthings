@@ -47,20 +47,20 @@ from .common import int_or_none, sensor_item_value
 from .laundry import bool_option_exists, bool_option_value, option_value, option_write
 
 _AIR_QUALITY_SENSORS = (
-    ('dust', 'Dust', 'mdi:blur', 'Dust'),
-    ('fine_dust', 'Fine dust', 'mdi:blur', 'FineDust'),
-    ('super_fine_dust', 'Super fine dust', 'mdi:blur', 'SuperFineDust'),
-    ('odor', 'Odor', 'mdi:scent', 'Odor'),
-    ('clean_level', 'Clean level', 'mdi:air-filter', 'CleanLevel'),
+    ('dust', 'mdi:blur', 'Dust'),
+    ('fine_dust', 'mdi:blur', 'FineDust'),
+    ('super_fine_dust', 'mdi:blur', 'SuperFineDust'),
+    ('odor', 'mdi:scent', 'Odor'),
+    ('clean_level', 'mdi:air-filter', 'CleanLevel'),
 )
 
 AIR_QUALITY = Capability(
     href='/sensors/vs/0',
     poll_tier='warm',
     entities=tuple(
-        SensorDesc(key=key, field='x.com.samsung.da.items', name=name, icon=icon,
+        SensorDesc(key=key, field='x.com.samsung.da.items', icon=icon,
                    value_fn=lambda items, t=sensor_type: sensor_item_value(items, t))
-        for key, name, icon, sensor_type in _AIR_QUALITY_SENSORS
+        for key, icon, sensor_type in _AIR_QUALITY_SENSORS
     ),
 )
 
@@ -85,7 +85,7 @@ FILTER = Capability(
     poll_tier='cold',
     entities=(
         SensorDesc(key='filter_progress', field='x.com.samsung.da.items',
-                   name='Filter progress', unit='%', state_class='measurement',
+                   unit='%', state_class='measurement',
                    icon='mdi:air-filter', entity_category='diagnostic',
                    value_fn=lambda items: int_or_none(
                        _consumable_state(items, 'FilterProgress'))),
@@ -97,7 +97,7 @@ DEVICE_ACTIVE = Capability(
     poll_tier='cold',
     entities=(
         BinarySensorDesc(key='device_active', field='x.com.samsung.da.deviceActive',
-                          name='Device active', icon='mdi:check-network-outline',
+                          icon='mdi:check-network-outline',
                           entity_category='diagnostic',
                           value_fn=lambda v: bool(v)),
     ),
@@ -110,10 +110,10 @@ AIRFLOW_GENERIC = Capability(
     poll_tier='warm',
     entities=(
         SensorDesc(key='fan_speed_level', field='speed',
-                   name='Fan speed level', icon='mdi:fan',
+                   icon='mdi:fan',
                    state_class='measurement', entity_category='diagnostic'),
         SensorDesc(key='fan_direction', field='direction',
-                   name='Fan direction', icon='mdi:rotate-3d-variant',
+                   icon='mdi:rotate-3d-variant',
                    entity_category='diagnostic'),
     ),
 )
@@ -124,11 +124,11 @@ AIRFLOW_VS_FALLBACK = Capability(
     poll_tier='warm',
     entities=(
         SensorDesc(key='fan_speed_level', field='x.com.samsung.da.speedLevel',
-                   name='Fan speed level', icon='mdi:fan',
+                   icon='mdi:fan',
                    state_class='measurement', entity_category='diagnostic',
                    value_fn=int_or_none),
         SensorDesc(key='fan_direction', field='x.com.samsung.da.direction',
-                   name='Fan direction', icon='mdi:rotate-3d-variant',
+                   icon='mdi:rotate-3d-variant',
                    entity_category='diagnostic'),
     ),
 )
@@ -150,14 +150,14 @@ MODE = Capability(
     href='/mode/vs/0',
     poll_tier='warm',
     entities=(
-        SwitchDesc(key='display_light', name='Display light', icon='mdi:led-on',
+        SwitchDesc(key='display_light', icon='mdi:led-on',
                    entity_category='config',
                    rep_fn=bool_option_value('Light'),
                    exists_fn=bool_option_exists('Light'),
                    write_fn=_light_write),
         # Read-only -- confirmed NOT the fan-speed selector (see module
         # docstring), actual purpose still unconfirmed.
-        SensorDesc(key='operating_mode', name='Operating mode', icon='mdi:fan',
+        SensorDesc(key='operating_mode', icon='mdi:fan',
                    entity_category='diagnostic',
                    rep_fn=lambda rep: option_value(rep.get('x.com.samsung.da.options'), 'Comode'),
                    exists_fn=bool_option_exists('Comode')),

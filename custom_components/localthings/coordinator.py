@@ -38,13 +38,6 @@ _LOGGER = logging.getLogger(__name__)
 
 _SEED_PATH = ['device', '0']
 
-_REMOTE_CONTROL_DISABLED_MESSAGE = (
-    "Remote control is turned off on this device. Check your appliance's "
-    "manual for how to enable remote control before Home Assistant can "
-    "control it."
-)
-
-
 class _NoOpDescriptor:
     """StateCache requires a descriptor with an on_observation hook. This
     integration doesn't use per-capability observation hooks, so this is a
@@ -548,12 +541,18 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         resources = self._cache.snapshot()
         bypass_remote_control = self._entry.options.get(CONF_BYPASS_REMOTE_CONTROL, False)
         if not bypass_remote_control and not remote_control_enabled(resources):
-            raise ServiceValidationError(_REMOTE_CONTROL_DISABLED_MESSAGE)
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="remote_control_disabled",
+            )
         validate_fn = getattr(desc, 'validate_fn', None)
         if validate_fn is not None:
             error = validate_fn(payload, rep, resources)
             if error:
-                raise ServiceValidationError(error)
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key=error,
+                )
         result = write_fn(payload, rep, href)
         if result is None:
             self._log.warning("write_fn rejected payload %r for %s", payload, href)
@@ -689,10 +688,16 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         help users pin down device-specific write behavior without a new
         release."""
         if not isinstance(body, dict) or not body:
-            raise ServiceValidationError("Debug write payload must be a non-empty object.")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="debug_payload_empty",
+            )
         path_segs = [s for s in href.strip('/').split('/') if s]
         if not path_segs:
-            raise ServiceValidationError("A resource href is required.")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="resource_href_required",
+            )
         norm_href = '/' + '/'.join(path_segs)
         async with self._session_lock:
             code, new_rep = await self.hass.async_add_executor_job(
