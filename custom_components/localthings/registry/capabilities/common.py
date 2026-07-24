@@ -65,6 +65,33 @@ def _active_alarm_codes(items):
     return ', '.join(codes) if codes else 'none'
 
 
+def merge_options_field(cached, new_tokens):
+    """Merge freshly-written `<Prefix>_<Value>` tokens into a cached
+    x.com.samsung.da.options[]-style array the same way the device itself
+    merges them: match by prefix, replace if present, append if not.
+
+    Confirmed on real hardware (issue #54) that a write only needs to carry
+    the changed token(s), not the whole array -- see laundry.option_write /
+    oven._option_write for the write side. This is the read side of that
+    same fact: coordinator.async_send_command uses it to keep the
+    optimistic cache entry for the written href complete (every sibling
+    option still present) during the write-settle window, since the wire
+    body it applies straight to the cache no longer carries them."""
+    merged = list(cached or [])
+    for token in new_tokens or ():
+        if not isinstance(token, str) or '_' not in token:
+            continue
+        prefix = token.split('_', 1)[0]
+        replaced = False
+        for i, o in enumerate(merged):
+            if isinstance(o, str) and o.startswith(prefix + '_'):
+                merged[i] = token
+                replaced = True
+        if not replaced:
+            merged.append(token)
+    return merged
+
+
 def sensor_item_value(items, sensor_type, index=0):
     """Pull one reading out of a `/sensors/vs/0`-style items[] list -- each
     item is `{type, value: [...]}`; `index` picks which slot of a possibly

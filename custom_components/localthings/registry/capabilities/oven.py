@@ -122,10 +122,17 @@ def _option_value(options, prefix):
     return None
 
 
-def _replace_in_options(options, prefix, new_value):
-    """Return a new options list with the `<prefix>_*` slot replaced."""
-    return [f"{prefix}_{new_value}" if o.startswith(prefix + '_') else o
-            for o in options]
+def _option_write(prefix, new_value):
+    """A one-token x.com.samsung.da.options write, mirroring
+    laundry.option_write. NOT independently confirmed on an oven -- issue
+    #54 only confirmed prefix-merge-on-write for a washer's /course/vs/0.
+    This extrapolates that same vendor field/contract to the oven's
+    /mode/vs/0, on the assumption the firmware handles the array the same
+    way there. If that assumption is wrong for some oven, a device that
+    replaces the field outright instead of merging would drop every other
+    option in it (Sound/fastpreheat/etc.) on the next write -- revisit if a
+    real device report surfaces that."""
+    return [f'{prefix}_{new_value}']
 
 
 # ---------------------------------------------------------------------------
@@ -175,47 +182,41 @@ def _oven_mode_write(p, rep, href=None):
 def _lamp_write(p, rep, href=None):
     if p not in ('On', 'Off'):
         return None
-    opts = list(rep.get('x.com.samsung.da.options') or [])
-    if not opts:
+    if not rep.get('x.com.samsung.da.options'):
         return None
     return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': _replace_in_options(opts, 'UpperLamp', p),
+        'x.com.samsung.da.options': _option_write('UpperLamp', p),
     }
 
 
 def _sound_write(p, rep, href=None):
     if p not in ('On', 'Off'):
         return None
-    opts = list(rep.get('x.com.samsung.da.options') or [])
-    if not opts:
+    if not rep.get('x.com.samsung.da.options'):
         return None
     return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': _replace_in_options(opts, 'Sound', p),
+        'x.com.samsung.da.options': _option_write('Sound', p),
     }
 
 
 def _fastpreheat_write(p, rep, href=None):
     if p not in ('On', 'Off'):
         return None
-    opts = list(rep.get('x.com.samsung.da.options') or [])
-    if not opts:
+    if not rep.get('x.com.samsung.da.options'):
         return None
     return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': _replace_in_options(opts, 'fastpreheat', p),
+        'x.com.samsung.da.options': _option_write('fastpreheat', p),
     }
 
 
 def _naturalsteam_write(p, rep, href=None):
     if p not in ('On', 'Off'):
         return None
-    opts = list(rep.get('x.com.samsung.da.options') or [])
-    if not opts:
+    if not rep.get('x.com.samsung.da.options'):
         return None
-    if not any(o.startswith('NaturalSteam_') for o in opts):
-        opts = opts + [f'NaturalSteam_{p}']
-    else:
-        opts = _replace_in_options(opts, 'NaturalSteam', p)
-    return ['mode', 'vs', '0'], {'x.com.samsung.da.options': opts}
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': _option_write('NaturalSteam', p),
+    }
 
 
 # ---------------------------------------------------------------------------

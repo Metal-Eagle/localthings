@@ -8,11 +8,11 @@ dishwasher.DIAGNOSIS -- identical field/write contract
 (x.com.samsung.da.diagnosisStart, 'Ready' on both dumps).
 
 /mode/vs/0's x.com.samsung.da.options array packs multiple independent
-'<Prefix>_<value>' flags into one list -- the same packed-list/RMW contract
-laundry.py's option_value/replace_in_options already model for
-/course/vs/0's options[] (reused directly below, just against this family's
-own href). Per issue #56's follow-up (five diagnostics dumps captured with
-the physical unit set to Auto/Sleep/Low/Medium/High):
+'<Prefix>_<value>' flags into one list -- the same packed-list contract
+laundry.py's option_value/option_write already model for /course/vs/0's
+options[] (reused directly below, just against this family's own href). Per
+issue #56's follow-up (five diagnostics dumps captured with the physical unit
+set to Auto/Sleep/Low/Medium/High):
   Light_On / Light_Off  -- a plain on/off flag; MODE below models it as a
                             real switch, RMW-replacing just that one entry.
   Comode_Off            -- read 'Off' on *every* one of the five dumps,
@@ -44,7 +44,7 @@ stable capture -- see the issue #56 discussion for what's needed.
 from ..capability import Capability
 from ..entities import BinarySensorDesc, SensorDesc, SwitchDesc
 from .common import int_or_none, sensor_item_value
-from .laundry import bool_option_exists, bool_option_value, option_value, replace_in_options
+from .laundry import bool_option_exists, bool_option_value, option_value, option_write
 
 _AIR_QUALITY_SENSORS = (
     ('dust', 'Dust', 'mdi:blur', 'Dust'),
@@ -135,9 +135,14 @@ AIRFLOW_VS_FALLBACK = Capability(
 
 
 def _light_write(payload, rep, href=None):
-    opts = list(rep.get('x.com.samsung.da.options') or [])
+    # option_write's single-token write is confirmed on a washer's
+    # /course/vs/0 (issue #54), NOT independently on this family's
+    # /mode/vs/0 -- extrapolated on the assumption the same vendor field
+    # merges the same way everywhere. If some unit replaces the field
+    # outright instead, this would drop Comode/OptionCode alongside it on
+    # the next light toggle; revisit if a real device report surfaces that.
     return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': replace_in_options(opts, 'Light', payload),
+        'x.com.samsung.da.options': option_write('Light', payload),
     }
 
 

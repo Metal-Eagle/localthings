@@ -22,7 +22,7 @@ from smartthings_local.ocf.state_cache import StateCache
 
 from .registry.batch import parse_device0_batch
 from .registry.by_type import for_device, for_device_by_model, for_device_by_resources
-from .registry.capabilities.common import remote_control_enabled
+from .registry.capabilities.common import merge_options_field, remote_control_enabled
 from .registry.discovery import discover, BoundEntity
 from .registry import CAPABILITIES
 from .registry.adapter import flatten
@@ -612,7 +612,24 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # introduced its own races around overlapping writes to the same
         # href. Simpler and safer to just hold the guard for the full,
         # generously-sized window and let it expire on its own.
-        self._observe.apply(write_href, body, source='optimistic')
+        # write_fn bodies that touch x.com.samsung.da.options carry only the
+        # changed token(s) now (issue #54: confirmed sufficient on the wire --
+        # the device merges by prefix itself), not the whole packed array.
+        # observe.apply()'s field-level {**cached, **rep} merge doesn't know
+        # that -- handed the bare token list, it would replace the cached
+        # field outright and wipe every sibling option for the rest of the
+        # settle window. Pre-merge it here the same way the device does, so
+        # the optimistic cache entry stays complete; the minimal `body` below
+        # is still exactly what goes out over the wire.
+        optimistic_body = body
+        new_options = body.get('x.com.samsung.da.options')
+        if isinstance(new_options, list):
+            cached_options = (self._cache.get(write_href) or {}).get('x.com.samsung.da.options')
+            optimistic_body = {
+                **body,
+                'x.com.samsung.da.options': merge_options_field(cached_options, new_options),
+            }
+        self._observe.apply(write_href, optimistic_body, source='optimistic')
         self._observe.mark_write_pending(
             write_href, settle_s=self._POST_TIMEOUT_S + self._POLL_TIMEOUT_S
         )
