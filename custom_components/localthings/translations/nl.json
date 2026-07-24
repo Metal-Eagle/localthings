@@ -1,0 +1,302 @@
+{
+  "entity": {
+    "select": {
+      "door_alert": {
+        "state": {
+          "1": "Alarm 1",
+          "2": "Alarm 2",
+          "3": "Alarm 3",
+          "4": "Alarm 4"
+        }
+      },
+      "brightness_level": {
+        "state": {
+          "33": "Laag",
+          "66": "Gemiddeld",
+          "100": "Hoog"
+        }
+      },
+      "range_hood_lamp_brightness": {
+        "state": {
+          "1": "Niveau 1",
+          "2": "Niveau 2"
+        }
+      },
+      "ice_type": {
+        "state": {
+          "off": "Uit",
+          "whiskey_iceball_3": "3 ijsballen per dag",
+          "whiskey_iceball_6": "6 ijsballen per dag",
+          "whiskey_iceball_9": "9 ijsballen per dag"
+        }
+      },
+      "beverage_zone_mode": {
+        "state": {
+          "sp_ttype_beer_drinks": "Dranken",
+          "sp_ttype_wine_dessert": "Wijn en dessert"
+        }
+      },
+      "pantry_zone_mode": {
+        "state": {
+          "fdr_wine": "Wijn",
+          "fdr_deli": "Delicatessen",
+          "fdr_drinks": "Dranken"
+        }
+      },
+      "flex_zone_mode": {
+        "state": {
+          "cv_ttype_rf9000a_freeze": "Vriezen",
+          "cv_ttype_rf9000a_softfreeze": "Zachtvriezen",
+          "cv_ttype_rf9000a_meat_fish": "Vlees/vis",
+          "cv_ttype_rf9000a_fruit_veggies": "Fruit en groenten",
+          "cv_ttype_rf9000a_beverage": "Dranken",
+          "cv_fdr_wine": "Wijn",
+          "cv_fdr_deli": "Delicatessen",
+          "cv_fdr_beverage": "Dranken",
+          "cv_fdr_meat": "Vlees",
+          "cv_fdr_soft_freezer": "Zachtvriezer"
+        }
+      },
+      "dishwasher_cycle": {
+        "state": {
+          "80": "Delicaat",
+          "83": "Express 60",
+          "84": "Intensief",
+          "86": "Normaal",
+          "90": "Zelfreiniging",
+          "0e": "AI wassen",
+          "07": "Voorspoelen",
+          "8d": "Potten en pannen",
+          "8e": "Kunststof",
+          "8f": "Babyverzorging"
+        }
+      },
+      "washer_cycle_table_02": {
+        "state": {
+          "20": "Hygiënisch stomen",
+          "21": "Bonte was",
+          "22": "Wol",
+          "23": "Outdoor",
+          "24": "Handdoeken",
+          "25": "Synthetisch",
+          "26": "Fijne was",
+          "27": "Spoelen+centrifugeren",
+          "28": "Afpompen/centrifugeren",
+          "29": "Trommelreiniging+",
+          "30": "Bewolkte dag",
+          "32": "Overhemden",
+          "33": "Beddengoed",
+          "36": "Wassen+drogen",
+          "37": "Air Wash",
+          "38": "Katoen drogen",
+          "39": "Synthetisch drogen",
+          "66": "Spijkergoed",
+          "96": "Minder microvezels",
+          "1c": "Eco 40-60",
+          "1d": "Super Speed",
+          "1b": "Katoen",
+          "1e": "Kort programma 15'",
+          "2f": "Sportkleding",
+          "2e": "Babykleding",
+          "2d": "Stille was",
+          "8f": "Intensief koud",
+          "1f": "Intensief koud"
+        }
+      },
+      "dryer_cycle_table_03": {
+        "state": {
+          "16": "Katoen",
+          "18": "Synthetisch",
+          "19": "Fijne was",
+          "20": "Strijkdroog",
+          "23": "Snel drogen 35'",
+          "24": "Koude lucht",
+          "25": "Warme lucht",
+          "27": "Tijdprogramma",
+          "1a": "Wol",
+          "1b": "Beddengoed",
+          "1c": "Overhemden",
+          "1d": "Handdoeken",
+          "1e": "Outdoor",
+          "1f": "Gemengde was"
+        }
+      },
+      "washer_dosing_quantity": {
+        "state": {
+          "00": "Geen",
+          "01": "Laag",
+          "02": "Gemiddeld",
+          "03": "Hoog"
+        }
+      },
+      "washer_detergent_water_hardness": {
+        "state": {
+          "01": "Zacht",
+          "02": "Gemiddeld",
+          "03": "Hard"
+        }
+      },
+      "washer_softener_concentration": {
+        "state": {
+          "01": "1x",
+          "02": "2x",
+          "03": "3x"
+        }
+      },
+      "washer_dry_level": {
+        "state": {
+          "30": "30 min",
+          "60": "1 uur",
+          "90": "1 uur 30 min",
+          "120": "2 uur",
+          "180": "3 uur",
+          "240": "4 uur",
+          "none": "Uit",
+          "cupboard": "Kastdroog"
+        }
+      }
+    },
+    "sensor": {
+      "ice_making_status": {
+        "state": {
+          "icestatus_stop": "Inactief",
+          "icestatus_run": "IJs maken"
+        }
+      },
+      "connection_mode": {
+        "state": {
+          "observe": "Push (observeren)",
+          "poll": "Polling"
+        }
+      },
+      "machine_state": {
+        "state": {
+          "idle": "Inactief",
+          "active": "Actief",
+          "pause": "Gepauzeerd"
+        }
+      },
+      "air_filter_status": {
+        "state": {
+          "normal": "Normaal",
+          "wash": "Wassen",
+          "replace": "Vervangen"
+        }
+      }
+    },
+    "climate": {
+      "airconditioner": {
+        "state_attributes": {
+          "fan_mode": {
+            "state": {
+              "auto": "Automatisch",
+              "low": "Laag",
+              "medium": "Gemiddeld",
+              "high": "Hoog",
+              "turbo": "Turbo"
+            }
+          },
+          "swing_mode": {
+            "state": {
+              "off": "Vast",
+              "both": "Alle richtingen",
+              "vertical": "Omhoog en omlaag"
+            }
+          },
+          "preset_mode": {
+            "state": {
+              "none": "Uit",
+              "sleep": "Slaap",
+              "quiet": "Stil",
+              "smart": "Slim",
+              "speed": "Snel"
+            }
+          }
+        }
+      }
+    }
+  },
+  "config": {
+    "step": {
+      "user": {
+        "title": "Samsung-apparaat toevoegen",
+        "description": "Voer het IP-adres van je Samsung-apparaat en de AC14K_M-CA-inloggegevens in waarmee apparaatcertificaten worden aangemaakt. {reuse_note}",
+        "data": {
+          "host": "IP-adres",
+          "ca_cert_pem": "CA-certificaat (PEM)",
+          "ca_key_pem": "Privésleutel van CA (PEM)"
+        },
+        "data_description": {
+          "host": "Het lokale IP-adres van je Samsung-apparaat (bijvoorbeeld 192.168.1.50).",
+          "ca_cert_pem": "De PEM-gecodeerde AC14K_M-CA-certificaatketen. Plak de volledige inhoud van je fullchain-PEM, inclusief alle blokken BEGIN CERTIFICATE en END CERTIFICATE.",
+          "ca_key_pem": "De PEM-gecodeerde AC14K_M-privésleutel. Plak de volledige inhoud, inclusief de kop- en voettekst BEGIN PRIVATE KEY en END PRIVATE KEY."
+        }
+      },
+      "confirm_unknown_type": {
+        "title": "Apparaattype niet herkend",
+        "description": "Dit apparaat meldt oneUiVersion \"{one_ui_version}\", wat niet als apparaattype wordt herkend. Het apparaat wordt toch toegevoegd, maar alleen met algemene mogelijkheden (zoals voeding en alarmen, voor zover aanwezig), in plaats van alle mogelijkheden voor deze apparaatfamilie. Je kunt daarna helpen volledige ondersteuning toe te voegen door diagnostische gegevens voor dit apparaat te downloaden (Instellingen > Apparaten & diensten > dit apparaat > het menu > Diagnostische gegevens downloaden) en deze bij een nieuw issue te voegen. Kies Verzenden om het apparaat toch toe te voegen."
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken met het apparaat. Controleer of het IP-adres bereikbaar is en de CA-inloggegevens juist zijn.",
+      "invalid_ca": "Het CA-certificaat of de privésleutel kon niet worden geladen. Controleer of de PEM-inhoud juist is en of de sleutel bij het certificaat hoort.",
+      "unknown": "Onverwachte fout. Raadpleeg de Home Assistant-logboeken voor meer informatie."
+    },
+    "abort": {
+      "already_configured": "Dit apparaat is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "LocalThings-opties",
+        "menu_options": {
+          "settings": "Schrijfinstellingen voor afstandsbediening",
+          "debug_write": "Foutopsporing: naar een resource schrijven"
+        }
+      },
+      "settings": {
+        "title": "Schrijfinstellingen voor afstandsbediening",
+        "description": "Sommige apparaten accepteren bepaalde schrijfbewerkingen (bijvoorbeeld de standaarddosering van wasmiddel of wasverzachter op een wasmachine), ook als ze melden dat de afstandsbediening is uitgeschakeld. LocalThings blokkeert standaard elke schrijfbewerking met een duidelijke foutmelding wanneer een apparaat meldt dat de afstandsbediening is uitgeschakeld, in plaats van het apparaat de opdracht stilzwijgend te laten weigeren. Schakel deze optie alleen in als je hebt bevestigd dat schrijfbewerkingen op dit apparaat echt werken wanneer de afstandsbediening is uitgeschakeld. Anders verruil je de duidelijke foutmelding voor een stille mislukking.",
+        "data": {
+          "bypass_remote_control_lock": "Schrijfbewerkingen toestaan wanneer de afstandsbediening als uitgeschakeld wordt gemeld"
+        }
+      },
+      "debug_write": {
+        "title": "Foutopsporing: naar een resource schrijven",
+        "description": "Geavanceerd hulpmiddel om apparaatspecifiek schrijfgedrag te onderzoeken. Kies de resource (href) waarnaar je wilt schrijven, of voer een aangepaste resource in die niet in de lijst staat. Hiermee wordt de blokkering bij een uitgeschakelde afstandsbediening omzeild en worden precies de opgegeven velden verzonden. Dit kan de configuratie van je apparaat verstoren, dus gebruik het bewust.",
+        "data": {
+          "href": "Href van resource"
+        }
+      },
+      "debug_edit": {
+        "title": "Schrijfbewerking voor foutopsporing: {href}",
+        "description": "Huidige waarde van `{href}`:\n```\n{current_value}\n```\nVoer hieronder ALLEEN de velden in die je wilt wijzigen. Wat je invoert, wordt ongewijzigd naar het apparaat verzonden (als gedeeltelijke update). Het wordt NIET samengevoegd met de hierboven getoonde velden, dus plak niet de volledige waarde terug. Let op de typen: een numerieke tekenreeks zoals \"1\" moet tussen aanhalingstekens blijven staan. Een 1 zonder aanhalingstekens wordt als integer verzonden, wat sommige apparaten weigeren.",
+        "data": {
+          "payload": "Te schrijven payload"
+        }
+      },
+      "debug_result": {
+        "title": "Resultaat van schrijfbewerking voor foutopsporing",
+        "description": "Het apparaat heeft CoAP-code {code} geretourneerd. Een code in de 2.xx-klasse betekent dat de schrijfbewerking is geaccepteerd; 4.xx/5.xx betekent dat deze is geweigerd. De resource heeft nu de volgende waarde:\n```\n{new_value}\n```\nAls de waarde ongewijzigd is, heeft het apparaat de schrijfbewerking waarschijnlijk genegeerd. Kies wat je hierna wilt doen:",
+        "menu_options": {
+          "debug_write": "Naar een andere resource schrijven",
+          "finish": "Voltooien"
+        }
+      }
+    },
+    "error": {
+      "empty_payload": "Voer ten minste één veld in om te schrijven.",
+      "write_failed": "De schrijfbewerking is mislukt. Raadpleeg de Home Assistant-logboeken voor meer informatie."
+    },
+    "abort": {
+      "not_loaded": "Dit apparaat is nog niet verbonden. Probeer het opnieuw zodra het is geladen."
+    }
+  },
+  "issues": {
+    "device_gap": {
+      "title": "Onvolledige ondersteuning van mogelijkheden voor {device_name}",
+      "description": "Niet alle mogelijkheden van dit apparaat worden ondersteund. Het apparaattype is niet herkend of sommige beschikbare resources zijn nog niet gemodelleerd. Het apparaat blijft werken met de mogelijkheden die al worden ondersteund. Je kunt helpen de ondersteuning uit te breiden: ga naar Instellingen > Apparaten & diensten > {device_name} > het menu (rechtsboven) > Diagnostische gegevens downloaden en voeg het bestand daarna bij via de gekoppelde issue-template."
+    }
+  }
+}
