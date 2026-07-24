@@ -616,13 +616,13 @@
         "name": "Auto door opener"
       },
       "auto_release_dry": {
-        "name": "Auto Release Dry"
+        "name": "Auto release dry"
       },
       "autofill": {
         "name": "Autofill pitcher"
       },
       "bubble_soak": {
-        "name": "Bubble Soak"
+        "name": "Bubble soak"
       },
       "cabinet_light_dim": {
         "name": "Brighten gradually"

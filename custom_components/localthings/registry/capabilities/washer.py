@@ -23,8 +23,8 @@ from .laundry import (
 )
 
 # ---------------------------------------------------------------------------
-# Course_XX hex codes. 23 of the codes named in strings.json/translations
-# under entity.select.washer_cycle.state.<id, lowercased> were captured
+# Course_XX hex codes. 23 of the codes named in translations/en.json
+# under entity.select.washer_cycle_table_02.state.<id, lowercased> were captured
 # from a live WW90DG6U25LEU4's x.com.samsung.da.editCourseList
 # (EditCourseList_1C1D211B1E29243328262722202325322F2E30662D8F96), matched
 # positionally against a Slovak-UI user's screenshots of their app's course
@@ -157,8 +157,8 @@ def _drum_clean_last_cleaned(rep):
 # valid raw codes for its field, same hex-pair shape as EditCourseList.
 # '<Prefix>Alarm_<On/Off>' is a low-reservoir warning flag.
 #
-# Label mapping (entity.select.washer_dosing_quantity/washer_detergent_
-# water_hardness/washer_softener_concentration in strings.json) is an
+# Label mapping (entity.select.{detergent,softener}_quantity /
+# detergent_water_hardness / softener_concentration in translations/en.json) is an
 # assumed, not cross-device-verified, reading of the single issue #9 dump +
 # screenshots: LevelCtrl's 4 codes as None/Low/Medium/High (00 has no
 # on-screen equivalent -- the app's Quantité picker only offers
@@ -349,7 +349,7 @@ WASHER_COURSE = Capability(
                          rep_fn=_dosing_low('SoftenerAlarm')),
         _bool_option_switch('bubble_soak', 'Bubble soak', 'mdi:chart-bubble',
                              'BubbleSoak', 'BubbleSoakSet'),
-        _bool_option_switch('pre_wash', 'Pre wash', 'mdi:washing-machine',
+        _bool_option_switch('pre_wash', 'Pre-wash', 'mdi:washing-machine',
                              'PreWashSetting', 'PreWashAvailableSet'),
         _bool_option_switch('intensive', 'Intensive', 'mdi:washing-machine',
                              'IntensiveSetting', 'IntensiveAvailableSet'),

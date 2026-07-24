@@ -109,10 +109,15 @@ Any select whose options are raw device codes (course/cycle, and code-valued
 settings) must render through translations, not Python:
 - Set `translation_key='<family>_cycle'` (or similar) on the `SelectDesc`;
   `options`/`options_field` supply the **raw** codes.
-- Add the labels to **both** `strings.json` and `translations/en.json` under
+- Add the labels to `translations/en.json` under
   `entity.select.<translation_key>.state.<code>`, with the code **lowercased**
   (e.g. `"16": "Cotton"`). Codes with no entry render as the raw code — that's
   the cue to identify and name them.
+- `en.json` is the only place these live: there is no `strings.json` (Home
+  Assistant doesn't read one from a custom integration), and `select.py`
+  derives its normalization set from the catalog, so there is no Python list
+  to keep in sync. Every other language must mirror `en.json` key for key —
+  `tests/test_translations.py` enforces that.
 
 ## 6. Coverage discipline: bound or ignored
 

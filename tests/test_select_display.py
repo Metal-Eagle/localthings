@@ -28,7 +28,7 @@ def test_display_passes_through_an_already_human_friendly_value():
 
 
 def test_display_lowercases_for_translation_key_lookup():
-    """An entity with a translation_key must match strings.json's
+    """An entity with a translation_key must match the catalog's
     lowercase keys exactly -- unlike the untranslated cases above, this
     is not a cosmetic transform."""
     assert _display('Whiskey_IceBall_3', _TRANSLATED) == 'whiskey_iceball_3'

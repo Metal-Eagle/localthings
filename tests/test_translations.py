@@ -1,4 +1,13 @@
-"""Translation architecture and catalog synchronization tests."""
+"""Translation catalog architecture tests.
+
+Home Assistant loads a custom integration's ``translations/<lang>.json``
+directly -- there is no ``strings.json`` step and no ``[%key:...%]``
+resolution, both of which belong to Core's build tooling. So
+``translations/en.json`` is the source of truth here, and these tests hold
+the two invariants that follow from that: every translation key the Python
+side names has to exist in it, and every other language has to mirror its
+shape.
+"""
 
 from __future__ import annotations
 
@@ -9,16 +18,22 @@ from string import Formatter
 
 from custom_components.localthings.registry.capability import Capability
 from custom_components.localthings.registry.entities import PLATFORM_OF
-from custom_components.localthings.select import TRANSLATED_SELECT_STATES
 
 
 INTEGRATION = (
     Path(__file__).parents[1] / "custom_components" / "localthings"
 )
+TRANSLATIONS = INTEGRATION / "translations"
 
 
-def _load(name: str) -> dict:
-    return json.loads((INTEGRATION / name).read_text(encoding="utf-8"))
+def _load(language: str) -> dict:
+    return json.loads(
+        (TRANSLATIONS / f"{language}.json").read_text(encoding="utf-8")
+    )
+
+
+def _languages() -> list[str]:
+    return sorted(path.stem for path in TRANSLATIONS.glob("*.json"))
 
 
 def _topology(value):
@@ -72,46 +87,53 @@ def _all_descriptions():
             yield from visit(value)
 
 
-def test_source_and_english_translation_topology_and_placeholders_match():
-    source = _load("strings.json")
-    english = _load("translations/en.json")
-    assert _topology(source) == _topology(english)
+def test_every_language_mirrors_the_english_catalog():
+    """English is the complete catalog; the rest must match it key for key.
 
+    A missing key silently falls back to English at runtime, so checking the
+    shape is the only way to notice a half-finished translation.
+    """
+    english = _load("en")
     english_strings = dict(_walk_strings(english))
-    for path, value in _walk_strings(source):
-        assert _placeholders(value) == _placeholders(english_strings[path]), path
+    for language in _languages():
+        if language == "en":
+            continue
+        translated = _load(language)
+        assert _topology(english) == _topology(translated), language
+
+        translated_strings = dict(_walk_strings(translated))
+        for path, value in english_strings.items():
+            # Placeholders are substituted by name, so a translation that
+            # drops or invents one renders a literal '{...}' in the UI.
+            assert _placeholders(value) == _placeholders(
+                translated_strings[path]
+            ), (language, path)
 
 
-def test_runtime_translation_catalogs_have_no_unresolved_references():
-    for language in ("en", "nl"):
+def test_no_catalog_carries_unresolved_core_references():
+    """``[%key:...%]`` never resolves for a custom integration.
+
+    Core's build tooling expands these; nothing does for us, so a reference
+    left in a catalog would reach the UI verbatim.
+    """
+    for language in _languages():
         unresolved = [
             (path, value)
-            for path, value in _walk_strings(
-                _load(f"translations/{language}.json")
-            )
+            for path, value in _walk_strings(_load(language))
             if "[%key:" in value
         ]
-        assert unresolved == []
-
-
-def test_english_and_dutch_catalog_topology_and_placeholders_match():
-    english = _load("translations/en.json")
-    dutch = _load("translations/nl.json")
-    assert _topology(english) == _topology(dutch)
-
-    dutch_strings = dict(_walk_strings(dutch))
-    for path, value in _walk_strings(english):
-        assert _placeholders(value) == _placeholders(dutch_strings[path]), path
+        assert unresolved == [], language
 
 
 def test_every_translatable_descriptor_has_an_entity_catalog_entry():
-    entity_strings = _load("strings.json")["entity"]
+    entity_strings = _load("en")["entity"]
     missing = []
     for desc in _all_descriptions():
         translation_key = desc.translation_key
         if callable(translation_key):
-            # Runtime table resolvers use the generic name-only fallback plus
-            # the static tables currently documented by this integration.
+            # Runtime table resolvers pick their key out of the catalog
+            # itself (see laundry.cycle_select), so there's nothing static
+            # to check here; the generic 'cycle' fallback is asserted below.
             continue
         if translation_key is None and desc.name is not None:
             translation_key = desc.key
@@ -122,23 +144,36 @@ def test_every_translatable_descriptor_has_an_entity_catalog_entry():
             missing.append((platform, desc.key, translation_key))
     assert missing == []
 
+    # cycle_select falls back to 'cycle' for any course table without its
+    # own entry, and resolves to '<family>_cycle_<table>' where there is one.
     select_strings = entity_strings["select"]
     for key in ("cycle", "washer_cycle_table_02", "dryer_cycle_table_03"):
         assert key in select_strings
 
 
-def test_select_state_normalization_is_synchronized_with_catalog():
-    select_strings = _load("strings.json")["entity"]["select"]
-    translated = {
-        key: frozenset(value["state"])
-        for key, value in select_strings.items()
-        if "state" in value
-    }
-    assert TRANSLATED_SELECT_STATES == translated
+def test_descriptor_names_match_the_english_catalog():
+    """``SamsungEntityDescription.name`` never reaches the UI.
+
+    A descriptor carrying a ``name`` is translated under ``desc.key``
+    (entity.py), so the catalog wins and the Python string survives purely
+    as documentation next to the field it describes -- which is only worth
+    keeping if it still says what the UI says. Editing one side alone is
+    otherwise invisible.
+    """
+    entity_strings = _load("en")["entity"]
+    drifted = []
+    for desc in _all_descriptions():
+        if desc.name is None or desc.translation_key is not None:
+            continue
+        platform = PLATFORM_OF[type(desc)]
+        catalog_name = entity_strings.get(platform, {}).get(desc.key, {}).get("name")
+        if catalog_name != desc.name:
+            drifted.append((platform, desc.key, desc.name, catalog_name))
+    assert drifted == []
 
 
 def test_all_entity_state_translation_keys_are_lowercase():
-    entity_strings = _load("strings.json")["entity"]
+    entity_strings = _load("en")["entity"]
     for platform in entity_strings.values():
         for translation in platform.values():
             for state_key in translation.get("state", {}):

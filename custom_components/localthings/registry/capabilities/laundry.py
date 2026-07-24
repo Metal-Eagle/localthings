@@ -21,6 +21,7 @@ Door-LED keys use NO `x.com.samsung.da.` prefix -- `setBrightness` /
 """
 from datetime import time as dt_time
 
+from ...catalog import has_entity_translation
 from ..capability import Capability
 from ..entities import NumberDesc, SelectDesc, SensorDesc, SwitchDesc, TimeDesc
 
@@ -276,12 +277,6 @@ def _table_id(resources, table_href):
     return rep.get('x.com.samsung.da.st.courseTable')
 
 
-_TRANSLATED_COURSE_TABLES = {
-    'dryer_cycle': frozenset({'table_03'}),
-    'washer_cycle': frozenset({'table_02'}),
-}
-
-
 def cycle_select(*, translation_key, icon, table_href=None):
     """A 'Cycle' select over /course/vs/0, labelled from `translation_key`.
 
@@ -302,10 +297,13 @@ def cycle_select(*, translation_key, icon, table_href=None):
     washer_cycle_table_02 was confirmed against Table_02-reporting devices
     (DA_WM_TP1/TP2 boards); FlexWash's older DA_WM_A51 board reports
     Table_00 instead, so the same hex code could mean a different course
-    there for all we've verified. Only tables with a complete catalog are
-    assigned a state translation key. Unknown future tables deliberately use
-    the generic key, avoiding misleading translations and missing-translation
-    errors while keeping the exact vendor code for writes.
+    there for all we've verified. So a table-specific key is used only when
+    the shipped catalog actually has one; any other table (Table_00 today,
+    whatever ships next) falls back to the name-only ``cycle`` key, which
+    shows the raw course code rather than a label borrowed from another
+    board generation. Translating a new table is therefore a
+    translations-only change -- add the ``<family>_cycle_<table>`` entry and
+    this resolver picks it up.
 
     Left at its default for dishwasher, which has no equivalent table-id
     resource in any dump seen and no evidence its course codes vary by
@@ -316,10 +314,10 @@ def cycle_select(*, translation_key, icon, table_href=None):
     if table_href is not None:
         def key(resources):
             table = _table_id(resources, table_href)
-            table_id = table.lower() if isinstance(table, str) else None
-            if table_id in _TRANSLATED_COURSE_TABLES.get(translation_key, ()):
-                return f'{translation_key}_{table_id}'
-            return 'cycle'
+            if not isinstance(table, str) or not table:
+                return 'cycle'
+            candidate = f'{translation_key}_{table.lower()}'
+            return candidate if has_entity_translation('select', candidate) else 'cycle'
 
     return SelectDesc(
         key='cycle', name='Cycle', icon=icon, translation_key=key,

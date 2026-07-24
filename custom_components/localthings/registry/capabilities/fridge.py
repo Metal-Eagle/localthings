@@ -25,7 +25,7 @@ from ..entities import (
 from .common import normalize_temp_unit
 
 # Display names for the beverage zone, flex zone, ice type, and
-# ice-making-status enums below live in strings.json / translations/en.json,
+# ice-making-status enums below live in translations/en.json,
 # keyed by the lowercased raw device value — select.py and SensorDesc.options
 # normalize to lowercase for HA's translation lookup and map back to this
 # original casing before writing to the device.

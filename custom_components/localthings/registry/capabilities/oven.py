@@ -239,7 +239,7 @@ OVEN_OPERATIONAL_STATE = Capability(
                    value_fn=_int),
         SensorDesc(key='operation_time_minutes',
                    field='x.com.samsung.da.operationTime',
-                   name='Operation time (minutes)', unit='min',
+                   name='Operation time', unit='min',
                    state_class='measurement', value_fn=_op_minutes),
         SensorDesc(key='finish_time', field='x.com.samsung.da.remainingTime',
                    name='Estimated finish', device_class='timestamp',

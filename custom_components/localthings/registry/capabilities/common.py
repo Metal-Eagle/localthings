@@ -301,7 +301,7 @@ WATER_FILTER = Capability(
 #
 # No translation_key: aiLevel's values are plain digit strings, and
 # select.py's _display() already renders an untranslated numeric string
-# as-is -- there's nothing a strings.json entry adds that's worth maintaining
+# as-is -- there's nothing a catalog entry adds that's worth maintaining
 # against an unknown, growing number of future levels.
 
 
@@ -348,14 +348,14 @@ AI_ENERGY_LEVEL = Capability(
         # cold-tier href, the same reload already required to fix which
         # platform got picked in that case.
         SwitchDesc(key='ai_energy_level', field='aiLevel',
-                   name='AI energy level', icon='mdi:leaf',
+                   name='AI Energy Mode', icon='mdi:leaf',
                    entity_category='config',
                    value_fn=lambda v: v != '0',
                    exists_fn=lambda rep, resources: (
                        len(_ai_energy_supported_levels(rep)) == 1),
                    write_fn=_ai_energy_level_switch_write),
         SelectDesc(key='ai_energy_level', field='aiLevel',
-                   name='AI energy level', icon='mdi:leaf',
+                   name='AI Energy Mode level', icon='mdi:leaf',
                    entity_category='config',
                    options=_ai_energy_level_options,
                    exists_fn=lambda rep, resources: (

@@ -76,7 +76,7 @@ class TestWasherCourse:
 
     def test_reads_raw_course_code_from_options_array(self):
         """rep_fn returns the raw device code; display names come from
-        strings.json via translation_key, not from Python (see select.py's
+        translations/en.json via translation_key, not Python (see select.py's
         _display())."""
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == 'cycle')
         rep = {'x.com.samsung.da.options': ['DeviceType_0167', 'Course_1C', 'GMT_04']}

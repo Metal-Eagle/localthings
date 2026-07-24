@@ -228,7 +228,7 @@ class TestAiEnergyLevelSelect:
 
     def test_no_translation_key(self):
         """aiLevel's values are plain digits that render fine untranslated
-        (select.py's _display()) -- no strings.json entry to maintain
+        (select.py's _display()) -- no catalog entry to maintain
         against an unknown number of future levels."""
         desc = self._desc()
         assert desc.translation_key is None
