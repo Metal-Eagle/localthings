@@ -630,3 +630,58 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._log.error("command failed for %s: %s", write_href, e)
         else:
             await self.async_request_refresh()
+
+    # ------------------------------------------------------------------
+    # Debug raw write (issue #54): a power-user escape hatch for the
+    # options-flow debug panel, letting a user POST an arbitrary partial
+    # body to an arbitrary href to pin down device-specific write behavior
+    # without waiting on a new release. Deliberately bypasses the
+    # remote-control block and every write_fn/validate_fn above -- that's
+    # the whole point, so use with care.
+    # ------------------------------------------------------------------
+
+    def _raw_write_blocking(self, path_segs: list[str], body: dict, href: str) -> tuple[int, dict]:
+        """Debug primitive: POST an arbitrary patch, then read the href
+        back for ground truth. Blocking -- runs in executor."""
+        if self._session is None:
+            self._connect_session()
+        sess = self._session
+        if sess is None:
+            raise RuntimeError("no session")
+        code, _ = sess.post(path_segs, cbor2.dumps(body), timeout=self._POST_TIMEOUT_S)
+        self._log.warning("DEBUG raw write POST %s %r → code %#04x", href, body, code)
+        new_rep: dict = {}
+        try:
+            sess.pace()
+            rcode, payload = sess.get(path_segs, timeout=10.0)
+            if rcode == 0x45 and payload:
+                rep = cbor2.loads(payload)
+                if isinstance(rep, dict):
+                    self._observe.apply(href, rep, source='poll')
+                    new_rep = rep
+        except Exception as e:
+            self._log.debug("raw write follow-up read failed: %s", e)
+        return code, new_rep
+
+    async def async_raw_write(self, href: str, body: dict) -> tuple[int, dict]:
+        """Debug-only arbitrary write (issue #54). Bypasses the
+        remote-control block and all write_fn/validate_fn logic; sends
+        `body` verbatim as a partial-rep PATCH to `href`. Returns
+        (coap_code, new_rep) where new_rep is the href's value read back
+        right after the write. Used by the options-flow debug panel to
+        help users pin down device-specific write behavior without a new
+        release."""
+        if not isinstance(body, dict) or not body:
+            raise ServiceValidationError("Debug write payload must be a non-empty object.")
+        path_segs = [s for s in href.strip('/').split('/') if s]
+        if not path_segs:
+            raise ServiceValidationError("A resource href is required.")
+        norm_href = '/' + '/'.join(path_segs)
+        async with self._session_lock:
+            code, new_rep = await self.hass.async_add_executor_job(
+                self._raw_write_blocking, path_segs, body, norm_href
+            )
+        # Hasten a full summary poll so entities on other resources catch
+        # up too -- a debug write can affect siblings, not just its href.
+        await self.async_request_refresh()
+        return code, new_rep
