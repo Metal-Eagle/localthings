@@ -101,13 +101,14 @@ class TestWasherCourse:
         assert desc.exists_fn({}, live) is True
 
     def test_cycle_write(self):
+        """Confirmed on real hardware (issue #54): the write only needs to
+        carry the changed token -- the device matches by prefix, evicts the
+        stale token, and merges the result into the array itself."""
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == 'cycle')
         rep = {'x.com.samsung.da.options': ['DeviceType_0167', 'Course_1C', 'GMT_04']}
         path, body = desc.write_fn('1D', rep)
         assert path == ['course', 'vs', '0']
-        assert body == {
-            'x.com.samsung.da.options': ['DeviceType_0167', 'Course_1D', 'GMT_04'],
-        }
+        assert body == {'x.com.samsung.da.options': ['Course_1D']}
 
 
 class TestDrumClean:
@@ -226,20 +227,22 @@ class TestDetergentSoftenerDosing:
 
     def test_quantity_write(self):
         """The UI selects a padded supported code ('01'); the write posts the
-        un-padded device code ('1'), mirroring how the device reports it."""
+        un-padded device code ('1'), mirroring how the device reports it.
+
+        Confirmed on real hardware (issue #54): the write only needs to carry
+        the changed token -- the device matches by prefix, evicts the stale
+        token, and merges the result into the array itself. No need to read
+        the current array back and rewrite it whole."""
         rep = {'x.com.samsung.da.options': list(_DOSING_OPTIONS)}
         path, body = self._desc('detergent_quantity').write_fn('01', rep)
         assert path == ['course', 'vs', '0']
-        assert 'DetergentLevelCtrl_1' in body['x.com.samsung.da.options']
-        assert 'DetergentLevelCtrl_3' not in body['x.com.samsung.da.options']
-        # untouched siblings survive the read-modify-write
-        assert 'SoftenerLevelCtrl_3' in body['x.com.samsung.da.options']
+        assert body == {'x.com.samsung.da.options': ['DetergentLevelCtrl_1']}
 
     def test_hardness_write(self):
         rep = {'x.com.samsung.da.options': list(_DOSING_OPTIONS)}
         path, body = self._desc('softener_concentration').write_fn('03', rep)
         assert path == ['course', 'vs', '0']
-        assert 'SoftenerLevel2Ctrl_3' in body['x.com.samsung.da.options']
+        assert body == {'x.com.samsung.da.options': ['SoftenerLevel2Ctrl_3']}
 
     def test_low_reservoir_off_when_alarm_off(self):
         rep = {'x.com.samsung.da.options': _DOSING_OPTIONS}
@@ -301,18 +304,20 @@ class TestWashOptionToggles:
         """write_fn receives the same 'On'/'Off' string switch.py sends
         (not a bool) -- covers a bug where an earlier `'On' if p else 'Off'`
         implementation always wrote 'On', since any non-empty string
-        (including 'Off') is truthy."""
+        (including 'Off') is truthy.
+
+        The write body carries only the changed token (issue #54: confirmed
+        the device merges by prefix itself), not the whole options array."""
         for key in self._keys():
             prefix = self._prefix(key)
             rep = {'x.com.samsung.da.options': [f'{prefix}_Off', 'GMT_02']}
             path, body = self._desc(key).write_fn('On', rep)
             assert path == ['course', 'vs', '0']
-            assert f'{prefix}_On' in body['x.com.samsung.da.options']
-            assert 'GMT_02' in body['x.com.samsung.da.options']
+            assert body == {'x.com.samsung.da.options': [f'{prefix}_On']}
 
             rep = {'x.com.samsung.da.options': [f'{prefix}_On']}
             path, body = self._desc(key).write_fn('Off', rep)
-            assert f'{prefix}_Off' in body['x.com.samsung.da.options']
+            assert body == {'x.com.samsung.da.options': [f'{prefix}_Off']}
             assert f'{prefix}_On' not in body['x.com.samsung.da.options']
 
     def test_write_rejects_non_on_off_payload(self):

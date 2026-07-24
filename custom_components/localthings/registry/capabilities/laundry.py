@@ -147,9 +147,13 @@ BUZZER_SOUND = Capability(
 # Cycle selection over /course/vs/0.
 #
 # The selected course and every other user-tunable option ride in the
-# x.com.samsung.da.options array on /course/vs/0 as `<Prefix>_<value>` tokens;
-# a write is a read-modify-write of that whole array (cycle_write). The set of
-# *selectable* courses is not hardcoded -- it's read live from
+# x.com.samsung.da.options array on /course/vs/0 as `<Prefix>_<value>` tokens.
+# Confirmed on real hardware (issue #54): a write only needs to carry the one
+# changed token -- `{'x.com.samsung.da.options': ['SoftenerLevelCtrl_2']}` --
+# the device matches by prefix, evicts the stale token, and merges the result
+# into the array itself. No read-modify-write of the whole array needed (see
+# option_write). The set of *selectable* courses is not hardcoded -- it's read
+# live from
 # x.com.samsung.da.editCourseList on /wm/editcourse/vs/0 (cycle_options), so we
 # never show a course a given model doesn't have or hide one it does. Course
 # codes are uppercase hex; display names live in translations under
@@ -258,17 +262,17 @@ def _course_codes_from_supported_options(course_rep):
     return []
 
 
-def replace_in_options(options, prefix, new_value):
-    return [f"{prefix}_{new_value}" if isinstance(o, str) and o.startswith(prefix + '_') else o
-            for o in options]
+def option_write(prefix, new_value):
+    """A one-token x.com.samsung.da.options write -- see the module comment
+    above cycle_options for why this doesn't read/rewrite the whole array."""
+    return [f'{prefix}_{new_value}']
 
 
 def cycle_write(p, rep, href=None):
-    opts = list(rep.get('x.com.samsung.da.options') or [])
-    if not opts:
+    if not rep.get('x.com.samsung.da.options'):
         return None
     return ['course', 'vs', '0'], {
-        'x.com.samsung.da.options': replace_in_options(opts, 'Course', p),
+        'x.com.samsung.da.options': option_write('Course', p),
     }
 
 
@@ -342,11 +346,10 @@ def bool_option_write(prefix):
     def write(p, rep, href=None):
         if p not in ('On', 'Off'):
             return None
-        opts = list(rep.get('x.com.samsung.da.options') or [])
-        if not opts:
+        if not rep.get('x.com.samsung.da.options'):
             return None
         return ['course', 'vs', '0'], {
-            'x.com.samsung.da.options': replace_in_options(opts, prefix, p),
+            'x.com.samsung.da.options': option_write(prefix, p),
         }
     return write
 

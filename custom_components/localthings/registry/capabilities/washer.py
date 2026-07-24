@@ -19,7 +19,7 @@ from ..capability import Capability
 from ..entities import BinarySensorDesc, SelectDesc, SensorDesc
 from .laundry import (
     bool_option_exists, bool_option_switch, cycle_options, cycle_select, hex_pairs, option_value,
-    replace_in_options,
+    option_write,
 )
 
 # ---------------------------------------------------------------------------
@@ -215,8 +215,7 @@ def _dosing_level(prefix):
 
 def _level_write(prefix):
     def write(p, rep, href=None):
-        opts = list(rep.get('x.com.samsung.da.options') or [])
-        if not opts:
+        if not rep.get('x.com.samsung.da.options'):
             return None
         # `p` is the zero-padded supported code the UI selected (e.g. '03');
         # the device stores the level un-padded (e.g. '3'), matching how it
@@ -226,7 +225,7 @@ def _level_write(prefix):
         except (TypeError, ValueError):
             native = p
         return ['course', 'vs', '0'], {
-            'x.com.samsung.da.options': replace_in_options(opts, prefix, native),
+            'x.com.samsung.da.options': option_write(prefix, native),
         }
     return write
 

@@ -153,14 +153,15 @@ class TestCycleSelect:
         live = {'/wm/editcourse/vs/0': {'x.com.samsung.da.editCourseList': 'EditCourseList_16'}}
         assert desc.exists_fn({}, live) is True
 
-    def test_cycle_write_rmw_on_options(self):
+    def test_cycle_write_is_single_token(self):
+        """Confirmed on real hardware (issue #54): the device merges a
+        single-token options[] write by prefix itself, so the write only
+        needs to carry the changed token, not the whole rewritten array."""
         desc = laundry.cycle_select(translation_key='dryer_cycle', icon='x')
         rep = {'x.com.samsung.da.options': ['DeviceType_0167', 'Course_16', 'GMT_04']}
         path, body = desc.write_fn('1D', rep)
         assert path == ['course', 'vs', '0']
-        assert body == {
-            'x.com.samsung.da.options': ['DeviceType_0167', 'Course_1D', 'GMT_04'],
-        }
+        assert body == {'x.com.samsung.da.options': ['Course_1D']}
 
     def test_cycle_write_noop_without_options(self):
         desc = laundry.cycle_select(translation_key='dryer_cycle', icon='x')
