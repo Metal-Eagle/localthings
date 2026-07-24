@@ -92,7 +92,7 @@ ICEMAKER_NIGHTTIME = Capability(
                    value_fn=lambda v: v == 'On',
                    write_fn=lambda p, rep, href=None: (
                        ['icemaker', 'nighttime', 'vs', '0'],
-                       {'ice.night.status': 'On' if p else 'Off'})),
+                       {'ice.night.status': 'On' if p == 'On' else 'Off'})),
     ),
 )
 
@@ -168,7 +168,7 @@ DOOR_ALERT = Capability(
 def _status_lock_write(field):
     return lambda p, rep, href=None: (
         ['status', 'lock', 'vs', '0'],
-        {field: 'On' if p else 'Off'}
+        {field: 'On' if p == 'On' else 'Off'}
     )
 
 
@@ -212,7 +212,7 @@ DEFROST_DELAY = Capability(
                    value_fn=lambda v: v == 'On',
                    write_fn=lambda p, rep, href=None: (
                        ['defrost', 'delay', 'vs', '0'],
-                       {'x.com.samsung.da.delayDefrost': 'On' if p else 'Off'})),
+                       {'x.com.samsung.da.delayDefrost': 'On' if p == 'On' else 'Off'})),
     ),
 )
 
@@ -300,7 +300,7 @@ WELCOME_LIGHTING = Capability(
                    value_fn=lambda v: v == 'On',
                    write_fn=lambda p, rep, href=None: (
                        ['proximity', 'vs', '0'],
-                       {'status': 'On' if p else 'Off'})),
+                       {'status': 'On' if p == 'On' else 'Off'})),
     ),
 )
 
@@ -440,7 +440,7 @@ CABINET_LIGHT = Capability(
                    value_fn=lambda v: v == 'On',
                    write_fn=lambda p, rep, href=None: (
                        ['cabinet', 'light', 'total', 'vs', '0'],
-                       {'light.dimming.status': 'On' if p else 'Off'})),
+                       {'light.dimming.status': 'On' if p == 'On' else 'Off'})),
     ),
 )
 
@@ -669,7 +669,7 @@ ICEMAKER_STATUS_FALLBACK = Capability(
                    value_fn=lambda v: v == 'On',
                    write_fn=lambda p, rep, href=None: (
                        ['icemaker', 'status', 'vs', '0'],
-                       {'x.com.samsung.da.iceMaker': 'On' if p else 'Off'})),
+                       {'x.com.samsung.da.iceMaker': 'On' if p == 'On' else 'Off'})),
     ),
 )
 
