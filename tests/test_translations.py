@@ -72,8 +72,26 @@ def _all_descriptions():
             yield from visit(value)
 
 
-def test_source_and_english_translation_are_identical():
-    assert _load("strings.json") == _load("translations/en.json")
+def test_source_and_english_translation_topology_and_placeholders_match():
+    source = _load("strings.json")
+    english = _load("translations/en.json")
+    assert _topology(source) == _topology(english)
+
+    english_strings = dict(_walk_strings(english))
+    for path, value in _walk_strings(source):
+        assert _placeholders(value) == _placeholders(english_strings[path]), path
+
+
+def test_runtime_translation_catalogs_have_no_unresolved_references():
+    for language in ("en", "nl"):
+        unresolved = [
+            (path, value)
+            for path, value in _walk_strings(
+                _load(f"translations/{language}.json")
+            )
+            if "[%key:" in value
+        ]
+        assert unresolved == []
 
 
 def test_english_and_dutch_catalog_topology_and_placeholders_match():

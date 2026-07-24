@@ -20,7 +20,7 @@
         "name": "Stroombegrenzing ingeschakeld"
       },
       "cycle_active": {
-        "name": "[%key:component::binary_sensor::entity_component::running::name%]"
+        "name": "Actief"
       },
       "defrost_active": {
         "name": "Ontdooien actief"
@@ -32,7 +32,7 @@
         "name": "Apparaat actief"
       },
       "door_open": {
-        "name": "[%key:component::binary_sensor::entity_component::door::name%]"
+        "name": "Deur"
       },
       "firmware_update": {
         "name": "Firmware-update beschikbaar"
@@ -73,16 +73,16 @@
         "name": "Diagnose starten"
       },
       "pause": {
-        "name": "[%key:common::action::pause%]"
+        "name": "Pauzeren"
       },
       "selfcheck_start": {
         "name": "Zelfcontrole starten"
       },
       "start": {
-        "name": "[%key:common::action::start%]"
+        "name": "Starten"
       },
       "stop": {
-        "name": "[%key:common::action::stop%]"
+        "name": "Stoppen"
       }
     },
     "climate": {
@@ -134,24 +134,24 @@
       "brightness_level": {
         "name": "Nachthelderheid",
         "state": {
-          "33": "[%key:common::state::low%]",
-          "66": "[%key:common::state::medium%]",
-          "100": "[%key:common::state::high%]"
+          "33": "Laag",
+          "66": "Gemiddeld",
+          "100": "Hoog"
         }
       },
       "day_brightness": {
         "name": "Helderheid kast",
         "state": {
-          "33": "[%key:common::state::low%]",
-          "66": "[%key:common::state::medium%]",
-          "100": "[%key:common::state::high%]"
+          "33": "Laag",
+          "66": "Gemiddeld",
+          "100": "Hoog"
         }
       },
       "buzzer_sound": {
         "name": "Zoemergeluid",
         "state": {
-          "off": "[%key:common::state::off%]",
-          "on": "[%key:common::state::on%]"
+          "off": "Uit",
+          "on": "Aan"
         }
       },
       "cycle": {
@@ -161,16 +161,16 @@
         "name": "Hoeveelheid wasmiddel",
         "state": {
           "00": "Geen",
-          "01": "[%key:common::state::low%]",
-          "02": "[%key:common::state::medium%]",
-          "03": "[%key:common::state::high%]"
+          "01": "Laag",
+          "02": "Gemiddeld",
+          "03": "Hoog"
         }
       },
       "detergent_water_hardness": {
         "name": "Waterhardheid voor wasmiddel",
         "state": {
           "01": "Zacht",
-          "02": "[%key:common::state::medium%]",
+          "02": "Gemiddeld",
           "03": "Hard"
         }
       },
@@ -220,8 +220,8 @@
       "finish_sound": {
         "name": "Eindgeluid",
         "state": {
-          "off": "[%key:common::state::off%]",
-          "on": "[%key:common::state::on%]"
+          "off": "Uit",
+          "on": "Aan"
         }
       },
       "flex_zone_mode": {
@@ -242,16 +242,16 @@
       "heated_dry": {
         "name": "Smart Dry",
         "state": {
-          "off": "[%key:common::state::off%]",
-          "low": "[%key:common::state::low%]",
-          "high": "[%key:common::state::high%]",
+          "off": "Uit",
+          "low": "Laag",
+          "high": "Hoog",
           "extra_high": "Extra hoog"
         }
       },
       "ice_type": {
         "name": "Type {instance_name}",
         "state": {
-          "off": "[%key:common::state::off%]",
+          "off": "Uit",
           "whiskey_iceball_3": "3 ijsballen per dag",
           "whiskey_iceball_6": "6 ijsballen per dag",
           "whiskey_iceball_9": "9 ijsballen per dag"
@@ -260,15 +260,15 @@
       "led_brightness": {
         "name": "Helderheid deur-LED",
         "state": {
-          "low": "[%key:common::state::low%]",
-          "high": "[%key:common::state::high%]"
+          "low": "Laag",
+          "high": "Hoog"
         }
       },
       "led_night_brightness": {
         "name": "Nachtelijke helderheid deur-LED",
         "state": {
-          "low": "[%key:common::state::low%]",
-          "high": "[%key:common::state::high%]"
+          "low": "Laag",
+          "high": "Hoog"
         }
       },
       "oven_mode": {
@@ -297,7 +297,7 @@
       "range_burner_power_level": {
         "name": "Vermogensniveau brander {number}",
         "state": {
-          "0": "[%key:common::state::off%]",
+          "0": "Uit",
           "boost": "Boost",
           "simmer": "Sudderen"
         }
@@ -324,9 +324,9 @@
         "name": "Hoeveelheid wasverzachter",
         "state": {
           "00": "Geen",
-          "01": "[%key:common::state::low%]",
-          "02": "[%key:common::state::medium%]",
-          "03": "[%key:common::state::high%]"
+          "01": "Laag",
+          "02": "Gemiddeld",
+          "03": "Hoog"
         }
       },
       "sound_mode": {
@@ -342,9 +342,9 @@
         "state": {
           "rinse_hold": "Spoelstop",
           "no_spin": "Niet centrifugeren",
-          "low": "[%key:common::state::low%]",
-          "medium": "[%key:common::state::medium%]",
-          "high": "[%key:common::state::high%]"
+          "low": "Laag",
+          "medium": "Gemiddeld",
+          "high": "Hoog"
         }
       },
       "wash_temperature": {
@@ -400,7 +400,7 @@
           "120": "2 uur",
           "180": "3 uur",
           "240": "4 uur",
-          "none": "[%key:common::state::off%]",
+          "none": "Uit",
           "cupboard": "Kastdroog"
         }
       }
@@ -441,7 +441,7 @@
         "name": "Niveau stroombegrenzing"
       },
       "current_temp_c": {
-        "name": "[%key:component::sensor::entity_component::temperature::name%]"
+        "name": "Temperatuur"
       },
       "diagnosis": {
         "name": "Diagnose"
@@ -468,7 +468,7 @@
         "name": "Stof"
       },
       "energy_kwh": {
-        "name": "[%key:component::sensor::entity_component::energy::name%]"
+        "name": "Energie"
       },
       "energy_last_month_kwh": {
         "name": "Energie (vorige maand)"
@@ -555,7 +555,7 @@
         "name": "Energieverbruik"
       },
       "power_watts": {
-        "name": "[%key:component::sensor::entity_component::power::name%]"
+        "name": "Vermogen"
       },
       "progress": {
         "name": "Voortgang"
@@ -581,15 +581,15 @@
       "machine_state": {
         "name": "Machinestatus",
         "state": {
-          "idle": "[%key:common::state::idle%]",
-          "active": "[%key:common::state::active%]",
+          "idle": "Inactief",
+          "active": "Actief",
           "pause": "Gepauzeerd"
         }
       },
       "filter_status": {
         "name": "Filterstatus",
         "state": {
-          "normal": "[%key:common::state::normal%]",
+          "normal": "Normaal",
           "wash": "Reinigen",
           "replace": "Vervangen"
         }
@@ -597,7 +597,7 @@
       "ice_making_status": {
         "name": "{instance_name} ijsmaakstatus",
         "state": {
-          "icestatus_stop": "[%key:common::state::idle%]",
+          "icestatus_stop": "Inactief",
           "icestatus_run": "IJs maken"
         }
       }
@@ -756,7 +756,7 @@
       "unknown": "Onverwachte fout. Raadpleeg de Home Assistant-logboeken voor meer informatie."
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "already_configured": "Apparaat is al geconfigureerd"
     }
   },
   "options": {
