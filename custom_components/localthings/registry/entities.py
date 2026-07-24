@@ -27,13 +27,14 @@ def _identity(v: Any) -> Any:
 class SamsungEntityDescription:
     key: str
     field: str = ''
-    name: Optional[str] = None
+    # Defaults to `key`: entity names and states live in translations/, never
+    # here, so a descriptor only sets this to share one catalog entry across
+    # several descriptors, or to point at a differently-named one.
     translation_key: Any = None  # str | Callable[[dict[str, dict]], Optional[str]]
     # callable form receives the coordinator's full href->rep resource
-    # snapshot and returns the key to use (or None for no translation this
-    # device) -- for a descriptor shared across board generations whose
-    # state-code meaning isn't guaranteed consistent between them; see
-    # laundry.cycle_select's table-id-gated resolver.
+    # snapshot and returns the key to use -- for a descriptor shared across
+    # board generations whose state-code meaning isn't guaranteed consistent
+    # between them; see laundry.cycle_select's table-id-gated resolver.
     translation_placeholders: Optional[Mapping[str, str]] = None
     # Dynamic resources such as fridge compartments and ice makers use a
     # device-provided or href-derived instance label inside a translated name.

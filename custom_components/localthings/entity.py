@@ -38,10 +38,14 @@ def _is_included(bound: BoundEntity, coordinator: 'LocalThingsCoordinator') -> b
 
 
 def _derive_name(state_key: str) -> str:
-    """Turn a snake_case state key into a title-cased display name.
+    """Turn a snake_case state key into a title-cased label.
 
     Strips a trailing instance number of 0 (singleton), promotes any other
     instance number with a space: "door_cooler_open1" → "Door Cooler Open 1".
+
+    Entity names themselves come from the translation catalog; this only
+    builds the {instance_name} placeholder those translations interpolate,
+    for a device that named its own compartments/ice makers.
     """
     name = re.sub(r'(\d+)$', lambda m: f' {m.group()}' if int(m.group()) > 0 else '', state_key)
     return _snake_to_title(name).strip()
@@ -79,21 +83,12 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
                 "instance_name": _instance_display_name(bound, self._state_key)
             }
 
-        # Do not set _attr_name for translated entities: Home Assistant gives
-        # an explicitly-set name precedence over the translation catalog. The
-        # English descriptor name remains a fallback for descriptions without
-        # a translation key, while existing registry entity IDs stay intact via
-        # their unchanged unique IDs.
-        has_translation = (
-            bound.desc.translation_key is not None or bound.desc.name is not None
-        )
-        if not has_translation:
-            if bound.instance_name:
-                self._attr_name = (
-                    f"{bound.instance_name} {_derive_name(bound.desc.key)}".strip()
-                )
-            else:
-                self._attr_name = _derive_name(self._state_key)
+        # _attr_name is deliberately left unset: Home Assistant gives an
+        # explicitly-set name precedence over the translation catalog, so
+        # setting it here would make every entity untranslatable. Every
+        # descriptor resolves to a catalog entry (see translation_key below);
+        # a platform that wants the bare device name instead sets
+        # _attr_name = None itself, as fan.py does for the hood's main entity.
         self._attr_icon = bound.desc.icon
         raw_cat = bound.desc.entity_category
         self._attr_entity_category = EntityCategory(raw_cat) if raw_cat else None
@@ -101,11 +96,12 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
 
     @property
     def translation_key(self) -> str | None:
-        """Override Entity.translation_key (a property upstream, not a
-        plain attribute) so a callable descriptor -- e.g.
-        laundry.cycle_select's table-id-gated resolver -- is re-evaluated
-        against live coordinator data on every access, not resolved once
-        at construction time.
+        """The descriptor's catalog key, defaulting to its own `key`.
+
+        Overrides Entity.translation_key (a property upstream, not a plain
+        attribute) so a callable descriptor -- e.g. laundry.cycle_select's
+        table-id-gated resolver -- is re-evaluated against live coordinator
+        data on every access, not resolved once at construction time.
 
         Discovery runs on the first /device/0 poll, which the entity
         registry already documents can hand a sibling resource an empty
@@ -118,9 +114,7 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
         tk = self._bound.desc.translation_key
         if callable(tk):
             return tk(self.coordinator.last_resources)
-        if tk is not None:
-            return tk
-        return self._bound.desc.key if self._bound.desc.name is not None else None
+        return tk if tk is not None else self._bound.desc.key
 
     @property
     def device_info(self) -> DeviceInfo:

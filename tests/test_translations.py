@@ -125,21 +125,32 @@ def test_no_catalog_carries_unresolved_core_references():
         assert unresolved == [], language
 
 
-def test_every_translatable_descriptor_has_an_entity_catalog_entry():
+# The hood fan is its device's primary feature: fan.py sets _attr_name = None
+# so it presents as the device itself, and never reads a catalog name.
+UNNAMED_DESCRIPTORS = {("fan", "fan")}
+
+
+def test_every_descriptor_has_an_entity_catalog_entry():
+    """A descriptor's name comes from the catalog or nowhere.
+
+    ``translation_key`` defaults to ``desc.key`` (entity.py), and there is no
+    Python-side name to fall back on, so a descriptor with no catalog entry
+    is an entity with no name.
+    """
     entity_strings = _load("en")["entity"]
     missing = []
     for desc in _all_descriptions():
+        platform = PLATFORM_OF[type(desc)]
+        if (platform, desc.key) in UNNAMED_DESCRIPTORS:
+            continue
         translation_key = desc.translation_key
         if callable(translation_key):
             # Runtime table resolvers pick their key out of the catalog
             # itself (see laundry.cycle_select), so there's nothing static
             # to check here; the generic 'cycle' fallback is asserted below.
             continue
-        if translation_key is None and desc.name is not None:
-            translation_key = desc.key
         if translation_key is None:
-            continue  # Main fan entity: device name + HA fan translations.
-        platform = PLATFORM_OF[type(desc)]
+            translation_key = desc.key
         if translation_key not in entity_strings.get(platform, {}):
             missing.append((platform, desc.key, translation_key))
     assert missing == []
@@ -149,27 +160,6 @@ def test_every_translatable_descriptor_has_an_entity_catalog_entry():
     select_strings = entity_strings["select"]
     for key in ("cycle", "washer_cycle_table_02", "dryer_cycle_table_03"):
         assert key in select_strings
-
-
-def test_descriptor_names_match_the_english_catalog():
-    """``SamsungEntityDescription.name`` never reaches the UI.
-
-    A descriptor carrying a ``name`` is translated under ``desc.key``
-    (entity.py), so the catalog wins and the Python string survives purely
-    as documentation next to the field it describes -- which is only worth
-    keeping if it still says what the UI says. Editing one side alone is
-    otherwise invisible.
-    """
-    entity_strings = _load("en")["entity"]
-    drifted = []
-    for desc in _all_descriptions():
-        if desc.name is None or desc.translation_key is not None:
-            continue
-        platform = PLATFORM_OF[type(desc)]
-        catalog_name = entity_strings.get(platform, {}).get(desc.key, {}).get("name")
-        if catalog_name != desc.name:
-            drifted.append((platform, desc.key, desc.name, catalog_name))
-    assert drifted == []
 
 
 def test_all_entity_state_translation_keys_are_lowercase():

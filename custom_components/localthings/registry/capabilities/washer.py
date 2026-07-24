@@ -75,19 +75,19 @@ WASHER_SETTINGS = Capability(
     href='/washer/vs/0',
     entities=(
         SelectDesc(key='wash_temperature', field='x.com.samsung.da.waterTemperature',
-                   name='Wash temperature', icon='mdi:thermometer-water',
+                   icon='mdi:thermometer-water',
                    entity_category='config',
                    options_field='x.com.samsung.da.supportedWaterTemperature',
                    write_fn=lambda p, rep, href=None: (
                        ['washer', 'vs', '0'], {'x.com.samsung.da.waterTemperature': p})),
         SelectDesc(key='spin_speed', field='x.com.samsung.da.spinLevel',
-                   name='Spin speed', icon='mdi:sync',
+                   icon='mdi:sync',
                    entity_category='config',
                    options_field='x.com.samsung.da.supportedSpinLevel',
                    write_fn=lambda p, rep, href=None: (
                        ['washer', 'vs', '0'], {'x.com.samsung.da.spinLevel': p})),
         SelectDesc(key='rinse_cycles', field='x.com.samsung.da.rinseCycles',
-                   name='Rinse cycles', icon='mdi:water-sync',
+                   icon='mdi:water-sync',
                    entity_category='config',
                    options_field='x.com.samsung.da.supportedRinseCycles',
                    write_fn=lambda p, rep, href=None: (
@@ -97,7 +97,7 @@ WASHER_SETTINGS = Capability(
         # #22. Self-gates off on plain washers, which never report
         # supportedDryLevel.
         SelectDesc(key='dry_level', field='x.com.samsung.da.dryLevel',
-                   name='Dry level', icon='mdi:tumble-dryer',
+                   icon='mdi:tumble-dryer',
                    entity_category='config',
                    translation_key='washer_dry_level',
                    options_field='x.com.samsung.da.supportedDryLevel',
@@ -260,7 +260,7 @@ def _dosing_low(prefix):
 # auto-release-dry toggles -- only this per-course gating is washer-only, so
 # it stays here rather than in laundry.py (see laundry.bool_option_switch's
 # docstring: it takes a prebuilt validate_fn and has no opinion on it).
-def _bool_option_switch(key, name, icon, prefix, availability_field):
+def _bool_option_switch(key, icon, prefix, availability_field):
     def validate(p, rep, resources):
         """Reject turning on when the selected course's byte in
         `availability_field` isn't 'F0'. Turning off is never blocked. Falls
@@ -286,7 +286,7 @@ def _bool_option_switch(key, name, icon, prefix, availability_field):
         return None
 
     return bool_option_switch(
-        key, name, icon, prefix,
+        key, icon, prefix,
         entity_category='config', gate_on_presence=True, validate_fn=validate)
 
 
@@ -295,17 +295,17 @@ WASHER_COURSE = Capability(
     entities=(
         cycle_select(translation_key='washer_cycle', icon='mdi:washing-machine',
                      table_href='/st/washercourse/vs/0'),
-        SensorDesc(key='drum_clean_cycles_remaining', name='Drum clean due in',
-                   icon='mdi:washing-machine-alert', unit='cycles',
+        SensorDesc(key='drum_clean_cycles_remaining', unit='cycles',
+                   icon='mdi:washing-machine-alert',
                    state_class='measurement',
                    exists_fn=lambda rep, resources: _drum_clean_cycles_remaining(rep) is not None,
                    rep_fn=_drum_clean_cycles_remaining),
-        SensorDesc(key='drum_clean_last_cleaned', name='Drum last cleaned',
-                   icon='mdi:calendar-clock', device_class='timestamp',
+        SensorDesc(key='drum_clean_last_cleaned', device_class='timestamp',
+                   icon='mdi:calendar-clock',
                    entity_category='diagnostic',
                    exists_fn=lambda rep, resources: _drum_clean_last_cleaned(rep) is not None,
                    rep_fn=_drum_clean_last_cleaned),
-        SelectDesc(key='detergent_quantity', name='Detergent quantity', icon='mdi:cup-water',
+        SelectDesc(key='detergent_quantity', icon='mdi:cup-water',
                    translation_key='detergent_quantity',
                    entity_category='config',
                    options=_level_options('DetergentLevelCtrl'),
@@ -313,8 +313,7 @@ WASHER_COURSE = Capability(
                        _level_options('DetergentLevelCtrl')(resources)),
                    rep_fn=_dosing_level('DetergentLevelCtrl'),
                    write_fn=_level_write('DetergentLevelCtrl')),
-        SelectDesc(key='detergent_water_hardness', name='Detergent water hardness',
-                   icon='mdi:water-opacity',
+        SelectDesc(key='detergent_water_hardness', icon='mdi:water-opacity',
                    translation_key='detergent_water_hardness',
                    entity_category='config',
                    options=_level_options('DetergentLevel2Ctrl'),
@@ -322,7 +321,7 @@ WASHER_COURSE = Capability(
                        _level_options('DetergentLevel2Ctrl')(resources)),
                    rep_fn=_dosing_level('DetergentLevel2Ctrl'),
                    write_fn=_level_write('DetergentLevel2Ctrl')),
-        SelectDesc(key='softener_quantity', name='Softener quantity', icon='mdi:flask-outline',
+        SelectDesc(key='softener_quantity', icon='mdi:flask-outline',
                    translation_key='softener_quantity',
                    entity_category='config',
                    options=_level_options('SoftenerLevelCtrl'),
@@ -330,8 +329,7 @@ WASHER_COURSE = Capability(
                        _level_options('SoftenerLevelCtrl')(resources)),
                    rep_fn=_dosing_level('SoftenerLevelCtrl'),
                    write_fn=_level_write('SoftenerLevelCtrl')),
-        SelectDesc(key='softener_concentration', name='Softener concentration',
-                   icon='mdi:flask-plus-outline',
+        SelectDesc(key='softener_concentration', icon='mdi:flask-plus-outline',
                    translation_key='softener_concentration',
                    entity_category='config',
                    options=_level_options('SoftenerLevel2Ctrl'),
@@ -339,19 +337,19 @@ WASHER_COURSE = Capability(
                        _level_options('SoftenerLevel2Ctrl')(resources)),
                    rep_fn=_dosing_level('SoftenerLevel2Ctrl'),
                    write_fn=_level_write('SoftenerLevel2Ctrl')),
-        BinarySensorDesc(key='detergent_low', name='Detergent low',
-                         icon='mdi:alert-circle-outline', device_class='problem',
+        BinarySensorDesc(key='detergent_low', device_class='problem',
+                         icon='mdi:alert-circle-outline',
                          exists_fn=bool_option_exists('DetergentAlarm'),
                          rep_fn=_dosing_low('DetergentAlarm')),
-        BinarySensorDesc(key='softener_low', name='Softener low',
-                         icon='mdi:alert-circle-outline', device_class='problem',
+        BinarySensorDesc(key='softener_low', device_class='problem',
+                         icon='mdi:alert-circle-outline',
                          exists_fn=bool_option_exists('SoftenerAlarm'),
                          rep_fn=_dosing_low('SoftenerAlarm')),
-        _bool_option_switch('bubble_soak', 'Bubble soak', 'mdi:chart-bubble',
+        _bool_option_switch('bubble_soak', 'mdi:chart-bubble',
                              'BubbleSoak', 'BubbleSoakSet'),
-        _bool_option_switch('pre_wash', 'Pre-wash', 'mdi:washing-machine',
+        _bool_option_switch('pre_wash', 'mdi:washing-machine',
                              'PreWashSetting', 'PreWashAvailableSet'),
-        _bool_option_switch('intensive', 'Intensive', 'mdi:washing-machine',
+        _bool_option_switch('intensive', 'mdi:washing-machine',
                              'IntensiveSetting', 'IntensiveAvailableSet'),
     ),
 )

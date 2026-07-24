@@ -61,30 +61,30 @@ DOOR_LED = Capability(
     href='/doorled/light/vs/0',
     entities=(
         SelectDesc(key='led_brightness', field='setBrightness',
-                   name='Door LED brightness', icon='mdi:brightness-6',
+                   icon='mdi:brightness-6',
                    entity_category='config',
                    options=_LED_LEVELS, write_fn=_led_brightness_write),
         SwitchDesc(key='led_night_light', field='setNightLight',
-                   name='Door LED night light', icon='mdi:weather-night',
+                   icon='mdi:weather-night',
                    entity_category='config',
                    value_fn=lambda v: v == 'On',
                    write_fn=_led_night_write),
         SelectDesc(key='led_night_brightness', field='setNightLightBrightness',
-                   name='Door LED night brightness', icon='mdi:brightness-4',
+                   icon='mdi:brightness-4',
                    entity_category='config',
                    options=_LED_LEVELS,
                    write_fn=lambda p, rep, href=None: (
                        ['doorled', 'light', 'vs', '0'],
                        {'setNightLightBrightness': p})),
         TimeDesc(key='led_night_start', field='setNightLightTimeStart',
-                 name='Door LED night start', icon='mdi:clock-start',
+                 icon='mdi:clock-start',
                  entity_category='config',
                  value_fn=_parse_hm,
                  write_fn=lambda p, rep, href=None: (
                      ['doorled', 'light', 'vs', '0'],
                      {'setNightLightTimeStart': f'{p.hour:02d}:{p.minute:02d}'})),
         TimeDesc(key='led_night_end', field='setNightLightTimeEnd',
-                 name='Door LED night end', icon='mdi:clock-end',
+                 icon='mdi:clock-end',
                  entity_category='config',
                  value_fn=_parse_hm,
                  write_fn=lambda p, rep, href=None: (
@@ -97,7 +97,7 @@ SOUND_MODE = Capability(
     href='/settings/sound/mode/vs/0',
     entities=(
         SelectDesc(key='sound_mode', field='mode',
-                   name='Sound mode', icon='mdi:volume-high',
+                   icon='mdi:volume-high',
                    entity_category='config',
                    options=_SOUND_MODES, write_fn=_sound_mode_write),
     ),
@@ -107,7 +107,7 @@ SOUND_VOLUME = Capability(
     href='/settings/sound/volume/vs/0',
     entities=(
         NumberDesc(key='sound_volume', field='level',
-                   name='Sound volume', icon='mdi:volume-medium',
+                   icon='mdi:volume-medium',
                    entity_category='config',
                    native_min=0, native_max=15, step=5,
                    value_fn=lambda v: int(v) if v is not None else None,
@@ -128,13 +128,13 @@ BUZZER_SOUND = Capability(
     href='/buzzersound/vs/0',
     entities=(
         SelectDesc(key='buzzer_sound', field='setBuzzerSound',
-                   name='Buzzer sound', icon='mdi:volume-high',
+                   icon='mdi:volume-high',
                    entity_category='config',
                    options_field='supportedBuzzerSound',
                    write_fn=lambda p, rep, href=None: (
                        ['buzzersound', 'vs', '0'], {'setBuzzerSound': p})),
         SelectDesc(key='finish_sound', field='setFinishSound',
-                   name='Finish sound', icon='mdi:bell-ring',
+                   icon='mdi:bell-ring',
                    entity_category='config',
                    exists_fn=lambda rep, resources: 'supportedFinishSound' in rep,
                    options_field='supportedFinishSound',
@@ -320,7 +320,7 @@ def cycle_select(*, translation_key, icon, table_href=None):
             return candidate if has_entity_translation('select', candidate) else 'cycle'
 
     return SelectDesc(
-        key='cycle', name='Cycle', icon=icon, translation_key=key,
+        key='cycle', icon=icon, translation_key=key,
         options=cycle_options,
         exists_fn=lambda rep, resources: bool(cycle_options(resources)),
         rep_fn=lambda rep: option_value(rep.get('x.com.samsung.da.options'), 'Course'),
@@ -360,8 +360,8 @@ def bool_option_exists(prefix):
         rep.get('x.com.samsung.da.options'), prefix) is not None
 
 
-def bool_option_switch(key, name, icon, prefix, *, entity_category=None,
-                        gate_on_presence=False, validate_fn=None):
+def bool_option_switch(key, icon, prefix, *, entity_category=None,
+                       gate_on_presence=False, validate_fn=None):
     """A SwitchDesc over a '<prefix>_On'/'<prefix>_Off' options[] token.
 
     gate_on_presence self-gates the entity off on models that never report
@@ -373,7 +373,7 @@ def bool_option_switch(key, name, icon, prefix, *, entity_category=None,
     building one, if needed, is the caller's job.
     """
     return SwitchDesc(
-        key=key, name=name, icon=icon, entity_category=entity_category,
+        key=key, icon=icon, entity_category=entity_category,
         exists_fn=bool_option_exists(prefix) if gate_on_presence else None,
         rep_fn=bool_option_value(prefix),
         write_fn=bool_option_write(prefix),
@@ -396,7 +396,6 @@ JOB_BEGINNING_STATUS = Capability(
     entities=(
         SensorDesc(key='job_beginning_status',
                    field='x.com.samsung.da.currentStatus',
-                   name='Job beginning status',
                    entity_category='diagnostic'),
     ),
 )

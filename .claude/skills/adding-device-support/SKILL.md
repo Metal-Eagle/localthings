@@ -103,21 +103,44 @@ sub-polled between summary polls. Pick descriptor types from `entities.py`
 as a gap for a human, or ignore it with a documented reason — never invent an
 entity on a hunch (`ignored.py`'s rule).
 
-## 5. Enum selects need translation support
+## 5. Names and enum labels live in translations, never in Python
 
-Any select whose options are raw device codes (course/cycle, and code-valued
-settings) must render through translations, not Python:
-- Set `translation_key='<family>_cycle'` (or similar) on the `SelectDesc`;
-  `options`/`options_field` supply the **raw** codes.
-- Add the labels to `translations/en.json` under
-  `entity.select.<translation_key>.state.<code>`, with the code **lowercased**
-  (e.g. `"16": "Cotton"`). Codes with no entry render as the raw code — that's
-  the cue to identify and name them.
-- `en.json` is the only place these live: there is no `strings.json` (Home
-  Assistant doesn't read one from a custom integration), and `select.py`
-  derives its normalization set from the catalog, so there is no Python list
-  to keep in sync. Every other language must mirror `en.json` key for key —
-  `tests/test_translations.py` enforces that.
+Descriptors have **no `name` field**. Every entity is named from the shipped
+catalog, keyed by `translation_key` — which defaults to the descriptor's own
+`key`. So adding `SensorDesc(key='filter_status', ...)` obliges you to add:
+
+```json
+"entity": { "sensor": { "filter_status": { "name": "Filter status" } } }
+```
+
+to `translations/en.json`. Skip it and the entity ships nameless;
+`tests/test_translations.py` fails the build instead.
+
+- **Sentence case** ("Filter status", not "Filter Status"), per HA's style
+  guide — capitalize only proper nouns and Samsung feature names ("AI Energy
+  Mode", "Storm Wash+").
+- Set `translation_key` explicitly only to **share** one catalog entry across
+  descriptors, or to point at a differently-named one. Two descriptors on the
+  same platform with the same `key` already share an entry — intended for
+  `common.py`'s OCF/vendor fallback pairs, a silent mislabel otherwise.
+- Prefer HA's own vocabulary where it fits: a `device_class` gives you
+  translated states for free (`binary_sensor` door/running, `sensor`
+  timestamp/enum), so don't restate them.
+
+Selects whose options are raw device codes (course/cycle, code-valued
+settings) additionally need those codes labelled:
+- `options`/`options_field` supply the **raw** codes; the catalog maps them.
+- Add labels under `entity.select.<translation_key>.state.<code>`, code
+  **lowercased** (e.g. `"16": "Cotton"`). `select.py` derives which values it
+  normalizes from the catalog itself, so there is no Python list to keep in
+  sync — a code with no entry simply renders as the raw code, which is the cue
+  to identify and name it.
+
+`translations/en.json` is the only place any of this lives: there is no
+`strings.json` (Home Assistant doesn't read one from a custom integration) and
+no `[%key:...%]` resolution (that's Core build tooling). Every other language
+must mirror `en.json` key for key — also enforced by
+`tests/test_translations.py`.
 
 ## 6. Coverage discipline: bound or ignored
 

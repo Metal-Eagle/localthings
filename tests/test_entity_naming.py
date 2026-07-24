@@ -20,9 +20,13 @@ def _make_entity(desc, href='/x/vs/0', key_override=None, instance='', instance_
     return LocalThingsEntity(_FakeCoordinator(), bound)
 
 
-def test_explicit_fallback_name_uses_translation_instead_of_attr_name():
-    """An _attr_name would take precedence over HA's translation catalog."""
-    desc = BinarySensorDesc(key='enabled', name='Explicit name')
+def test_descriptor_key_is_the_default_translation_key():
+    """A descriptor names itself through the catalog, keyed by its own key.
+
+    Nothing sets _attr_name: that would take precedence over HA's
+    translation catalog and make the entity untranslatable.
+    """
+    desc = BinarySensorDesc(key='enabled')
     entity = _make_entity(desc, instance_name='Cubed Ice')
     assert entity.translation_key == 'enabled'
     assert not hasattr(entity, '_attr_name')

@@ -89,7 +89,7 @@ async def test_unknown_vendor_option_round_trips_to_exact_raw_value():
             self.writes.append(value)
 
     desc = SelectDesc(
-        key='mode', name='Mode', translation_key='door_alert',
+        key='mode', translation_key='door_alert',
         options=('Known', 'FutureVendorMode'), write_fn=lambda *args: None,
     )
     capability = Capability(href='/x/vs/0', entities=(desc,))
