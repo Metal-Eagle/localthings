@@ -276,6 +276,12 @@ def _table_id(resources, table_href):
     return rep.get('x.com.samsung.da.st.courseTable')
 
 
+_TRANSLATED_COURSE_TABLES = {
+    'dryer_cycle': frozenset({'table_03'}),
+    'washer_cycle': frozenset({'table_02'}),
+}
+
+
 def cycle_select(*, translation_key, icon, table_href=None):
     """A 'Cycle' select over /course/vs/0, labelled from `translation_key`.
 
@@ -287,23 +293,19 @@ def cycle_select(*, translation_key, icon, table_href=None):
     suffixes translation_key with the device's own course-table id, read
     from /st/washercourse/vs/0 or /st/dryercourse/vs/0's
     x.com.samsung.da.st.courseTable (e.g. 'washer_cycle' + 'Table_02' ->
-    'washer_cycle_table_02'). No table id available at all -- the href
-    absent or empty -- gets no translation_key, i.e. the raw course code
-    displayed as-is.
+    'washer_cycle_table_02'). An absent or unrecognized table id gets the
+    name-only ``cycle`` translation key while the raw course code remains
+    visible and writable.
 
     This matters because course codes are NOT guaranteed consistent across
     board generations sharing the same /course/vs/0 contract: every code in
     washer_cycle_table_02 was confirmed against Table_02-reporting devices
     (DA_WM_TP1/TP2 boards); FlexWash's older DA_WM_A51 board reports
     Table_00 instead, so the same hex code could mean a different course
-    there for all we've verified. Building the key from whatever table the
-    device actually reports, rather than gating a single hardcoded key on
-    an exact match, means a table we haven't built translations for yet
-    (like Table_00) just falls through Home Assistant's own missing-
-    translation handling to the same raw-code display -- exactly what
-    happens today for any individual code within a table's translations
-    that isn't populated yet -- and adding one later needs new strings.json
-    entries, not a code change here.
+    there for all we've verified. Only tables with a complete catalog are
+    assigned a state translation key. Unknown future tables deliberately use
+    the generic key, avoiding misleading translations and missing-translation
+    errors while keeping the exact vendor code for writes.
 
     Left at its default for dishwasher, which has no equivalent table-id
     resource in any dump seen and no evidence its course codes vary by
@@ -314,7 +316,10 @@ def cycle_select(*, translation_key, icon, table_href=None):
     if table_href is not None:
         def key(resources):
             table = _table_id(resources, table_href)
-            return f'{translation_key}_{table.lower()}' if table else None
+            table_id = table.lower() if isinstance(table, str) else None
+            if table_id in _TRANSLATED_COURSE_TABLES.get(translation_key, ()):
+                return f'{translation_key}_{table_id}'
+            return 'cycle'
 
     return SelectDesc(
         key='cycle', name='Cycle', icon=icon, translation_key=key,

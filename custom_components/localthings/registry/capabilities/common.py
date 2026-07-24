@@ -280,7 +280,11 @@ WATER_FILTER = Capability(
                    name='Filter usage', unit='%', state_class='measurement',
                    icon='mdi:filter'),
         SensorDesc(key='filter_status', field='x.com.samsung.da.filterStatus',
-                   name='Filter status', icon='mdi:filter-check'),
+                   name='Filter status', icon='mdi:filter-check',
+                   device_class='enum', options=('normal', 'wash', 'replace'),
+                   value_fn=lambda value: (
+                       value.lower() if isinstance(value, str) else value
+                   )),
     ),
 )
 

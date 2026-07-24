@@ -55,7 +55,8 @@ TEMP_CURRENT_GENERIC = Capability(
     poll_tier='warm',
     entities=(
         SensorDesc(key='temperature', field='temperature',
-                   name=None, icon='mdi:thermometer',
+                   name=None, translation_key='instance_temperature',
+                   use_instance_name=True, icon='mdi:thermometer',
                    device_class='temperature', unit_fn=_temp_unit,
                    state_class='measurement'),
     ),
@@ -68,7 +69,8 @@ TEMP_SETPOINT_GENERIC = Capability(
     poll_tier='warm',
     entities=(
         NumberDesc(key='setpoint', field='temperature',
-                   name=None, device_class='temperature', unit_fn=_temp_unit,
+                   name=None, translation_key='instance_setpoint',
+                   use_instance_name=True, device_class='temperature', unit_fn=_temp_unit,
                    native_min=-20.0, native_max=50.0,
                    range_field='range', entity_category='config',
                    write_fn=lambda p, rep, href=None: (
@@ -123,17 +125,18 @@ ICEMAKER_GENERIC = Capability(
     entities=(
         SensorDesc(key='making_status',
                    field='x.com.samsung.da.iceMaker.iceMakingStatus',
-                   name=None, icon='mdi:cube-outline',
+                   name=None, use_instance_name=True, icon='mdi:cube-outline',
                    device_class='enum',
                    options=('icestatus_stop', 'icestatus_run'),
                    translation_key='ice_making_status',
                    value_fn=lambda v: v.lower() if isinstance(v, str) else v),
         SwitchDesc(key='enabled', field='x.com.samsung.da.iceMaker.state',
-                   name=None, icon='mdi:cube-outline',
+                   name=None, translation_key='instance_enabled',
+                   use_instance_name=True, icon='mdi:cube-outline',
                    value_fn=lambda v: v == 'On',
                    write_fn=_icemaker_write('x.com.samsung.da.iceMaker.state')),
         SelectDesc(key='type', field='x.com.samsung.da.iceType.desired',
-                   name=None, icon='mdi:cube-outline',
+                   name=None, use_instance_name=True, icon='mdi:cube-outline',
                    translation_key='ice_type',
                    entity_category='config',
                    options_field='x.com.samsung.da.iceType.supported',
@@ -387,7 +390,7 @@ CABINET_LIGHT_ENHANCED = Capability(
     entities=(
         SelectDesc(key='day_brightness', field='level.brightness.daytime',
                    name='Cabinet brightness', icon='mdi:brightness-5',
-                   translation_key='brightness_level',
+                   translation_key='day_brightness',
                    entity_category='config',
                    options=_NIGHT_BRIGHTNESS_OPTIONS,
                    write_fn=lambda p, rep, href=None: (
@@ -575,7 +578,8 @@ DOOR_GENERIC = Capability(
     poll_tier='hot',
     entities=(
         BinarySensorDesc(key='open', field='openState',
-                         name=None, device_class='door',
+                         name=None, translation_key='instance_open',
+                         use_instance_name=True, device_class='door',
                          value_fn=lambda v: v == 'Open'),
     ),
 )

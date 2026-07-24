@@ -47,6 +47,19 @@ def _derive_name(state_key: str) -> str:
     return _snake_to_title(name).strip()
 
 
+def _instance_display_name(bound: BoundEntity, state_key: str) -> str:
+    """Return the stable vendor/href instance label used in a name placeholder."""
+    if bound.instance_name:
+        return bound.instance_name
+    source = bound.key_override or state_key
+    suffix = f"_{bound.desc.key}"
+    if source.endswith(suffix):
+        source = source[:-len(suffix)]
+    elif bound.instance and source.endswith(bound.instance):
+        source = source[:-len(bound.instance)] + bound.instance.replace("_", " ")
+    return _derive_name(source)
+
+
 class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
     """Base class for all Local Things entities."""
 
@@ -57,15 +70,30 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
         self._bound = bound
         self._state_key = _key(bound)
         self._attr_unique_id = f"{DOMAIN}_{coordinator.device_serial}_{self._state_key}"
-        if bound.desc.name is not None:
-            self._attr_name = bound.desc.name
-        elif bound.instance_name:
-            # A device-given instance name (e.g. an ice maker's "Cubed
-            # Ice") takes the place of the href-derived instance label,
-            # keeping the same entity-specific suffix (issue #27).
-            self._attr_name = f"{bound.instance_name} {_derive_name(bound.desc.key)}".strip()
-        else:
-            self._attr_name = _derive_name(self._state_key)
+        if bound.desc.translation_placeholders is not None:
+            self._attr_translation_placeholders = dict(
+                bound.desc.translation_placeholders
+            )
+        elif bound.desc.use_instance_name:
+            self._attr_translation_placeholders = {
+                "instance_name": _instance_display_name(bound, self._state_key)
+            }
+
+        # Do not set _attr_name for translated entities: Home Assistant gives
+        # an explicitly-set name precedence over the translation catalog. The
+        # English descriptor name remains a fallback for descriptions without
+        # a translation key, while existing registry entity IDs stay intact via
+        # their unchanged unique IDs.
+        has_translation = (
+            bound.desc.translation_key is not None or bound.desc.name is not None
+        )
+        if not has_translation:
+            if bound.instance_name:
+                self._attr_name = (
+                    f"{bound.instance_name} {_derive_name(bound.desc.key)}".strip()
+                )
+            else:
+                self._attr_name = _derive_name(self._state_key)
         self._attr_icon = bound.desc.icon
         raw_cat = bound.desc.entity_category
         self._attr_entity_category = EntityCategory(raw_cat) if raw_cat else None
@@ -88,7 +116,11 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
         value arrives on a later poll.
         """
         tk = self._bound.desc.translation_key
-        return tk(self.coordinator.last_resources) if callable(tk) else tk
+        if callable(tk):
+            return tk(self.coordinator.last_resources)
+        if tk is not None:
+            return tk
+        return self._bound.desc.key if self._bound.desc.name is not None else None
 
     @property
     def device_info(self) -> DeviceInfo:

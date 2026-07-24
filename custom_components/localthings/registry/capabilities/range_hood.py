@@ -166,6 +166,12 @@ HOOD_FILTER = Capability(
             name='Filter status',
             icon='mdi:air-filter',
             entity_category='diagnostic',
+            device_class='enum',
+            options=('normal', 'wash', 'replace'),
+            translation_key='filter_status',
+            value_fn=lambda value: (
+                value.lower() if isinstance(value, str) else value
+            ),
         ),
         SensorDesc(
             key='hood_filter_capacity',
