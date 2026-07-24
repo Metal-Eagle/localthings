@@ -24,6 +24,7 @@ from .registry.batch import parse_device0_batch
 from .registry.by_type import for_device, for_device_by_model, for_device_by_resources
 from .registry.capabilities.common import remote_control_enabled
 from .registry.discovery import discover, BoundEntity
+from .registry.entities import ValidationIssue
 from .registry import CAPABILITIES
 from .registry.adapter import flatten
 from .registry.identity import read_identity, DeviceIdentity
@@ -37,13 +38,6 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 _SEED_PATH = ['device', '0']
-
-_REMOTE_CONTROL_DISABLED_MESSAGE = (
-    "Remote control is turned off on this device. Check your appliance's "
-    "manual for how to enable remote control before Home Assistant can "
-    "control it."
-)
-
 
 class _NoOpDescriptor:
     """StateCache requires a descriptor with an on_observation hook. This
@@ -111,7 +105,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_serial = entry.data[CONF_HOST]  # placeholder until first poll
         self.device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data[CONF_HOST])},
-            name=f"Samsung Appliance ({entry.data[CONF_HOST]})",
+            name=f"Samsung ({entry.data[CONF_HOST]})",
             manufacturer="Samsung",
         )
         self._session_lock = asyncio.Lock()
@@ -324,10 +318,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_serial = serial
 
         ident = self._identity
-        device_type = reg.name.replace('_', ' ').title() if reg else 'Appliance'
         model_num = info.get('x.com.samsung.da.modelNum', '')
         model = model_num.split('|', 1)[0] if model_num else (ident.model if ident else '')
-        name  = f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
+        # DeviceInfo has no translation mechanism. Prefer the appliance's own
+        # OCF name, then proper-noun/model fallbacks without an English family
+        # label. Existing device/entity registry IDs remain keyed by serial.
+        name = (
+            (ident.name if ident else '')
+            or (f"Samsung {model}" if model else f"Samsung ({self._entry.data[CONF_HOST]})")
+        )
         mfr   = (ident.manufacturer if ident else '') or 'Samsung'
 
         self.device_info = DeviceInfo(
@@ -548,12 +547,21 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         resources = self._cache.snapshot()
         bypass_remote_control = self._entry.options.get(CONF_BYPASS_REMOTE_CONTROL, False)
         if not bypass_remote_control and not remote_control_enabled(resources):
-            raise ServiceValidationError(_REMOTE_CONTROL_DISABLED_MESSAGE)
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="remote_control_disabled",
+            )
         validate_fn = getattr(desc, 'validate_fn', None)
         if validate_fn is not None:
             error = validate_fn(payload, rep, resources)
             if error:
-                raise ServiceValidationError(error)
+                if not isinstance(error, ValidationIssue):
+                    raise TypeError("validate_fn must return ValidationIssue or None")
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key=error.translation_key,
+                    translation_placeholders=dict(error.translation_placeholders),
+                )
         result = write_fn(payload, rep, href)
         if result is None:
             self._log.warning("write_fn rejected payload %r for %s", payload, href)
@@ -672,10 +680,16 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         help users pin down device-specific write behavior without a new
         release."""
         if not isinstance(body, dict) or not body:
-            raise ServiceValidationError("Debug write payload must be a non-empty object.")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="debug_payload_empty",
+            )
         path_segs = [s for s in href.strip('/').split('/') if s]
         if not path_segs:
-            raise ServiceValidationError("A resource href is required.")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="resource_href_required",
+            )
         norm_href = '/' + '/'.join(path_segs)
         async with self._session_lock:
             code, new_rep = await self.hass.async_add_executor_job(

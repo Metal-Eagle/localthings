@@ -142,7 +142,7 @@ AIR_FILTER = Capability(
         SensorDesc(key='air_filter_status', field='x.com.samsung.da.filterStatus',
                    name='Filter status', device_class='enum',
                    options=('normal', 'wash', 'replace'),
-                   translation_key='air_filter_status',
+                   translation_key='filter_status',
                    icon='mdi:air-filter', entity_category='diagnostic',
                    value_fn=lambda v: v.lower() if isinstance(v, str) else v),
     ),

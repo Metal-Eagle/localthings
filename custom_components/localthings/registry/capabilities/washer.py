@@ -16,7 +16,7 @@ array.
 from datetime import datetime, timezone
 
 from ..capability import Capability
-from ..entities import BinarySensorDesc, SelectDesc, SensorDesc
+from ..entities import BinarySensorDesc, SelectDesc, SensorDesc, ValidationIssue
 from .laundry import (
     bool_option_exists, bool_option_switch, cycle_options, cycle_select, hex_pairs, option_value,
     replace_in_options,
@@ -282,7 +282,7 @@ def _bool_option_switch(key, name, icon, prefix, availability_field):
         if len(pairs) != len(courses):
             return None
         if pairs[courses.index(current)] != 'F0':
-            return f"{name} isn't available on the selected cycle."
+            return ValidationIssue(f"{key}_unavailable_for_cycle")
         return None
 
     return bool_option_switch(
@@ -306,7 +306,7 @@ WASHER_COURSE = Capability(
                    exists_fn=lambda rep, resources: _drum_clean_last_cleaned(rep) is not None,
                    rep_fn=_drum_clean_last_cleaned),
         SelectDesc(key='detergent_quantity', name='Detergent quantity', icon='mdi:cup-water',
-                   translation_key='washer_dosing_quantity',
+                   translation_key='detergent_quantity',
                    entity_category='config',
                    options=_level_options('DetergentLevelCtrl'),
                    exists_fn=lambda rep, resources: bool(
@@ -315,7 +315,7 @@ WASHER_COURSE = Capability(
                    write_fn=_level_write('DetergentLevelCtrl')),
         SelectDesc(key='detergent_water_hardness', name='Detergent water hardness',
                    icon='mdi:water-opacity',
-                   translation_key='washer_detergent_water_hardness',
+                   translation_key='detergent_water_hardness',
                    entity_category='config',
                    options=_level_options('DetergentLevel2Ctrl'),
                    exists_fn=lambda rep, resources: bool(
@@ -323,7 +323,7 @@ WASHER_COURSE = Capability(
                    rep_fn=_dosing_level('DetergentLevel2Ctrl'),
                    write_fn=_level_write('DetergentLevel2Ctrl')),
         SelectDesc(key='softener_quantity', name='Softener quantity', icon='mdi:flask-outline',
-                   translation_key='washer_dosing_quantity',
+                   translation_key='softener_quantity',
                    entity_category='config',
                    options=_level_options('SoftenerLevelCtrl'),
                    exists_fn=lambda rep, resources: bool(
@@ -332,7 +332,7 @@ WASHER_COURSE = Capability(
                    write_fn=_level_write('SoftenerLevelCtrl')),
         SelectDesc(key='softener_concentration', name='Softener concentration',
                    icon='mdi:flask-plus-outline',
-                   translation_key='washer_softener_concentration',
+                   translation_key='softener_concentration',
                    entity_category='config',
                    options=_level_options('SoftenerLevel2Ctrl'),
                    exists_fn=lambda rep, resources: bool(

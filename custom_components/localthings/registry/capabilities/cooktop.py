@@ -93,6 +93,8 @@ COOKTOP_MODE = Capability(
                 key=f'burner_{slot}_state',
                 field='x.com.samsung.da.options',
                 name=f'Burner {slot} state',
+                translation_key='burner_state',
+                translation_placeholders={'number': str(slot)},
                 icon='mdi:gas-burner',
                 value_fn=lambda options, slot=slot: _option_value(
                     options, f'OperationState{slot}'

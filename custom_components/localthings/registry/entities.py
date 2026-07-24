@@ -9,14 +9,24 @@ where a description declares one.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Mapping, Optional
 
 WriteFn = Optional[Callable[[Any, dict], "tuple[list[str], dict] | None"]]
-# (payload, rep, resources) -> a human-readable rejection message, or None to
-# allow the write. resources is the coordinator's full href->rep snapshot, for
-# the same cross-resource lookups exists_fn needs (e.g. reading a sibling
-# href's live option list).
-ValidateFn = Optional[Callable[[Any, dict, dict], "str | None"]]
+# (payload, rep, resources) -> a translatable rejection, or None to allow the
+# write. resources is the coordinator's full href->rep snapshot, for the same
+# cross-resource lookups exists_fn needs (e.g. reading a sibling href's live
+# option list).
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    """A user-facing, translatable rejection from a descriptor validator."""
+
+    translation_key: str
+    translation_placeholders: Mapping[str, str] = field(default_factory=dict)
+
+
+ValidateFn = Optional[Callable[[Any, dict, dict], "ValidationIssue | None"]]
 
 
 def _identity(v: Any) -> Any:
@@ -34,6 +44,10 @@ class SamsungEntityDescription:
     # device) -- for a descriptor shared across board generations whose
     # state-code meaning isn't guaranteed consistent between them; see
     # laundry.cycle_select's table-id-gated resolver.
+    translation_placeholders: Optional[Mapping[str, str]] = None
+    # Dynamic resources such as fridge compartments and ice makers use a
+    # device-provided or href-derived instance label inside a translated name.
+    use_instance_name: bool = False
     icon: Optional[str] = None
     entity_category: Optional[str] = None      # 'diagnostic' | 'config' | None
     enabled_default: bool = True

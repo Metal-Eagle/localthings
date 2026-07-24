@@ -316,7 +316,7 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _create_entry(self, info: dict) -> FlowResult:
         return self.async_create_entry(
-            title=f"Samsung Appliance ({self._host})",
+            title=f"Samsung ({self._host})",
             data={
                 CONF_HOST:          self._host,
                 CONF_PORT:          info["port"],
@@ -368,21 +368,26 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if has_creds:
             schema = vol.Schema({vol.Required(CONF_HOST): _TEXT})
-            reuse_note = "CA credentials will be reused from the existing device."
+            step_id = "user_reuse"
         else:
             schema = vol.Schema({
                 vol.Required(CONF_HOST):        _TEXT,
                 vol.Required(CONF_CA_CERT_PEM): _MULTILINE,
                 vol.Required(CONF_CA_KEY_PEM):  _MULTILINE,
             })
-            reuse_note = ""
+            step_id = "user"
 
         return self.async_show_form(
-            step_id="user",
+            step_id=step_id,
             data_schema=schema,
             errors=errors,
-            description_placeholders={"reuse_note": reuse_note},
         )
+
+    async def async_step_user_reuse(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the localized host-only form for additional appliances."""
+        return await self.async_step_user(user_input)
 
     async def async_step_confirm_unknown_type(
         self, user_input: dict[str, Any] | None = None
@@ -391,12 +396,26 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return self._create_entry(self._pending_info)
 
+        if not self._pending_info["one_ui_version"]:
+            return await self.async_step_confirm_unknown_type_no_version()
+
         return self.async_show_form(
             step_id="confirm_unknown_type",
             data_schema=vol.Schema({}),
             description_placeholders={
-                "one_ui_version": self._pending_info["one_ui_version"] or "(none reported)",
+                "one_ui_version": self._pending_info["one_ui_version"],
             },
+        )
+
+    async def async_step_confirm_unknown_type_no_version(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Confirm an unknown appliance that did not report oneUiVersion."""
+        if user_input is not None:
+            return self._create_entry(self._pending_info)
+        return self.async_show_form(
+            step_id="confirm_unknown_type_no_version",
+            data_schema=vol.Schema({}),
         )
 
 
@@ -487,7 +506,7 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
                 "href": href,
                 "current_value": (
                     json.dumps(current, indent=2, ensure_ascii=False)
-                    if current else "(no cached value)"
+                    if current else "{}"
                 ),
             },
         )
@@ -531,7 +550,7 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
                 "code": f"{code >> 5}.{code & 0x1f:02d} ({code:#04x})",
                 "new_value": (
                     json.dumps(new_rep, indent=2, ensure_ascii=False)
-                    if new_rep else "(no value returned)"
+                    if new_rep else "{}"
                 ),
             },
         )
