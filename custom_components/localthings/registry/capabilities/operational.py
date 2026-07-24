@@ -2,7 +2,8 @@
 
 Shared by dryer/dishwasher/oven/washer families.
 """
-from datetime import datetime, timezone, timedelta
+import math
+from datetime import datetime, timedelta, timezone
 
 from ..capability import Capability
 from ..entities import BinarySensorDesc, ButtonDesc, NumberDesc, SensorDesc
@@ -28,17 +29,41 @@ def _int(v):
         return None
 
 
+def _is_active(rep):
+    """Check if appliance is actively running and cycle is not finished."""
+    return (
+        _SAMSUNG_STATE_TO_OCF.get(rep.get('x.com.samsung.da.state')) == 'active'
+        and rep.get('x.com.samsung.da.progress') != 'Finish'
+    )
+
+
+def _remaining_seconds(raw):
+    """'HH:MM:SS' (or 'MM:SS') -> total seconds, or None."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        parts = [int(p) for p in raw.split(':')]
+    except (ValueError, TypeError):
+        return None
+
+    if len(parts) == 3:
+        h, m, s = parts
+    elif len(parts) == 2:
+        h, m, s = 0, *parts
+    else:
+        return None
+
+    return h * 3600 + m * 60 + s
+
+
 def _delay_hours(v):
     """delayStartTime is a duration until the cycle starts, not a
     wall-clock time -- "01:00" means "1 hour from when you press start",
     not "1 AM"."""
-    if not v:
-        return 0.0
-    try:
-        h, m, s = v.split(':')
-        return int(h) + int(m) / 60 + int(s) / 3600
-    except Exception:
-        return None
+    total_seconds = _remaining_seconds(v)
+    if total_seconds is None:
+        return 0.0 if not v else None
+    return total_seconds / 3600.0
 
 
 def _format_delay(hours):
@@ -53,59 +78,46 @@ def _delay_field(rep):
     wall-clock time -- see _delay_hours). Write back whichever key the
     device itself is using; default to delayStartTime for hardware that
     reports neither yet (matches prior behavior)."""
-    return ('x.com.samsung.da.delayEndTime' if 'x.com.samsung.da.delayEndTime' in rep
-            else 'x.com.samsung.da.delayStartTime')
-
-
-def _finish_time(remaining_str):
-    if not remaining_str:
-        return None
-    try:
-        h, m, s = remaining_str.split(':')
-        total_s = int(h) * 3600 + int(m) * 60 + int(s)
-        if total_s == 0:
-            return None
-        return datetime.now(timezone.utc) + timedelta(seconds=total_s)
-    except Exception:
-        return None
-
-
-def _parse_remaining_time(rep):
     return (
-        rep.get('x.com.samsung.da.remainingTime')
-        or rep.get('remainingTime')
+        'x.com.samsung.da.delayEndTime' if 'x.com.samsung.da.delayEndTime' in rep
+        else 'x.com.samsung.da.delayStartTime'
     )
 
 
-def _completion_time(rep):
-    return _parse_remaining_time(rep)
+def _finish_time(rep):
+    if not _is_active(rep):
+        return None
+    total_s = _remaining_seconds(rep.get('x.com.samsung.da.remainingTime'))
+    if not total_s:
+        return None
+    return datetime.now(timezone.utc) + timedelta(seconds=total_s)
 
 
 def _completion_minutes(rep):
-    raw = _parse_remaining_time(rep)
-    if not raw or not isinstance(raw, str):
+    """Parse remaining time into minutes directly from device payload."""
+    raw = rep.get('x.com.samsung.da.remainingTime') or rep.get('remainingTime')
+    total_s = _remaining_seconds(raw)
+    if total_s is None:
         return None
-    try:
-        parts = [int(p) for p in raw.split(':')]
-        if len(parts) == 3:
-            h, m, s = parts
-            return h * 60 + m + (1 if s > 0 else 0)
-        elif len(parts) == 2:
-            m, s = parts
-            return m + (1 if s > 0 else 0)
-    except (ValueError, TypeError):
-        pass
-    return None
+    
+    # Avoid the firmware bug where it freezes at 1 minute post-cycle
+    if rep.get('x.com.samsung.da.progress') == 'Finish':
+        return 0
+        
+    return math.ceil(total_s / 60)
 
 
 # Shared by dryer/dishwasher/oven/washer -- oven.py imports this directly
 # rather than keeping its own copy, since both wrote the identical
 # state='Ready' RMW.
-STOP_BUTTON = ButtonDesc(key='stop', field='', name='Stop', payload='Ready',
-                         icon='mdi:stop',
-                         write_fn=lambda p, rep, href=None: (
-                             ['operational', 'state', 'vs', '0'],
-                             {'x.com.samsung.da.state': p}))
+STOP_BUTTON = ButtonDesc(
+    key='stop', field='', name='Stop', payload='Ready',
+    icon='mdi:stop',
+    write_fn=lambda p, rep, href=None: (
+        ['operational', 'state', 'vs', '0'],
+        {'x.com.samsung.da.state': p}
+    )
+)
 
 OPERATIONAL_STATE = Capability(
     href='/operational/state/vs/0',
@@ -115,6 +127,7 @@ OPERATIONAL_STATE = Capability(
                    name='Machine state', device_class='enum',
                    options=('idle', 'active', 'pause'),
                    translation_key='machine_state', value_fn=_to_ocf),
+                   
         # cycle_active is a bool derived from machine_state; used by the
         # adapter to gate oven writes (cycle_active_field='cycle_active').
         # Harmless for non-oven appliances — just an extra bool in state.
@@ -126,40 +139,34 @@ OPERATIONAL_STATE = Capability(
         # vocabulary that doesn't fit an oven's bake/roast/etc.
         BinarySensorDesc(key='cycle_active', device_class='running',
                          name='Running',
-                         rep_fn=lambda rep: (
-                             _SAMSUNG_STATE_TO_OCF.get(rep.get('x.com.samsung.da.state')) == 'active'
-                             and rep.get('x.com.samsung.da.progress') != 'Finish'
-                         )),
+                         rep_fn=_is_active),
+                         
         SensorDesc(key='progress', name='Progress', icon='mdi:progress-wrench',
                    rep_fn=lambda rep: (
                        'Idle' if _SAMSUNG_STATE_TO_OCF.get(rep.get('x.com.samsung.da.state')) != 'active'
                        else _progress(rep.get('x.com.samsung.da.progress'))
                    )),
+                   
         SensorDesc(key='progress_percentage',
                    name='Progress percent', unit='%', state_class='measurement',
                    rep_fn=lambda rep: (
                        0 if _SAMSUNG_STATE_TO_OCF.get(rep.get('x.com.samsung.da.state')) != 'active'
                        else _int(rep.get('x.com.samsung.da.progressPercentage'))
                    )),
+                   
         # Only show finish time when machine is actively running. Samsung
         # firmware leaves a stale remainingTime after a cycle ends, and
         # freezes it at '00:01:00' when progress reaches 'Finish'.
         SensorDesc(key='finish_time', device_class='timestamp',
                    name='Estimated finish',
-                   rep_fn=lambda rep: (
-                       None if _SAMSUNG_STATE_TO_OCF.get(rep.get('x.com.samsung.da.state')) != 'active'
-                            or rep.get('x.com.samsung.da.progress') == 'Finish'
-                       else _finish_time(rep.get('x.com.samsung.da.remainingTime'))
-                   )),
-        SensorDesc(key='completion_time', name='Completion time',
-                   icon='mdi:timer-sand',
-                   exists_fn=lambda rep, resources: _completion_time(rep) is not None,
-                   rep_fn=_completion_time),
+                   rep_fn=_finish_time),
+                   
         SensorDesc(key='completion_minutes', name='Remaining minutes',
                    icon='mdi:clock-outline', unit='min',
                    device_class='duration', state_class='measurement',
                    exists_fn=lambda rep, resources: _completion_minutes(rep) is not None,
                    rep_fn=_completion_minutes),
+                   
         NumberDesc(key='delay_start_hours', name='Delay start', icon='mdi:timer-plus-outline',
                    device_class='duration', unit='h',
                    native_min=0, native_max=24, step=1,
@@ -169,16 +176,19 @@ OPERATIONAL_STATE = Capability(
                    write_fn=lambda p, rep, href=None: (
                        ['operational', 'state', 'vs', '0'],
                        {_delay_field(rep): _format_delay(p)})),
+                       
         ButtonDesc(key='start', field='', name='Start', payload='Run',
                    icon='mdi:play',
                    write_fn=lambda p, rep, href=None: (
                        ['operational', 'state', 'vs', '0'],
                        {'x.com.samsung.da.state': p})),
+                       
         ButtonDesc(key='pause', field='', name='Pause', payload='Pause',
                    icon='mdi:pause',
                    write_fn=lambda p, rep, href=None: (
                        ['operational', 'state', 'vs', '0'],
                        {'x.com.samsung.da.state': p})),
+                       
         STOP_BUTTON,
     ),
 )
