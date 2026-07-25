@@ -512,7 +512,7 @@
         "name": "Geschatte eindtijd"
       },
       "completion_minutes": {
-        "name": "Voltooiingstijd (minuten)"
+        "name": "Voltooiingstijd"
       },
       "freezer_temperature": {
         "name": "Vriezertemperatuur"
