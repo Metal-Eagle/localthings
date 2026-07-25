@@ -400,7 +400,9 @@
           "7e": "Self-Clean",
           "86": "Deep Wash",
           "8f": "Intense Cold",
-          "96": "Less Microfiber"
+          "96": "Less Microfiber",
+          "2b": "AI Wash",
+          "2a": "Jeans"
         }
       },
       "washer_dry_level": {
