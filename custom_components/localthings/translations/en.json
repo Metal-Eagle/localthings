@@ -512,7 +512,7 @@
         "name": "Estimated finish"
       },
       "completion_minutes": {
-        "name": "Estimated finish (minutes)"
+        "name": "Completion time (minutes)"
       },
       "freezer_temperature": {
         "name": "Freezer temperature"
