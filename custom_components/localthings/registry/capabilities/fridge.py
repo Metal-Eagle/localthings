@@ -62,6 +62,47 @@ TEMP_CURRENT_GENERIC = Capability(
     ),
 )
 
+def _temp_setpoint_vendor_write(p, rep, href=None):
+    """Write temperature via the vendor /temperatures/vs/0 resource.
+
+    Samsung fridges expose both OCF-standard /temperature/desired/* (readable)
+    and vendor /temperatures/vs/0 (writable). The OCF resource ACKs POSTs but
+    ignores them; only the vendor path actually commits the setpoint change.
+    Item IDs follow the Samsung convention: "0" = Freezer, "1" = Fridge/Cooler.
+    """
+    if not href:
+        return None
+    if '/cooler/' in href:
+        item_id = '1'
+    elif '/freezer/' in href:
+        item_id = '0'
+    else:
+        return None
+    return (
+        ['temperatures', 'vs', '0'],
+        {'x.com.samsung.da.items': [
+            {'x.com.samsung.da.id': item_id,
+             'x.com.samsung.da.desired': str(int(round(float(p))))}
+        ]}
+    )
+
+
+TEMP_SETPOINT_VENDOR = Capability(
+    href=None,
+    href_prefix='/temperature/desired/',
+    strip_prefix_in_key=True,
+    match_fn=lambda rep, resources: '/temperatures/vs/0' in resources,
+    poll_tier='warm',
+    entities=(
+        NumberDesc(key='setpoint', field='temperature',
+                   translation_key='instance_setpoint',
+                   use_instance_name=True, device_class='temperature', unit_fn=_temp_unit,
+                   native_min=-20.0, native_max=50.0,
+                   range_field='range', entity_category='config',
+                   write_fn=_temp_setpoint_vendor_write),
+    ),
+)
+
 TEMP_SETPOINT_GENERIC = Capability(
     href=None,
     href_prefix='/temperature/desired/',
