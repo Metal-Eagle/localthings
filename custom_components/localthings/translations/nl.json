@@ -400,7 +400,9 @@
           "7e": "Zelfreinigend",
           "86": "Diep wassen",
           "8f": "Intensief koud",
-          "96": "Minder microvezels"
+          "96": "Minder microvezels",
+          "2b": "AI Wash",
+          "2a": "Spijkerbroek"
         }
       },
       "washer_dry_level": {
