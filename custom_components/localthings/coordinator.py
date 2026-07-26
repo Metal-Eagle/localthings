@@ -564,7 +564,10 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     translation_domain=DOMAIN,
                     translation_key=error,
                 )
-        result = write_fn(payload, rep, href)
+        try:
+            result = write_fn(payload, rep, href, resources)
+        except TypeError:
+            result = write_fn(payload, rep, href)
         if result is None:
             self._log.warning("write_fn rejected payload %r for %s", payload, href)
             return

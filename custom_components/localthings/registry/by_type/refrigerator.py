@@ -33,8 +33,7 @@ REGISTRY = DeviceRegistry(
     ]),
     pattern_capabilities=[
         fridge.TEMP_CURRENT_GENERIC,
-        fridge.TEMP_SETPOINT_VENDOR,
-        fridge.TEMP_SETPOINT_GENERIC,
+        fridge.TEMP_SETPOINT,
         fridge.ICEMAKER_GENERIC,
         fridge.DOOR_GENERIC,
     ],
