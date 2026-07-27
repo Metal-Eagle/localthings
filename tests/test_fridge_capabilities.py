@@ -45,7 +45,7 @@ class TestDoorGeneric:
 
 class TestTempSetpointGeneric:
     def test_unit_reads_celsius(self):
-        desc = fridge.TEMP_SETPOINT_GENERIC.entities[0]
+        desc = fridge.TEMP_SETPOINT.entities[0]
         assert desc.unit_fn({'temperature': -19.0, 'units': 'C'}) == '°C'
 
 

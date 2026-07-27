@@ -317,3 +317,46 @@ class TestForDeviceByResources:
         reg = for_device_by_resources(resources)
         assert reg is not None
         assert reg.name == 'range_hood'
+
+    def test_ne63b8411ss_without_information_or_burner_status_is_range(self):
+        """Issue #74: no oneUiVersion, no /information/vs/0 at all, and no
+        /cooktop/status/vs/0 burner array -- only /cooktopmonitoring/vs/0.
+        'Bake' in supportedModes plus that monitoring resource must still
+        route this to the range registry, not plain oven or unknown."""
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['Bake', 'Broil', 'SelfClean'],
+                'x.com.samsung.da.options': ['DeviceType_NE8411B-/AC0'],
+            },
+            '/oven/vs/0': {'x.com.samsung.da.state': 'Ready'},
+            '/cooktopmonitoring/vs/0': {'x.com.samsung.da.cooktopRunningState': 'Ready'},
+        }
+        reg = for_device_by_resources(resources)
+        assert reg is not None
+        assert reg.name == 'range'
+
+    def test_bake_without_cooktop_resource_is_plain_oven(self):
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['Bake', 'Broil'],
+                'x.com.samsung.da.options': ['DeviceType_SOME_OVEN'],
+            },
+            '/oven/vs/0': {'x.com.samsung.da.state': 'Ready'},
+        }
+        reg = for_device_by_resources(resources)
+        assert reg is not None
+        assert reg.name == 'oven'
+
+    def test_bake_without_oven_cavity_resource_is_not_matched(self):
+        """'Bake' alone isn't enough -- the oven cavity resource must also
+        be present, or this falls through to None like any other unknown
+        shape."""
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['Bake', 'Broil'],
+            },
+        }
+        assert for_device_by_resources(resources) is None
