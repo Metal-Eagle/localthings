@@ -98,6 +98,7 @@
           },
           "preset_mode": {
             "state": {
+              "ai_comfort": "AI-comfort",
               "quiet": "Stil",
               "smart": "Slim",
               "speed": "Snel"
