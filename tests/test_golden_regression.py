@@ -102,6 +102,23 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_dehumidifier():
+    """TP1X_DA_AC_DHM_01001_0000 (issue #88, AY18CG7500GED) shares the DA_AC_
+    board family with the room-AC models but carries the '_DHM_' token;
+    resolved via the '_DHM_' modelNum fallback in for_device_by_model into a
+    dedicated dehumidifier registry (target humidity, operating mode, reused
+    AC filter/auto-clean/mute-once capabilities)."""
+    from tests.conftest import _load_device
+    resources = _load_device('dehumidifier')
+    golden = json.loads((GOLDEN / 'dehumidifier.json').read_text())
+    state_keys = _new_state_keys('dehumidifier', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_water_purifier():
     """TP2X_WATERPURIFIER_20K (issue #90) reports no oneUiVersion; resolved
     via the 'WATERPURIFIER' modelNum/description fallback into a dedicated

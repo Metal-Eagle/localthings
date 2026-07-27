@@ -228,6 +228,20 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_dehumidifier_via_dhm_token(self):
+        """Issue #88: a dehumidifier (AY18CG7500GED) shares the DA_AC_ board
+        family with the room-AC models but reports no oneUiVersion and
+        carries the '_DHM_' (DeHuMidifier) token instead of
+        '_RAC_'/'_PRAC_'/'_WAC_'; falls back to the '_DHM_' token in
+        modelNum."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA_AC_DHM_01001_0000|10253841|77000000001700000A00000000000000',
+            'TP1X_DA_AC_DHM_01001_0000',
+        )
+        assert reg is not None
+        assert reg.name == 'dehumidifier'
+
     def test_water_purifier_via_waterpurifier_token(self):
         """Issue #90: a water purifier (TP2X_WATERPURIFIER_20K) reports no
         oneUiVersion and no consumer-prefix match; falls back to the
@@ -239,7 +253,7 @@ class TestForDeviceByModel:
         )
         assert reg is not None
         assert reg.name == 'water_purifier'
-    
+
     def test_airconditioner_via_wac_token(self):
         """Issue #87: a Bespoke Window AC (AW06C7155EWAZ) reports no
         oneUiVersion and a modelNum carrying the '_WAC_' (Window Air

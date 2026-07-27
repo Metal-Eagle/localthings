@@ -131,6 +131,9 @@
       },
       "sound_volume": {
         "name": "Geluidsvolume"
+      },
+      "target_humidity": {
+        "name": "Doelvochtigheid"
       }
     },
     "select": {
@@ -309,6 +312,9 @@
           "plate_warm": "Borden warmhouden",
           "air_fry": "Airfryen"
         }
+      },
+      "operating_mode": {
+        "name": "Bedrijfsmodus"
       },
       "pantry_zone_mode": {
         "name": "Modus voorraadzone",
@@ -562,6 +568,9 @@
       },
       "hood_filter_capacity": {
         "name": "Filtercapaciteit"
+      },
+      "humidity": {
+        "name": "Luchtvochtigheid"
       },
       "hood_filter_usage": {
         "name": "Filterverbruik"
