@@ -10,8 +10,14 @@
       "burner_hot_surface": {
         "name": "Burner {number} hot surface"
       },
+      "burner_pan_detected": {
+        "name": "Burner {number} pan detected"
+      },
       "cloud_connected": {
         "name": "Cloud connected"
+      },
+      "cooktop_power": {
+        "name": "Cooktop power"
       },
       "cooktop_safety_shutoff_enabled": {
         "name": "Hot surface auto-shutoff enabled"
@@ -60,6 +66,9 @@
       },
       "power_state": {
         "name": "Power state"
+      },
+      "probe_connected": {
+        "name": "Probe connected"
       },
       "power_switch": {
         "name": "Power"
@@ -626,6 +635,15 @@
       "power_watts": {
         "name": "Power"
       },
+      "probe_battery": {
+        "name": "Probe battery"
+      },
+      "probe_target_temperature": {
+        "name": "Probe target temperature"
+      },
+      "probe_temperature": {
+        "name": "Probe temperature"
+      },
       "progress": {
         "name": "Progress"
       },
@@ -725,6 +743,9 @@
       },
       "coldwater_lock": {
         "name": "Cold water lock"
+      },
+      "cooktop_child_lock": {
+        "name": "Child lock"
       },
       "defrost_delay": {
         "name": "Defrost delay"

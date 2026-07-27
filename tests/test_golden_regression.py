@@ -385,6 +385,17 @@ def test_registry_reproduces_golden_state_keys_for_range():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_induction_cooktop():
+    """Standalone induction cooktop, no oven attached (model
+    TP1X_DA-KS-COOKTOP-01011, issue #86) -- reports no oneUiVersion and a
+    hyphenated '-COOKTOP-' modelNum token, resolved via
+    for_device_by_model into its own 'induction_cooktop' registry (not
+    cooktop.REGISTRY, which is the unrelated NA9300K gas-cooktop family)."""
+    from tests.conftest import _load_device
+    resources = _load_device('induction_cooktop')
+    golden = json.loads((GOLDEN / 'induction_cooktop.json').read_text())
+    state_keys = _new_state_keys('induction_cooktop', resources)
+
 def test_registry_reproduces_golden_state_keys_for_range_no_info():
     """NE63B8411SS (issue #74) -- reports no oneUiVersion *and* no
     /information/vs/0 at all, so neither for_device nor

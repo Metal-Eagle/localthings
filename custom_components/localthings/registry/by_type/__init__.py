@@ -4,7 +4,8 @@ from typing import Optional
 from ._base import DeviceRegistry
 from . import (
     air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
-    oven, range as _range, range_hood, refrigerator, washer, water_purifier,
+    induction_cooktop, oven, range as _range, range_hood, refrigerator,
+    washer, water_purifier,
 )
 
 __all__ = [
@@ -22,6 +23,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'dehumidifier': dehumidifier.REGISTRY,
     'dishwasher': dishwasher.REGISTRY,
     'dryer': dryer.REGISTRY,
+    'induction_cooktop': induction_cooktop.REGISTRY,
     'oven': oven.REGISTRY,
     'hood': range_hood.REGISTRY,
     'range': _range.REGISTRY,
@@ -198,6 +200,16 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # oneUiVersion and doesn't match the washer/dryer/dishwasher prefix map.
     if key is None and '-OVEN-' in (model_num or '').upper():
         key = 'oven'
+    # Standalone induction cooktops (e.g. TP1X_DA-KS-COOKTOP-01011, issue
+    # #86) -- same board family and '/cooktop/status/vs/0' resource shape
+    # as the range combo above, but no oven attached at all. Distinct from
+    # the '_COOKTOP'/'_GB_CT_' underscore-delimited check above: that one
+    # matches a different, older gas-cooktop family (cooktop.py's NA9300K
+    # class, burner state embedded in /mode/vs/0's options array) whose
+    # modelNum token is underscore-delimited, not hyphenated like this
+    # board family's.
+    if key is None and '-COOKTOP-' in (model_num or '').upper():
+        key = 'induction_cooktop'
     return _REGISTRY_BY_KEY.get(key) if key else None
 
 

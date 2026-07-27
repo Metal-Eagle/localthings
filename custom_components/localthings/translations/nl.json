@@ -10,8 +10,14 @@
       "burner_hot_surface": {
         "name": "Brander {number} heet oppervlak"
       },
+      "burner_pan_detected": {
+        "name": "Brander {number} pan gedetecteerd"
+      },
       "cloud_connected": {
         "name": "Verbonden met cloud"
+      },
+      "cooktop_power": {
+        "name": "Kookplaat voeding"
       },
       "cooktop_safety_shutoff_enabled": {
         "name": "Automatische uitschakeling heet oppervlak ingeschakeld"
@@ -60,6 +66,9 @@
       },
       "power_state": {
         "name": "Voedingsstatus"
+      },
+      "probe_connected": {
+        "name": "Sonde verbonden"
       },
       "power_switch": {
         "name": "Voeding"
@@ -626,6 +635,15 @@
       "power_watts": {
         "name": "Vermogen"
       },
+      "probe_battery": {
+        "name": "Sonde batterij"
+      },
+      "probe_target_temperature": {
+        "name": "Doeltemperatuur sonde"
+      },
+      "probe_temperature": {
+        "name": "Temperatuur sonde"
+      },
       "progress": {
         "name": "Voortgang"
       },
@@ -725,6 +743,9 @@
       },
       "coldwater_lock": {
         "name": "Koudwaterslot"
+      },
+      "cooktop_child_lock": {
+        "name": "Kinderslot"
       },
       "defrost_delay": {
         "name": "Ontdooien uitstellen"

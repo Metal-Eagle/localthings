@@ -351,6 +351,28 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'oven'
 
+    def test_induction_cooktop_via_hyphenated_cooktop_token(self):
+        """Issue #86: a standalone induction cooktop (NV8500T-/KO4) reports
+        no oneUiVersion and an unrecognized consumer token ('NV'); it falls
+        back to the hyphenated '-COOKTOP-' token in modelNum -- distinct
+        from the underscore-delimited '_COOKTOP'/'_GB_CT_' check, which is
+        the unrelated older NA9300K gas-cooktop family."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA-KS-COOKTOP-01011|40459741|50000203001711000A00000000000000',
+            'NV8500T-/KO4',
+        )
+        assert reg is not None
+        assert reg.name == 'induction_cooktop'
+
+    def test_hyphenated_cooktop_token_not_confused_with_range(self):
+        """'-COOKTOP-' and '-RANGE-' must route to distinct registries even
+        though both are TP1X_DA-KS- board-family siblings."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model('TP1X_DA-KS-COOKTOP-01011', 'NV8500T-/KO4')
+        assert reg is not None
+        assert reg.name != 'range'
+
     def test_unknown_model_returns_none(self):
         from custom_components.localthings.registry.by_type import for_device_by_model
         reg = for_device_by_model('SOME-UNKNOWN-BOARD', 'SOME-UNKNOWN-BOARD')
