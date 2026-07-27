@@ -34,6 +34,9 @@
       "door_open": {
         "name": "Deur"
       },
+      "filter_door_status": {
+        "name": "Filterdeur"
+      },
       "firmware_update": {
         "name": "Firmware-update beschikbaar"
       },
@@ -51,6 +54,9 @@
       },
       "periodic_air_sensing": {
         "name": "Periodieke luchtmeting"
+      },
+      "pouring": {
+        "name": "Schenken"
       },
       "power_state": {
         "name": "Voedingsstatus"
@@ -109,6 +115,9 @@
       },
       "delay_start_hours": {
         "name": "Uitgestelde start"
+      },
+      "dispense_capacity": {
+        "name": "Schenkhoeveelheid"
       },
       "instance_setpoint": {
         "name": "Instelpunt {instance_name}"
@@ -189,6 +198,9 @@
           "8f": "Babyverzorging"
         }
       },
+      "dispense_type": {
+        "name": "Type dispenser"
+      },
       "door_alert": {
         "name": "Deuralarm",
         "state": {
@@ -216,6 +228,9 @@
           "1e": "Outdoor",
           "1f": "Gemengde was"
         }
+      },
+      "favorite_capacity": {
+        "name": "Favoriete capaciteit"
       },
       "finish_sound": {
         "name": "Eindgeluid",
@@ -247,6 +262,9 @@
           "high": "Hoog",
           "extra_high": "Extra hoog"
         }
+      },
+      "hot_water_temperature": {
+        "name": "Temperatuur warm water"
       },
       "ice_type": {
         "name": "Type {instance_name}",
@@ -499,6 +517,9 @@
       "fan_speed_level": {
         "name": "Ventilatorniveau"
       },
+      "filter_clean_remain_time": {
+        "name": "Resterende tijd filterreiniging"
+      },
       "filter_progress": {
         "name": "Filterverbruik"
       },
@@ -589,11 +610,26 @@
       "selfcheck_status": {
         "name": "Status zelfcontrole"
       },
+      "sterilize_last_time": {
+        "name": "Laatste sterilisatie"
+      },
+      "sterilize_period": {
+        "name": "Sterilisatie-interval"
+      },
+      "sterilize_plan_time": {
+        "name": "Geplande sterilisatie"
+      },
+      "sterilize_run_time": {
+        "name": "Sterilisatieduur"
+      },
       "super_fine_dust": {
         "name": "Ultrafijnstof"
       },
       "water_liters": {
         "name": "Waterverbruik"
+      },
+      "waterpurifier_status": {
+        "name": "Status"
       },
       "machine_state": {
         "name": "Machinestatus",
@@ -641,6 +677,9 @@
       "bubble_soak": {
         "name": "Bubble Soak"
       },
+      "buzz_lock": {
+        "name": "Zoemerslot"
+      },
       "cabinet_light_dim": {
         "name": "Geleidelijk feller"
       },
@@ -649,6 +688,9 @@
       },
       "child_lock": {
         "name": "Kinderslot"
+      },
+      "coldwater_lock": {
+        "name": "Koudwaterslot"
       },
       "defrost_delay": {
         "name": "Ontdooien uitstellen"
@@ -659,8 +701,14 @@
       "fast_preheat": {
         "name": "Snel voorverwarmen"
       },
+      "favorite_capacity_enabled": {
+        "name": "Favoriete capaciteit"
+      },
       "fridge_sound": {
         "name": "Geluid"
+      },
+      "hotwater_lock": {
+        "name": "Heetwaterslot"
       },
       "ice_maker_enabled": {
         "name": "IJsmaker"

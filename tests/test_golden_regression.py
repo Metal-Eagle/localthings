@@ -85,6 +85,22 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_water_purifier():
+    """TP2X_WATERPURIFIER_20K (issue #90) reports no oneUiVersion; resolved
+    via the 'WATERPURIFIER' modelNum/description fallback into a dedicated
+    water_purifier registry (dispense settings, sterilize/filter status,
+    favorite capacity, and the three lock switches)."""
+    from tests.conftest import _load_device
+    resources = _load_device('water_purifier')
+    golden = json.loads((GOLDEN / 'water_purifier.json').read_text())
+    state_keys = _new_state_keys('water_purifier', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_cooktop():
     from tests.conftest import _load_device
     resources = _load_device('cooktop')

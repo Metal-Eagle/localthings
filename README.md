@@ -31,6 +31,7 @@ Your state stays on your LAN: HA talks to the appliance over a direct DTLS sessi
 | Dishwasher | `by_type/dishwasher.py` |
 | Refrigerator | `by_type/refrigerator.py` |
 | Washer | `by_type/washer.py` |
+| Water purifier | `by_type/water_purifier.py` |
 
 Each registry composes shared and family-specific `Capability` objects from `registry/capabilities/`; those modules document the individual resources/entities in more depth than a README table can stay current with.
 

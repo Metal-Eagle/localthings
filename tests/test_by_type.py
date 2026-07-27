@@ -190,6 +190,18 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_water_purifier_via_waterpurifier_token(self):
+        """Issue #90: a water purifier (TP2X_WATERPURIFIER_20K) reports no
+        oneUiVersion and no consumer-prefix match; falls back to the
+        'WATERPURIFIER' token shared by modelNum and description."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP2X_WATERPURIFIER_20K|00132341|900000000215130001060F0000020000',
+            'TP2X_WATERPURIFIER_20K',
+        )
+        assert reg is not None
+        assert reg.name == 'water_purifier'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model
