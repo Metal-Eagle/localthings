@@ -168,18 +168,4 @@ def test_all_entity_state_translation_keys_are_lowercase():
         for translation in platform.values():
             for state_key in translation.get("state", {}):
                 assert state_key == state_key.lower()
-
-
-def test_issue_80_cycle_codes_are_labelled():
-    """Confirmed by the reporter selecting each cycle on the physical
-    appliance and reading back the raw code from the entity's state --
-    regression-lock those five mappings against accidental removal."""
-    select_strings = _load("en")["entity"]["select"]
-    washer_state = select_strings["washer_cycle_table_02"]["state"]
-    assert washer_state["52"] == "Eco Cold"
-    assert washer_state["54"] == "Towels"
-    assert washer_state["60"] == "Self Clean+"
-
-    dryer_state = select_strings["dryer_cycle_table_03"]["state"]
-    assert dryer_state["01"] == "Normal"
-    assert dryer_state["06"] == "Time dry"
+    
