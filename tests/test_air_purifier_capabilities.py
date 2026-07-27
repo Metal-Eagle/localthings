@@ -41,7 +41,7 @@ def test_expected_entities_present():
     for key in (
         'power_switch', 'alarm_code', 'dust', 'fine_dust', 'super_fine_dust',
         'odor', 'clean_level', 'filter_progress', 'device_active',
-        'diagnosis_status', 'fan_speed_level', 'fan_direction',
+        'diagnosis_status', 'fan', 'fan_direction',
         'display_light', 'operating_mode',
     ):
         assert key in state, key
@@ -114,3 +114,27 @@ def test_airflow_vs_fallback_only_binds_without_generic():
         {}, {'/airflow/0': {'speed': 0, 'direction': 'Off'}},
     ) is False
     assert air_purifier.AIRFLOW_VS_FALLBACK.match_fn({}, {}) is True
+
+
+def test_airflow_fan_write_contract():
+    """Confirmed via issue #56's second, properly-spaced diagnostics round
+    (two independent units, 60-90s apart per setting): /airflow/0's `speed`
+    is a clean, monotonic 0-4 code, so the write is a plain int passthrough
+    -- no named-preset table needed (see fan.py's LocalThingsAirflowFan)."""
+    fan_desc = next(e for e in air_purifier.AIRFLOW_GENERIC.entities if e.key == 'fan')
+    assert fan_desc.write_fn(('speed', 3), {}) == (['airflow', '0'], {'speed': 3})
+    assert fan_desc.write_fn(('power', True, '/power/vs/0'), {}) == (
+        ['power', 'vs', '0'], {'x.com.samsung.da.power': 'On'},
+    )
+    assert fan_desc.write_fn(('power', False, '/power/0'), {}) == (
+        ['power', '0'], {'value': False},
+    )
+
+
+def test_airflow_speed_reads_from_dump():
+    """The fixture's /airflow/0 (power-off snapshot) reads speed=0, and
+    fan_direction stays a plain diagnostic (every dump seen reads 'Off'
+    regardless of fan setting)."""
+    state = _state()
+    assert state['fan'] == 0
+    assert state['fan_direction'] == 'Off'

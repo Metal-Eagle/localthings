@@ -39,14 +39,23 @@ set to Auto/Sleep/Low/Medium/High):
                             automatic side effect of sleep mode, e.g. a
                             display-dimming level, but that's still a guess).
 
-/airflow/0 and /airflow/vs/0's `speed` still isn't modeled as a real
-fan-speed control: across the same five dumps it read 0 for both Auto *and*
-High, and 3 for Low/Medium *and* Sleep -- not a monotonic mapping to any
-selectable level, and the dumps were all captured within about three minutes
-of each other (only one poll cycle apart at this integration's 30s summary
-interval), so the values may not have settled after each change before the
-diagnostics snapshot was taken. Exposed read-only pending a confirmed,
-stable capture -- see the issue #56 discussion for what's needed.
+/airflow/0's `speed` is now a real fan-speed control (issue #56 follow-up).
+The first round of five dumps above wasn't conclusive -- it read 0 for both
+Auto *and* High, and 3 for Low/Medium *and* Sleep, likely because all five
+were captured within about a minute of each other, faster than this
+integration's own ~30s poll cycle could settle each change. A second round,
+captured 60-90s apart per setting on two independent units, confirmed a
+clean monotonic mapping instead: Auto=0, Sleep=1, Low=2, Medium=3, High=4.
+AIRFLOW_GENERIC below builds an ordered-speed fan off that confirmed 0-4
+range -- same SET_SPEED shape as range_hood.py's fan, mapping HA's
+percentage steps straight onto the raw code, no named-preset table needed
+(unlike the TP1X family's FAN, which exposes real named modes because its
+board actually reports a supportedModes list to hang names off of).
+
+/airflow/vs/0's vendor `speedLevel` is NOT used for the same purpose -- it
+was unreliable on both units in that second round (Low/Medium collided on
+one unit, stuck at 0 throughout on the other), so AIRFLOW_VS_FALLBACK below
+stays a plain read-only diagnostic even after this change.
 """
 from ..capability import Capability
 from ..entities import (
@@ -64,6 +73,7 @@ from .laundry import bool_option_exists, bool_option_value, option_value, option
 # Both board generations share the /mode/vs/0 href, so FAN and MODE below
 # are mutually exclusive via this presence check rather than colliding.
 HREF_MODE = '/mode/vs/0'
+HREF_AIRFLOW = '/airflow/0'
 
 
 def _has_top_level_modes(rep, resources):
@@ -126,21 +136,44 @@ DEVICE_ACTIVE = Capability(
     ),
 )
 
-# OCF-native / vendor pair for fan speed+direction -- see module docstring for
-# why these are read-only for now.
+# Confirmed via issue #56's second, properly-spaced round of diagnostics
+# (two independent units, 60-90s apart per setting): /airflow/0's `speed` is
+# a clean, monotonic 0-4 code across Auto/Sleep/Low/Medium/High, so it now
+# backs a real ordered-speed fan (fan.py's LocalThingsAirflowFan, same
+# SET_SPEED shape as the range hood's) instead of a read-only sensor --
+# no named-preset table needed, since HA's percentage steps map onto the
+# raw 0-4 code directly, the same way the range hood's numeric levels do.
+# `direction` stays a plain diagnostic: every dump seen (both rounds, both
+# units) reads 'Off' for it regardless of fan setting, so there's nothing
+# confirmed to control there yet.
+def _airflow_fan_write(payload, rep, href=None):
+    kind, value, *args = payload
+    if kind == 'power':
+        power_href = args[0] if args else '/power/vs/0'
+        if power_href == '/power/0':
+            return ['power', '0'], {'value': bool(value)}
+        return (['power', 'vs', '0'],
+                {'x.com.samsung.da.power': 'On' if value else 'Off'})
+    if kind == 'speed':
+        return ['airflow', '0'], {'speed': int(value)}
+    return None
+
+
 AIRFLOW_GENERIC = Capability(
     href='/airflow/0',
     poll_tier='warm',
     entities=(
-        SensorDesc(key='fan_speed_level', field='speed',
-                   icon='mdi:fan',
-                   state_class='measurement', entity_category='diagnostic'),
+        FanDesc(key='fan', field='speed', write_fn=_airflow_fan_write),
         SensorDesc(key='fan_direction', field='direction',
                    icon='mdi:rotate-3d-variant',
                    entity_category='diagnostic'),
     ),
 )
 
+# Left exactly as a read-only fallback -- speedLevel is NOT the same
+# confirmed-reliable field as /airflow/0's speed above (see module
+# docstring): it collided Low/Medium on one unit and stuck at 0 throughout
+# on the other in the same properly-spaced round.
 AIRFLOW_VS_FALLBACK = Capability(
     href='/airflow/vs/0',
     match_fn=lambda rep, resources: '/airflow/0' not in resources,
