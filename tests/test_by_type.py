@@ -343,6 +343,22 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'oven'
 
+    def test_vacuum_station_via_vskr_token(self):
+        """Issue #131: a stick-vacuum clean/auto-empty station
+        (A-VSKR-TP1-22-VS9500AL) reports no oneUiVersion and no
+        washer/dryer/dishwasher consumer prefix; falls back to the
+        '-VSKR-' token in modelNum onto a new vacuum_station registry (its
+        dump has no vacuum-body state at all, only station-specific
+        dustbag/dustbin/UV-sanitize resources -- see
+        capabilities/vacuum_station.py's module docstring)."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'A-VSKR-TP1-22-VS9500AL|50023541|80030100001611000800000000000000',
+            'A-VSKR-TP1-22-VS9500AL',
+        )
+        assert reg is not None
+        assert reg.name == 'vacuum_station'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model

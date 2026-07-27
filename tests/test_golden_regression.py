@@ -609,6 +609,26 @@ def test_registry_reproduces_golden_state_keys_for_air_purifier_tp1x_da_ac_air()
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_vacuum_station():
+    """A-VSKR-TP1-22-VS9500AL stick-vacuum clean/auto-empty station (issue
+    #131) -- reports no oneUiVersion; resolved via the new '-VSKR-'
+    modelNum fallback onto a new vacuum_station registry (see
+    capabilities/vacuum_station.py's module docstring for why this needed
+    a new device type rather than reusing an existing one: the dump has no
+    vacuum-body state at all, only station-specific dustbag/dustbin/
+    UV-sanitize resources that share no hrefs with anything else already
+    modeled). Binds with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('vacuum_station')
+    golden = json.loads((GOLDEN / 'vacuum_station.json').read_text())
+    state_keys = _new_state_keys('vacuum_station', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

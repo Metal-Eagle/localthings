@@ -1,0 +1,170 @@
+{
+  "device0": [
+    {
+      "rt": [
+        "x.com.samsung.devcol",
+        "oic.wk.col"
+      ],
+      "if": [
+        "oic.if.baseline",
+        "oic.if.ll",
+        "oic.if.b"
+      ]
+    },
+    {
+      "href": "/realtimenotiforclient/vs/0",
+      "rep": {
+        "x.com.samsung.da.timeforshortnoti": "0",
+        "x.com.samsung.da.timeforlongnoti": "false",
+        "x.com.samsung.da.periodicnotisubscription": "true"
+      }
+    },
+    {
+      "href": "/alarms/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/energy/consumption/vs/0",
+      "rep": {
+        "x.com.samsung.da.cumulativePower": "915",
+        "x.com.samsung.da.cumulativeUnit": "Wh"
+      }
+    },
+    {
+      "href": "/information/vs/0",
+      "rep": {
+        "x.com.samsung.da.modelNum": "A-VSKR-TP1-22-VS9500AL|50023541|80030100001611000800000000000000",
+        "x.com.samsung.da.description": "A-VSKR-TP1-22-VS9500AL",
+        "x.com.samsung.da.serialNum": "**REDACTED**",
+        "x.com.samsung.da.otnDUID": "**REDACTED**",
+        "x.com.samsung.da.diagProtocolType": "WIFI_HTTPS",
+        "x.com.samsung.da.diagLogType": [
+          "errCode",
+          "dump"
+        ],
+        "x.com.samsung.da.diagDumpType": "file",
+        "x.com.samsung.da.diagEndPoint": "SSM",
+        "x.com.samsung.da.diagMnid": "0AJT",
+        "x.com.samsung.da.diagSetupid": "VS1",
+        "x.com.samsung.da.diagMinVersion": "1.0",
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Version",
+            "x.com.samsung.da.type": "Software",
+            "x.com.samsung.da.number": "023741250507",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Version",
+            "x.com.samsung.da.type": "Firmware",
+            "x.com.samsung.da.number": "25050800",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/file/information/vs/0",
+      "rep": {
+        "x.com.samsung.timeoffset": "+09:00",
+        "x.com.samsung.supprtedtype": 1
+      }
+    },
+    {
+      "href": "/configuration/vs/0",
+      "rep": {
+        "x.com.samsung.da.region": "2650000000",
+        "x.com.samsung.da.airconOptionList": [
+          "HOMECARE_WIZARD_V2",
+          "CLEAN_OPTION_SUPPORT"
+        ]
+      }
+    },
+    {
+      "href": "/component/station/dustbag/vs/0",
+      "rep": {
+        "x.com.samsung.da.status": "normal",
+        "x.com.samsung.da.supportedStatus": [
+          "full",
+          "normal"
+        ]
+      }
+    },
+    {
+      "href": "/setting/dustbin/vs/0",
+      "rep": {
+        "x.com.samsung.da.autoEmpty": "On",
+        "x.com.samsung.da.autoClose": "On",
+        "x.com.samsung.da.desiredDischargingTime": "3",
+        "x.com.samsung.da.supportedDischargingTime": [
+          "1",
+          "3"
+        ]
+      }
+    },
+    {
+      "href": "/status/cleanstation/vs/0",
+      "rep": {
+        "x.com.samsung.da.status": "Ready",
+        "x.com.samsung.da.uvcTotalOperationTime": "90",
+        "x.com.samsung.da.uvcOperationTime": "90",
+        "x.com.samsung.da.uvcFinishedTime": "2026-07-27T10:26Z",
+        "x.com.samsung.da.emittedTime": "2026-07-26T12:26Z",
+        "x.com.samsung.da.uvcIntensive": "Off",
+        "x.com.samsung.da.stickStatus": "On"
+      }
+    },
+    {
+      "href": "/component/station/dustbagusage/vs/0",
+      "rep": {
+        "x.com.samsung.da.dustbagUsage": "506",
+        "x.com.samsung.da.dustbagPrevUsage": "0"
+      }
+    },
+    {
+      "href": "/otninformation/vs/0",
+      "rep": {
+        "x.com.samsung.da.target": "",
+        "x.com.samsung.da.newVersionAvailable": "false",
+        "flashingProgress": ""
+      }
+    },
+    {
+      "href": "/timezone/vs/0",
+      "rep": {
+        "timezoneid": "Asia/Seoul",
+        "offset": "+09:00",
+        "DST": "OFF"
+      }
+    },
+    {
+      "href": "/connectionconfig/vs/0",
+      "rep": {
+        "autoReconnectionMinVersion": "1.0",
+        "autoReconnection": "true",
+        "autoReconnectionProtocolType": [
+          "helper_hotspot",
+          "ble_ocf"
+        ],
+        "supportedWiFiAuthType": [
+          "OPEN",
+          "WEP",
+          "WPA-PSK",
+          "WPA2-PSK",
+          "SAE"
+        ],
+        "supportedWiFiCryptoType": [
+          "TKIP",
+          "AES",
+          "WEP-64",
+          "WEP-128"
+        ],
+        "supportedWiFiFreq": [
+          "2.4G"
+        ]
+      }
+    }
+  ]
+}

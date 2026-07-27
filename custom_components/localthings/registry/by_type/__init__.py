@@ -5,7 +5,7 @@ from ._base import DeviceRegistry
 from . import (
     air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
     induction_cooktop, oven, range as _range, range_hood, refrigerator,
-    washer, water_purifier,
+    vacuum_station, washer, water_purifier,
 )
 
 __all__ = [
@@ -29,6 +29,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'range': _range.REGISTRY,
     'range_hood': range_hood.REGISTRY,
     'refrigerator': refrigerator.REGISTRY,
+    'vacuum_station': vacuum_station.REGISTRY,
     'washer': washer.REGISTRY,
     'water_purifier': water_purifier.REGISTRY,
 }
@@ -250,6 +251,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # board family's.
     if key is None and '-COOKTOP-' in (model_num or '').upper():
         key = 'induction_cooktop'
+    # Stick-vacuum clean/auto-empty station (e.g. A-VSKR-TP1-22-VS9500AL,
+    # issue #131) -- reports no oneUiVersion and carries the '-VSKR-'
+    # board-family token. See capabilities/vacuum_station.py for why this
+    # is its own device type: the resource set (dustbag/dustbin/UV-sanitize
+    # station state) shares no hrefs with anything else already modeled.
+    if key is None and '-VSKR-' in (model_num or '').upper():
+        key = 'vacuum_station'
     # Consumer-model prefix from `description` (washer/dryer/dishwasher) --
     # last, since it's the fuzziest match (a bare 2-letter prefix) and would
     # otherwise shadow the more specific board-family tokens above.

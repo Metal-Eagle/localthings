@@ -1,0 +1,19 @@
+{
+  "state_keys": [
+    "alarm_code",
+    "auto_empty",
+    "cleanstation_status",
+    "discharging_time",
+    "dustbag_full",
+    "dustbag_usage",
+    "dustbin_auto_close",
+    "energy_kwh",
+    "firmware_update",
+    "stick_status",
+    "uvc_emitted_time",
+    "uvc_finished_time",
+    "uvc_intensive_mode",
+    "uvc_operation_time",
+    "uvc_total_operation_time"
+  ]
+}
