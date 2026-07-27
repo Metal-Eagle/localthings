@@ -49,9 +49,25 @@ diagnostics snapshot was taken. Exposed read-only pending a confirmed,
 stable capture -- see the issue #56 discussion for what's needed.
 """
 from ..capability import Capability
-from ..entities import BinarySensorDesc, SensorDesc, SwitchDesc
-from .common import int_or_none, sensor_item_value
+from ..entities import (
+    BinarySensorDesc, FanDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
+)
+from .common import filter_usage_percent, int_or_none, sensor_item_value
 from .laundry import bool_option_exists, bool_option_value, option_value, option_write
+
+# Newer TP1X_DA-AC-AIR-class boards (e.g. TP1X_DA-AC-AIR-01031_0000, issue
+# #130) report fan modes directly on /mode/vs/0's top-level `modes`/
+# `supportedModes` fields (Smart/Max/Mid/WindFree/Sleep) instead of packing
+# everything into the options[] array the way the older ARTIK051_TVTL
+# family above does -- that older family's /mode/vs/0 has no top-level
+# supportedModes at all (see the module docstring's Comode_Off finding).
+# Both board generations share the /mode/vs/0 href, so FAN and MODE below
+# are mutually exclusive via this presence check rather than colliding.
+HREF_MODE = '/mode/vs/0'
+
+
+def _has_top_level_modes(rep, resources):
+    return isinstance(rep.get('x.com.samsung.da.supportedModes'), (list, tuple))
 
 _AIR_QUALITY_SENSORS = (
     ('dust', 'mdi:blur', 'Dust'),
@@ -156,6 +172,7 @@ def _light_write(payload, rep, href=None):
 MODE = Capability(
     href='/mode/vs/0',
     poll_tier='warm',
+    match_fn=lambda rep, resources: not _has_top_level_modes(rep, resources),
     entities=(
         SwitchDesc(key='display_light', icon='mdi:led-on',
                    entity_category='config',
@@ -171,11 +188,200 @@ MODE = Capability(
     ),
 )
 
+
+def _fan_write(payload, rep, href=None):
+    kind, value, *args = payload
+    if kind == 'power':
+        # Targets whichever power href fan.py's _power_payload picked (the
+        # board may only report /power/0) -- a hardcoded vendor href here
+        # would silently no-op on such a board even though the entity's
+        # own is_on already falls back to reading it correctly.
+        power_href = args[0] if args else '/power/vs/0'
+        if power_href == '/power/0':
+            return ['power', '0'], {'value': bool(value)}
+        return (['power', 'vs', '0'],
+                {'x.com.samsung.da.power': 'On' if value else 'Off'})
+    if kind == 'mode':
+        return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [value]}
+    return None
+
+
+def _first_fan_mode(rep):
+    """Representative scalar for the fan entity in the flattened state
+    (golden/regression), mirroring airconditioner.py's own _first_mode --
+    the real entity computes its state from live coordinator reads."""
+    modes = rep.get('x.com.samsung.da.modes')
+    if isinstance(modes, (list, tuple)):
+        return modes[0] if modes else None
+    return modes
+
+
+# Named preset modes (Smart/Max/Mid/WindFree/Sleep), not an ordered
+# percentage -- WindFree/Smart/Sleep are named behaviors, not
+# "faster/slower" positions relative to Max/Mid, so fan.py's entity for
+# this only exposes PRESET_MODE, matching how the AC family's own named
+# convenient modes are modeled as a preset rather than a speed number.
+FAN = Capability(
+    href=HREF_MODE,
+    poll_tier='warm',
+    match_fn=_has_top_level_modes,
+    entities=(
+        FanDesc(key='fan', translation_key='air_purifier_fan',
+                rep_fn=_first_fan_mode, write_fn=_fan_write),
+    ),
+)
+
+# ---------------------------------------------------------------------------
+# TP1X_DA-AC-AIR-class additions (issue #130). This board reports several
+# resources the older ARTIK051_TVTL family never did.
+# ---------------------------------------------------------------------------
+
+# Screen/indicator-panel on/off -- distinct from LIGHT below (ambient mood
+# light): both report the same {mode, supportedModes: [On, Off]} shape on
+# separate hrefs on this dump, so they're two independent physical controls,
+# not a duplicate encoding of one.
+DISPLAY = Capability(
+    href='/display/vs/0',
+    poll_tier='cold',
+    entities=(
+        SwitchDesc(key='display', field='mode',
+                   icon='mdi:monitor',
+                   entity_category='config',
+                   value_fn=lambda v: v == 'On',
+                   write_fn=lambda p, rep, href=None: (
+                       ['display', 'vs', '0'],
+                       {'mode': 'On' if p == 'On' else 'Off'})),
+    ),
+)
+
+# Same filterUsage/filterCapacity/filterStatus shape as the AC family's own
+# AIR_FILTER (airconditioner.py) -- confirmed normal/wash/replace values not
+# seen on this one dump, so the option list there is reused as-is rather
+# than re-deriving it from a single sample.
+HEPA_FILTER = Capability(
+    href='/filter/hepafilter/vs/0',
+    poll_tier='cold',
+    entities=(
+        SensorDesc(key='hepa_filter_usage', rep_fn=filter_usage_percent,
+                   unit='%', state_class='measurement',
+                   icon='mdi:air-filter', entity_category='diagnostic'),
+        SensorDesc(key='hepa_filter_status', field='x.com.samsung.da.filterStatus',
+                   device_class='enum',
+                   options=('normal', 'wash', 'replace'),
+                   translation_key='filter_status',
+                   icon='mdi:air-filter', entity_category='diagnostic',
+                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
+    ),
+)
+
+# Physical panel/cover status -- meaning of the one value seen ('Close') is
+# plausible (the HEPA-filter access cover) but unconfirmed, and no
+# supportedStatus list is present to check against -- exposed as a plain
+# diagnostic sensor rather than an asserted binary_sensor polarity.
+PANEL_STATUS = Capability(
+    href='/panel/vs/0',
+    poll_tier='cold',
+    entities=(
+        SensorDesc(key='panel_status', field='status',
+                   icon='mdi:archive-outline', entity_category='diagnostic'),
+    ),
+)
+
+# Pet-care filter mode -- a plain On/Off field with no vendor prefix, same
+# convention as airconditioner.MUTE_ONCE.
+PET_FILTER_ACTIVATION = Capability(
+    href='/petfilteractivation/vs/0',
+    poll_tier='cold',
+    entities=(
+        SwitchDesc(key='pet_filter_activation', field='status',
+                   icon='mdi:paw',
+                   entity_category='config',
+                   value_fn=lambda v: v == 'On',
+                   write_fn=lambda p, rep, href=None: (
+                       ['petfilteractivation', 'vs', '0'],
+                       {'status': 'On' if p == 'On' else 'Off'})),
+    ),
+)
+
+# Sound mode/volume shapes look like laundry.py's SOUND_MODE/SOUND_VOLUME at
+# a glance, but this board's actual values differ (supportedModes here is
+# ['mute', 'buzzer'], not laundry's hardcoded voice/tone/mute; volume range
+# is 0-3, not laundry's fixed 0-15) -- reusing those would either reject a
+# valid write ('buzzer') or expose the wrong number range, so these are
+# separate descriptors reading the live supported values instead of a
+# hardcoded table.
+SOUND_MODE = Capability(
+    href='/settings/sound/mode/vs/0',
+    poll_tier='cold',
+    entities=(
+        # Distinct translation_key from laundry.SOUND_MODE's shared
+        # 'sound_mode' catalog entry -- that one's state table is
+        # {voice, tone, mute}, but this board's supportedModes is
+        # {mute, buzzer}. Sharing the key would leave 'buzzer' unlabelled
+        # (falls through to the raw code) since the catalogs don't overlap.
+        SelectDesc(key='sound_mode', translation_key='air_purifier_sound_mode',
+                   field='mode',
+                   icon='mdi:volume-high',
+                   entity_category='config',
+                   options_field='supportedModes',
+                   write_fn=lambda p, rep, href=None: (
+                       ['settings', 'sound', 'mode', 'vs', '0'], {'mode': p})),
+    ),
+)
+
+# Read-only descriptor of which sound output the unit has -- only one value
+# seen, no alternatives to select between.
+SOUND_OUTPUT = Capability(
+    href='/settings/sound/output/vs/0',
+    poll_tier='cold',
+    entities=(
+        SensorDesc(key='sound_output', field='deviceType',
+                   icon='mdi:volume-high', entity_category='diagnostic'),
+    ),
+)
+
+SOUND_VOLUME = Capability(
+    href='/settings/sound/volume/vs/0',
+    poll_tier='cold',
+    entities=(
+        NumberDesc(key='sound_volume', field='level',
+                   icon='mdi:volume-medium',
+                   entity_category='config',
+                   native_min_fn=lambda rep: int_or_none(rep.get('minLevel')) or 0,
+                   native_max_fn=lambda rep: int_or_none(rep.get('maxLevel')) or 0,
+                   step_fn=lambda rep: int_or_none(rep.get('resolution')) or 1,
+                   value_fn=int_or_none,
+                   write_fn=lambda p, rep, href=None: (
+                       ['settings', 'sound', 'volume', 'vs', '0'],
+                       {'level': str(int(p))})),
+    ),
+)
+
 # /humidity/0 and /humidity/vs/0 are empty {} on both dumps this family has
 # been verified against -- covered here (not globally, per ignored.py's
 # module docstring) since those hrefs collide with fridge/AC schemas
 # elsewhere. Same two hrefs and reasoning as airconditioner.py's _AC_IGNORED.
+#
+# The next six hrefs (issue #130, TP1X_DA-AC-AIR board) are the exact same
+# resources, same shapes, same reasoning as airconditioner.py's
+# _AC_IGNORED on the shared DA-AC- board family -- duplicated here rather
+# than promoted to the global ignored.py list, since that would require
+# also removing them from _AC_IGNORED in the same change (a global entry
+# colliding with a family-local bare Capability on the same href raises in
+# _build()); left as a possible follow-up DRY cleanup.
 COVERAGE = [
     Capability(href='/humidity/0'),
     Capability(href='/humidity/vs/0'),
+    Capability(href='/airlevelcheck/vs/0'),        # periodic air-quality sensing scheduler plumbing
+    Capability(href='/availablecontrolsets/vs/0'), # opaque hex-encoded control-set bitmap
+    Capability(href='/da/softreset/vs/0'),         # soft-reset trigger plumbing
+    Capability(href='/keepnormalstate/vs/0'),      # internal keep-normal flag
+    Capability(href='/personality/presence/vs/0'), # presence-personalization plumbing (empty here)
+    Capability(href='/reserverulesets/vs/0'),      # opaque hex-encoded schedule reservation blob
+    # Do-not-disturb/auto-sleep schedule (visible/startTime/endTime/
+    # useTimeSetting/functionState) -- every field reads its inert default
+    # on the only dump seen (times both '00:00:00', useTimeSetting/
+    # functionState both 'false'). Same "needs a multi-field schedule
+    # editor" treatment as fridge.py's /defrost/reservation/vs/0.
+    Capability(href='/dnd/autosleep/vs/0'),
 ]

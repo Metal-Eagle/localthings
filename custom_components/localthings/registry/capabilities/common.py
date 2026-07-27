@@ -10,6 +10,8 @@ against live device dumps:
   /water/consumption/vs/0   -> x.com.samsung.da.cumulativeWater
   /filter/waterfilter/vs/0  -> x.com.samsung.da.filterUsage / filterStatus
 """
+from datetime import datetime, timezone
+
 from ..capability import Capability
 from ..entities import (
     BinarySensorDesc, ButtonDesc, SelectDesc, SensorDesc, SwitchDesc,
@@ -38,6 +40,35 @@ def clamp_power(v):
 def wh_to_kwh(v):
     n = _num(v)
     return round(n / 1000.0, 2) if n is not None else None
+
+
+def parse_iso_utc(raw):
+    """ISO datetime defaulting to UTC when the string carries no timezone
+    of its own (this integration's convention for other bare ISO datetime
+    fields -- see washer.py's drum-clean-log comment). A few boards do
+    ship a 'Z'/offset suffix (fromisoformat parses that natively since
+    Python 3.11) -- only fill in UTC when parsing left the result naive,
+    rather than unconditionally overwriting whatever offset was parsed."""
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def filter_usage_percent(rep):
+    """Filter usage as a percentage of rated capacity. Several families
+    (AC, air purifier) report `filterUsage` as a raw count in
+    `filterCapacityUnit` (Hours, e.g. 100 of a 500 capacity), so a plain
+    value with a '%' unit would be wrong -- normalize to used/capacity.
+    Returns None when capacity is missing/zero."""
+    used = _num(rep.get('x.com.samsung.da.filterUsage'))
+    cap = _num(rep.get('x.com.samsung.da.filterCapacity'))
+    if used is None or not cap:
+        return None
+    return round(used / cap * 100)
 
 
 def normalize_temp_unit(raw, default='°F'):

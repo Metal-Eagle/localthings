@@ -5,7 +5,7 @@ from ._base import DeviceRegistry
 from . import (
     air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
     induction_cooktop, oven, range as _range, range_hood, refrigerator,
-    washer, water_purifier,
+    vacuum_station, washer, water_purifier,
 )
 
 __all__ = [
@@ -29,6 +29,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'range': _range.REGISTRY,
     'range_hood': range_hood.REGISTRY,
     'refrigerator': refrigerator.REGISTRY,
+    'vacuum_station': vacuum_station.REGISTRY,
     'washer': washer.REGISTRY,
     'water_purifier': water_purifier.REGISTRY,
 }
@@ -198,6 +199,16 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # here) -- no WAC-specific resources needed.
     if key is None and '_WAC_' in (model_num or ''):
         key = 'airconditioner'
+    # ARA-WW-class wall-mount RACs (e.g. ARA-WW-TP1-22-COMMON, issues #115/
+    # #116/#117/#120) report no oneUiVersion and no '_RAC_'/'-RAC-' token at
+    # all -- the board family is spelled 'ARA-WW-' instead. Same resource
+    # surface as the other TP1X-class room ACs above (mode/convenient/wind/
+    # temperature/power/filter/humidity all confirmed against these dumps
+    # binding cleanly against the existing airconditioner registry once
+    # routed here) -- no ARA-WW-specific resources needed, so this reuses
+    # the same registry rather than adding a new device type.
+    if key is None and 'ARA-WW-' in (model_num or '').upper():
+        key = 'airconditioner'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
     if key is None and '_TVTL_' in (model_num or ''):
@@ -221,6 +232,15 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # oneUiVersion and doesn't match the washer/dryer/dishwasher prefix map.
     if key is None and '-OVEN-' in (model_num or '').upper():
         key = 'oven'
+    # Combi microwaves (e.g. TP1X_DA-KS-MICROWAVE-01041, issue #121) -- same
+    # board family as the wall oven above (an '/oven/vs/0' cavity resource
+    # with Convection/AirFryer/Grill/MicroWave modes on /mode/vs/0), just a
+    # different cavity. Reports no oneUiVersion and doesn't match the
+    # washer/dryer/dishwasher prefix map either. Binds cleanly against the
+    # existing oven registry once routed here (confirmed against the issue
+    # #121 dump) -- no microwave-specific device type needed.
+    if key is None and '-MICROWAVE-' in (model_num or '').upper():
+        key = 'oven'
     # Standalone induction cooktops (e.g. TP1X_DA-KS-COOKTOP-01011, issue
     # #86) -- same board family and '/cooktop/status/vs/0' resource shape
     # as the range combo above, but no oven attached at all. Distinct from
@@ -231,6 +251,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # board family's.
     if key is None and '-COOKTOP-' in (model_num or '').upper():
         key = 'induction_cooktop'
+    # Stick-vacuum clean/auto-empty station (e.g. A-VSKR-TP1-22-VS9500AL,
+    # issue #131) -- reports no oneUiVersion and carries the '-VSKR-'
+    # board-family token. See capabilities/vacuum_station.py for why this
+    # is its own device type: the resource set (dustbag/dustbin/UV-sanitize
+    # station state) shares no hrefs with anything else already modeled.
+    if key is None and '-VSKR-' in (model_num or '').upper():
+        key = 'vacuum_station'
     # Consumer-model prefix from `description` (washer/dryer/dishwasher) --
     # last, since it's the fuzziest match (a bare 2-letter prefix) and would
     # otherwise shadow the more specific board-family tokens above.

@@ -48,6 +48,7 @@ from .registry.capabilities.airconditioner import (
     HREF_TEMPS_VS as TEMPS_VS_HREF,
     HREF_WIND_STRENGTH as WIND_STRENGTH_HREF,
     HREF_WIND_DIRECTION as WIND_DIRECTION_HREF,
+    HREF_WIND_OSCILLATION as WIND_OSCILLATION_HREF,
     HREF_CONVENIENT as CONVENIENT_HREF,
 )
 from .registry.capabilities.common import normalize_temp_unit
@@ -119,6 +120,26 @@ _DEVICE_TO_SWING: dict[str, str] = {
     'Left_And_Right': 'horizontal',  # issue #75
 }
 _SWING_TO_DEVICE = {v: k for k, v in _DEVICE_TO_SWING.items()}
+
+# Swing fallback via /wind/oscillation/vs/0 (issue #126) -- boards without
+# WIND_DIRECTION_HREF at all report two independent Swing|Fix toggles
+# instead of one combined code. Same HA vocabulary as _DEVICE_TO_SWING
+# above (off/vertical/horizontal/both), just read from/written to a pair
+# of fields rather than a single one.
+def _oscillation_swing(rep: dict) -> str | None:
+    vertical = rep.get('vertical')
+    horizontal = rep.get('horizontal')
+    if vertical is None and horizontal is None:
+        return None
+    v = vertical == 'Swing'
+    h = horizontal == 'Swing'
+    if v and h:
+        return 'both'
+    if v:
+        return 'vertical'
+    if h:
+        return 'horizontal'
+    return 'off'
 
 # Preset (convenient mode): resolved dynamically from the device's own
 # /mode/convenient/vs/0 supportedModes -- no per-model table. The device 'Off'
@@ -358,13 +379,25 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
     def fan_modes(self) -> list[str]:
         return self._read_modes(WIND_STRENGTH_HREF, _DEVICE_TO_FAN)
 
+    def _swing_via_direction(self) -> bool:
+        """True when WIND_DIRECTION_HREF is the swing channel to use --
+        signalled by its presence. Boards without it (issue #126) report
+        the 2-axis oscillation resource instead; see _oscillation_swing."""
+        return bool(self._rep(WIND_DIRECTION_HREF))
+
     @property
     def swing_mode(self):
-        return self._read_mode(WIND_DIRECTION_HREF, _DEVICE_TO_SWING)
+        if self._swing_via_direction():
+            return self._read_mode(WIND_DIRECTION_HREF, _DEVICE_TO_SWING)
+        return _oscillation_swing(self._rep(WIND_OSCILLATION_HREF))
 
     @property
     def swing_modes(self) -> list[str]:
-        return self._read_modes(WIND_DIRECTION_HREF, _DEVICE_TO_SWING)
+        if self._swing_via_direction():
+            return self._read_modes(WIND_DIRECTION_HREF, _DEVICE_TO_SWING)
+        if self._rep(WIND_OSCILLATION_HREF):
+            return list(_SWING_TO_DEVICE.keys())
+        return []
 
     @property
     def preset_mode(self):
@@ -438,7 +471,12 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         await self._set_mapped('fan', _FAN_TO_DEVICE, fan_mode)
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
-        await self._set_mapped('swing', _SWING_TO_DEVICE, swing_mode)
+        if self._swing_via_direction():
+            await self._set_mapped('swing', _SWING_TO_DEVICE, swing_mode)
+            return
+        if self._rep(WIND_OSCILLATION_HREF):
+            await self.coordinator.async_send_command(
+                self._bound, ('oscillation', swing_mode))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         if preset_mode == PRESET_AI_COMFORT:

@@ -16,6 +16,9 @@
       "cloud_connected": {
         "name": "Cloud connected"
       },
+      "dustbag_full": {
+        "name": "Dust bag full"
+      },
       "cooktop_power": {
         "name": "Cooktop power"
       },
@@ -24,6 +27,9 @@
       },
       "current_limit_enabled": {
         "name": "Current limit enabled"
+      },
+      "overload_protection_active": {
+        "name": "Overload protection active"
       },
       "cycle_active": {
         "name": "Running"
@@ -128,6 +134,21 @@
         }
       }
     },
+    "fan": {
+      "air_purifier_fan": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "smart": "Smart",
+              "max": "Max",
+              "mid": "Mid",
+              "windfree": "WindFree",
+              "sleep": "Sleep"
+            }
+          }
+        }
+      }
+    },
     "number": {
       "cook_time": {
         "name": "Cook time"
@@ -183,6 +204,13 @@
         "state": {
           "off": "Off",
           "on": "On"
+        }
+      },
+      "discharging_time": {
+        "name": "Discharging time",
+        "state": {
+          "1": "1 minute",
+          "3": "3 minutes"
         }
       },
       "cycle": {
@@ -385,6 +413,13 @@
           "mute": "Mute"
         }
       },
+      "air_purifier_sound_mode": {
+        "name": "Sound mode",
+        "state": {
+          "mute": "Mute",
+          "buzzer": "Buzzer"
+        }
+      },
       "spin_speed": {
         "name": "Spin speed",
         "state": {
@@ -514,6 +549,43 @@
       },
       "current_limit_level": {
         "name": "Current limit level"
+      },
+      "hepa_filter_usage": {
+        "name": "HEPA filter usage"
+      },
+      "panel_status": {
+        "name": "Panel status"
+      },
+      "sound_output": {
+        "name": "Sound output"
+      },
+      "dustbag_usage": {
+        "name": "Dust bag usage"
+      },
+      "cleanstation_status": {
+        "name": "Clean station status"
+      },
+      "stick_status": {
+        "name": "Stick status"
+      },
+      "uvc_operation_time": {
+        "name": "UV-C operation time"
+      },
+      "uvc_total_operation_time": {
+        "name": "UV-C total operation time"
+      },
+      "uvc_finished_time": {
+        "name": "UV-C finished time"
+      },
+      "uvc_emitted_time": {
+        "name": "UV-C emitted time"
+      },
+      "overload_protection_mode": {
+        "name": "Overload protection mode",
+        "state": {
+          "alarm": "Alarm",
+          "powersaving": "Power saving"
+        }
       },
       "current_temp_c": {
         "name": "Temperature"
@@ -728,6 +800,21 @@
       },
       "auto_clean": {
         "name": "Auto clean"
+      },
+      "display": {
+        "name": "Display"
+      },
+      "pet_filter_activation": {
+        "name": "Pet filter activation"
+      },
+      "auto_empty": {
+        "name": "Auto empty"
+      },
+      "dustbin_auto_close": {
+        "name": "Dustbin auto-close"
+      },
+      "uvc_intensive_mode": {
+        "name": "UV-C intensive mode"
       },
       "auto_door_opener": {
         "name": "Auto door opener"

@@ -3,23 +3,9 @@ issue #90, model TP2X_WATERPURIFIER_20K).
 
 Resources verified against the issue #90 diagnostics dump.
 """
-from datetime import datetime, timezone
-
 from ..capability import Capability
 from ..entities import BinarySensorDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc
-from .common import int_or_none
-
-
-def _parse_iso_utc(raw):
-    """Bare ISO datetime with no timezone field alongside it -- treated as
-    UTC, matching this integration's convention for other bare ISO datetime
-    fields (see washer.py's drum-clean-log comment)."""
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
+from .common import int_or_none, parse_iso_utc as _parse_iso_utc
 
 
 DISPENSE = Capability(

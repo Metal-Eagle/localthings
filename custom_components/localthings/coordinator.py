@@ -85,6 +85,24 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     _OBSERVE_GRACE_PERIOD_S: float = GRACE_PERIOD_S
     _RECONNECT_PAUSE_S: float = 5.0
 
+    # A single reconnect is normal appliance-side behavior (see the
+    # README's "Known device behavior" section) -- Samsung's firmware
+    # drops the DTLS session briefly every now and then, and the
+    # coordinator recovering from that on its own isn't something a user
+    # needs to see at WARNING. Only escalate once reconnects pile up
+    # within a trailing window (issue #119).
+    #
+    # The window can't be a literal 60s: consecutive reconnect attempts are
+    # never closer together than one summary poll interval (SUMMARY_INTERVAL_S,
+    # 30s) plus _RECONNECT_PAUSE_S, so at most ~2 can ever land inside a 60s
+    # window regardless of how unhealthy the connection is -- a threshold of
+    # 5 there could never fire, silently downgrading every reconnect
+    # (including a persistently broken one) to INFO forever. 300s/3 instead:
+    # reachable under normal polling, and 3 reconnects inside 5 minutes is
+    # still a reasonable proxy for the README's "actually broken" case.
+    _RECONNECT_WARN_WINDOW_S: float = 300.0
+    _RECONNECT_WARN_THRESHOLD: int = 3
+
     # A block-level ACK timeout on the summary GET doesn't prove the
     # session is dead (see _poll_once) — require this many in a row
     # before treating it as one. A single slow transfer on an otherwise
@@ -136,6 +154,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.one_ui_version: str = ''
         self._consecutive_poll_timeouts = 0
         self._unbound_hrefs: list[str] = []
+        self._reconnect_times: list[float] = []
 
     # ------------------------------------------------------------------
     # Session management (all blocking — must run in executor)
@@ -444,6 +463,17 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._consecutive_poll_timeouts += 1
         return self._consecutive_poll_timeouts < self._POLL_TIMEOUT_LIMIT
 
+    def _reconnect_is_frequent(self) -> bool:
+        """True once this cycle's reconnect is the Nth within the trailing
+        warn window -- see _RECONNECT_WARN_WINDOW_S/_RECONNECT_WARN_THRESHOLD."""
+        now = time.monotonic()
+        self._reconnect_times = [
+            t for t in self._reconnect_times
+            if now - t < self._RECONNECT_WARN_WINDOW_S
+        ]
+        self._reconnect_times.append(now)
+        return len(self._reconnect_times) >= self._RECONNECT_WARN_THRESHOLD
+
     # ------------------------------------------------------------------
     # DataUpdateCoordinator hook
     # ------------------------------------------------------------------
@@ -470,7 +500,13 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._consecutive_poll_timeouts = 0
                 # One reconnect attempt — pause briefly so the device can
                 # clean up its DTLS session state before we knock again.
-                self._log.warning("poll failed, reconnecting: %s", e)
+                # A lone reconnect is routine (see the README's "Known
+                # device behavior" section); only warn once they're piling
+                # up within the trailing window.
+                if self._reconnect_is_frequent():
+                    self._log.warning("poll failed, reconnecting: %s", e)
+                else:
+                    self._log.info("poll failed, reconnecting: %s", e)
                 await self.hass.async_add_executor_job(self._close_session)
                 await asyncio.sleep(self._RECONNECT_PAUSE_S)
                 try:

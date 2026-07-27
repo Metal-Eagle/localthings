@@ -314,6 +314,51 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_airconditioner_via_ara_ww_token(self):
+        """Issues #115/#116/#117/#120: ARA-WW-TP1-22-COMMON wall-mount RACs
+        (AR10/13/18BYEAAWKNME) report no oneUiVersion and no
+        '_RAC_'/'-RAC-'/'_PRAC_' token at all -- falls back to the
+        'ARA-WW-' token in modelNum, reusing the same airconditioner
+        registry as every other TP1X-class room AC rather than a new
+        device type."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'ARA-WW-TP1-22-COMMON|10229641|6001051A001511014600083200800000',
+            'ARA-WW-TP1-22-COMMON',
+        )
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
+    def test_oven_via_microwave_token(self):
+        """Issue #121: a combi microwave (MW7300B-/EU1) reports no
+        oneUiVersion and an unrecognized consumer token; falls back to the
+        '-MICROWAVE-' token in modelNum onto the *existing* oven registry
+        (same '/oven/vs/0' cavity + cook-mode shape), not a new device
+        type."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA-KS-MICROWAVE-01041|40475341|50040100021811000A00000000000000',
+            'MW7300B-/EU1',
+        )
+        assert reg is not None
+        assert reg.name == 'oven'
+
+    def test_vacuum_station_via_vskr_token(self):
+        """Issue #131: a stick-vacuum clean/auto-empty station
+        (A-VSKR-TP1-22-VS9500AL) reports no oneUiVersion and no
+        washer/dryer/dishwasher consumer prefix; falls back to the
+        '-VSKR-' token in modelNum onto a new vacuum_station registry (its
+        dump has no vacuum-body state at all, only station-specific
+        dustbag/dustbin/UV-sanitize resources -- see
+        capabilities/vacuum_station.py's module docstring)."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'A-VSKR-TP1-22-VS9500AL|50023541|80030100001611000800000000000000',
+            'A-VSKR-TP1-22-VS9500AL',
+        )
+        assert reg is not None
+        assert reg.name == 'vacuum_station'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model

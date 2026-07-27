@@ -338,6 +338,12 @@ OVEN_CONNECTED = Capability(
 # fields worth exposing.
 OVEN_SPEC = Capability(href='/oven/spec/vs/0')
 
+# Quick-recipe display blob (combi microwave, issue #121) -- a JSON-encoded
+# string (language/menu/servingSize/option) with every field blank on the
+# only dump seen, and no documented write contract. No entity to bind per
+# the 'don't guess' rule; a bare Capability still marks the href covered.
+OVEN_RECIPE_COOK = Capability(href='/recipe/cook/vs/0')
+
 OVEN_MODE = Capability(
     href='/mode/vs/0',
     poll_tier='warm',

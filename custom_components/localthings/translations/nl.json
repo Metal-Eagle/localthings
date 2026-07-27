@@ -16,6 +16,9 @@
       "cloud_connected": {
         "name": "Verbonden met cloud"
       },
+      "dustbag_full": {
+        "name": "Stofzak vol"
+      },
       "cooktop_power": {
         "name": "Kookplaat voeding"
       },
@@ -24,6 +27,9 @@
       },
       "current_limit_enabled": {
         "name": "Stroombegrenzing ingeschakeld"
+      },
+      "overload_protection_active": {
+        "name": "Overbelastingsbeveiliging actief"
       },
       "cycle_active": {
         "name": "Actief"
@@ -128,6 +134,21 @@
         }
       }
     },
+    "fan": {
+      "air_purifier_fan": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "smart": "Slim",
+              "max": "Max",
+              "mid": "Gemiddeld",
+              "windfree": "WindFree",
+              "sleep": "Slaap"
+            }
+          }
+        }
+      }
+    },
     "number": {
       "cook_time": {
         "name": "Bereidingstijd"
@@ -183,6 +204,13 @@
         "state": {
           "off": "Uit",
           "on": "Aan"
+        }
+      },
+      "discharging_time": {
+        "name": "Leegtijd",
+        "state": {
+          "1": "1 minuut",
+          "3": "3 minuten"
         }
       },
       "cycle": {
@@ -385,6 +413,13 @@
           "mute": "Dempen"
         }
       },
+      "air_purifier_sound_mode": {
+        "name": "Geluidsmodus",
+        "state": {
+          "mute": "Dempen",
+          "buzzer": "Zoemer"
+        }
+      },
       "spin_speed": {
         "name": "Centrifugesnelheid",
         "state": {
@@ -514,6 +549,43 @@
       },
       "current_limit_level": {
         "name": "Niveau stroombegrenzing"
+      },
+      "hepa_filter_usage": {
+        "name": "HEPA-filtergebruik"
+      },
+      "panel_status": {
+        "name": "Paneelstatus"
+      },
+      "sound_output": {
+        "name": "Geluidsuitvoer"
+      },
+      "dustbag_usage": {
+        "name": "Stofzakgebruik"
+      },
+      "cleanstation_status": {
+        "name": "Status schoonmaakstation"
+      },
+      "stick_status": {
+        "name": "Status steel"
+      },
+      "uvc_operation_time": {
+        "name": "UV-C bedrijfstijd"
+      },
+      "uvc_total_operation_time": {
+        "name": "UV-C totale bedrijfstijd"
+      },
+      "uvc_finished_time": {
+        "name": "UV-C voltooid op"
+      },
+      "uvc_emitted_time": {
+        "name": "UV-C uitgestraald op"
+      },
+      "overload_protection_mode": {
+        "name": "Modus overbelastingsbeveiliging",
+        "state": {
+          "alarm": "Alarm",
+          "powersaving": "Energiebesparing"
+        }
       },
       "current_temp_c": {
         "name": "Temperatuur"
@@ -728,6 +800,21 @@
       },
       "auto_clean": {
         "name": "Automatisch reinigen"
+      },
+      "display": {
+        "name": "Display"
+      },
+      "pet_filter_activation": {
+        "name": "Huisdierfilter actief"
+      },
+      "auto_empty": {
+        "name": "Automatisch legen"
+      },
+      "dustbin_auto_close": {
+        "name": "Stofreservoir automatisch sluiten"
+      },
+      "uvc_intensive_mode": {
+        "name": "Intensieve UV-C-modus"
       },
       "auto_door_opener": {
         "name": "Automatische deuropener"
