@@ -493,6 +493,23 @@ def test_registry_reproduces_golden_state_keys_for_oven():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_washer_wa55a7700av():
+    """DA_WM_TP1_21_COMMON top-load washer (model WA55A7700AV, issue #111)
+    -- a different board generation than the WA8000T's TP2_20_COMMON,
+    reached through the same 'WA' consumer-model-prefix fallback (issue
+    #106). Binds cleanly against the existing washer registry with zero
+    unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('washer_wa55a7700av')
+    golden = json.loads((GOLDEN / 'washer_wa55a7700av.json').read_text())
+    state_keys = _new_state_keys('washer_wa55a7700av', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {
