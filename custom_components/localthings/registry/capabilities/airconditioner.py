@@ -16,7 +16,7 @@ by_type registry.
 """
 from ..capability import Capability
 from ..entities import (
-    BinarySensorDesc, ClimateDesc, NumberDesc, SensorDesc, SwitchDesc,
+    BinarySensorDesc, ClimateDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
 )
 from .common import normalize_temp_unit
 from .laundry import option_write
@@ -48,11 +48,19 @@ def _beep_on(rep):
 
 def _beep_write(payload, rep, href=None):
     """Toggle beep via a single-token /mode/vs/0 options write (option_write's
-    one-token merge -- a full options RMW reverts on ARTIK051_PRAC)."""
+    one-token merge -- a full options RMW reverts on ARTIK051_PRAC). 'On'
+    restores the last non-Mute level rather than forcing Volume_100, so a
+    user's intermediate setting (e.g. Volume_50 set via the cloud) survives an
+    off/on cycle; falls back to 100 when no prior level is known."""
     if payload not in ('On', 'Off'):
         return None
+    if payload == 'Off':
+        token = 'Mute'
+    else:
+        prev = _option_token(rep, 'Volume')
+        token = prev[len('Volume_'):] if (prev and prev != 'Volume_Mute') else '100'
     return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': option_write('Volume', '100' if payload == 'On' else 'Mute'),
+        'x.com.samsung.da.options': option_write('Volume', token),
     }
 
 
@@ -78,20 +86,59 @@ def _tropical_night_write(value, rep, href=None):
     }
 
 
-def _info_item_number(items, type_):
-    """x.com.samsung.da.number of the /information/vs/0 item with the given
-    x.com.samsung.da.type ('Software'/'Firmware'), else None."""
-    for it in (items or []):
-        if isinstance(it, dict) and it.get('x.com.samsung.da.type') == type_:
-            return it.get('x.com.samsung.da.number')
+def _info_items_of_type(items, type_):
+    return [it for it in (items or [])
+            if isinstance(it, dict) and it.get('x.com.samsung.da.type') == type_]
+
+
+def _info_version(items, type_, ordinal):
+    """x.com.samsung.da.number of the ordinal-th /information/vs/0 item of the
+    given type. Boards carry one Software item but 1-3 Firmware items (separate
+    MCUs), plus an Outdoor unit and (window AC) a Touch IC item -- each a
+    distinct version string, so they're exposed per-item rather than collapsed
+    to a single 'first wins' value. None when the ordinal item is absent or
+    carries no number (e.g. tp2x_rac_20k's second Firmware item)."""
+    items = _info_items_of_type(items, type_)
+    if ordinal < len(items):
+        return items[ordinal].get('x.com.samsung.da.number')
     return None
+
+
+def _has_info_version(type_, ordinal):
+    return lambda rep, resources: _info_version(
+        rep.get('x.com.samsung.da.items'), type_, ordinal) is not None
+
+
+def _filter_unit(rep):
+    """Unit of the filter-usage fields, normalised from filterCapacityUnit
+    ('Hour' -> 'h'). Wired through unit_fn so a board advertising a different
+    unit doesn't silently mislabel a duration statistic."""
+    u = rep.get('x.com.samsung.da.filterCapacityUnit')
+    return {'Hour': 'h', 'Minute': 'min', 'Second': 's'}.get(u, u or 'h')
+
+
+def _threshold_write(payload, rep, href=None):
+    """filterDesiredUsage is locally writable: a plain scalar POST of the
+    field to /filter/airdustfilter/vs/0 is 2.04-accepted and persists
+    (confirmed live on ARTIK051_PRAC: POST 700 -> 2.04, read-back 700). The
+    Select only surfaces where the device advertises
+    supportedFilterDesiredUsage, so the valid options are known rather than
+    guessed; boards without that enum leave this writable field unexposed."""
+    return ['filter', 'airdustfilter', 'vs', '0'], {
+        'x.com.samsung.da.filterDesiredUsage': payload,
+    }
 
 
 def _sensor_item_value(items, type_):
     """First value of the /sensors/vs/0 item with the given
-    x.com.samsung.da.type, as a diagnostic scalar string. The resource exposes
-    no unit, so no device_class is set until a populated reading + unit is
-    observed (the 'don't guess' rule)."""
+    x.com.samsung.da.type. The resource exposes no unit, so no device_class is
+    set until a populated reading + unit is observed (the 'don't guess' rule).
+
+    Dust/FineDust/SuperFineDust report a 2-element array (['0','0']) while
+    CleanLevel/Odor report a single element -- the second element's meaning is
+    unconfirmed, so v[0] is taken as the reading and v[1] is dropped; left as
+    a string rather than coerced numeric because only CleanLevel has
+    corroborating evidence (a top-level x.com.samsung.da.cleanLevel scalar)."""
     for it in (items or []):
         if isinstance(it, dict) and it.get('x.com.samsung.da.type') == type_:
             v = it.get('x.com.samsung.da.value')
@@ -341,17 +388,28 @@ AIR_FILTER = Capability(
         SensorDesc(key='air_filter_usage', rep_fn=_filter_usage_percent,
                    unit='%', state_class='measurement',
                    icon='mdi:air-filter', entity_category='diagnostic'),
+        # filterUsage is a lifetime hour counter that only resets on filter
+        # replacement -- total_increasing so HA's long-term statistics handle
+        # the reset rather than treating it as a bounded measurement.
         SensorDesc(key='air_filter_usage_hours',
                    field='x.com.samsung.da.filterUsage',
                    device_class='duration',
-                   state_class='measurement', unit='h',
+                   state_class='total_increasing',
+                   unit_fn=_filter_unit,
                    icon='mdi:air-filter', entity_category='diagnostic',
                    value_fn=_int),
-        SensorDesc(key='air_filter_threshold',
+        # The alarm threshold (filterDesiredUsage) is a locally writable option:
+        # see _threshold_write. Surfaces as a Select only where the device
+        # advertises supportedFilterDesiredUsage; boards without that enum
+        # leave it unexposed rather than guess the valid set.
+        SelectDesc(key='air_filter_threshold',
                    field='x.com.samsung.da.filterDesiredUsage',
-                   device_class='duration',
-                   unit='h', icon='mdi:alarm', entity_category='diagnostic',
-                   value_fn=_int),
+                   options_field='x.com.samsung.da.supportedFilterDesiredUsage',
+                   exists_fn=lambda rep, res: bool(
+                       rep.get('x.com.samsung.da.supportedFilterDesiredUsage')),
+                   icon='mdi:alarm', entity_category='config',
+                   write_fn=_threshold_write,
+                   value_fn=lambda v: str(v) if v is not None else None),
         SensorDesc(key='air_filter_status', field='x.com.samsung.da.filterStatus',
                    device_class='enum',
                    options=('normal', 'wash', 'replace'),
@@ -454,40 +512,71 @@ HUMIDITY = Capability(
     ),
 )
 
-# /sensors/vs/0 items[] carry live air-quality readings (CleanLevel, Odor, Dust,
-# FineDust). The resource exposes no unit, so these are diagnostic scalars with
-# no device_class until a populated reading + unit is observed. Removed from
-# _AC_IGNORED below so AIR_QUALITY is the sole cap on the href.
+# /sensors/vs/0 items[] carry live air-quality readings. Removed from
+# _AC_IGNORED below so AIR_QUALITY is the sole cap on the href. CleanLevel is
+# corroborated as numeric by a top-level x.com.samsung.da.cleanLevel scalar
+# (tp1x_da_ac_rac_01011 reports both as '1'), so it's a measurement; the others
+# are 1- or 2-element arrays with no corroborating scalar, so they stay string
+# diagnostics (see _sensor_item_value for the 2-element ambiguity and why only
+# v[0] is taken). No unit is advertised on the resource, so no device_class.
 AIR_QUALITY = Capability(
     href='/sensors/vs/0',
     poll_tier='cold',
-    entities=tuple(
-        SensorDesc(key=key, field='x.com.samsung.da.items',
-                   icon=icon, entity_category='diagnostic',
-                   exists_fn=_has_sensor_type(type_),
-                   value_fn=lambda items, t=type_: _sensor_item_value(items, t))
-        for key, icon, type_ in (
-            ('clean_level', 'mdi:broom', 'CleanLevel'),
-            ('odor', 'mdi:weather-windy', 'Odor'),
-            ('dust', 'mdi:cloud', 'Dust'),
-            ('fine_dust', 'mdi:cloud-outline', 'FineDust'),
-        )
+    entities=(
+        SensorDesc(key='clean_level', field='x.com.samsung.da.items',
+                   icon='mdi:broom', entity_category='diagnostic',
+                   state_class='measurement',
+                   exists_fn=_has_sensor_type('CleanLevel'),
+                   value_fn=lambda items: _int(_sensor_item_value(items, 'CleanLevel'))),
+        *tuple(
+            SensorDesc(key=key, field='x.com.samsung.da.items',
+                       icon=icon, entity_category='diagnostic',
+                       exists_fn=_has_sensor_type(type_),
+                       value_fn=lambda items, t=type_: _sensor_item_value(items, t))
+            for key, icon, type_ in (
+                ('odor', 'mdi:weather-windy', 'Odor'),
+                ('dust', 'mdi:cloud', 'Dust'),
+                ('fine_dust', 'mdi:cloud-outline', 'FineDust'),
+                ('super_fine_dust', 'mdi:weather-fog', 'SuperFineDust'),
+            )
+        ),
     ),
 )
 
 # Software/Firmware version from /information/vs/0 items[] (the href is
 # globally ignored as identity plumbing; the AC registry drops that entry so
-# INFO is the sole cap on it). Diagnostic, read-only.
+# INFO is the sole cap on it). Boards carry one Software item but 1-3 Firmware
+# items (separate MCUs), plus an Outdoor unit and (window AC) a Touch IC item
+# -- each a distinct version string, exposed per-item (see _info_version)
+# rather than collapsed to a single 'first wins' value. Diagnostic, read-only.
 INFO = Capability(
     href=HREF_INFORMATION,
     poll_tier='cold',
     entities=(
         SensorDesc(key='software_version', field='x.com.samsung.da.items',
                    icon='mdi:package-variant', entity_category='diagnostic',
-                   value_fn=lambda items: _info_item_number(items, 'Software')),
+                   exists_fn=_has_info_version('Software', 0),
+                   value_fn=lambda items: _info_version(items, 'Software', 0)),
         SensorDesc(key='firmware_version', field='x.com.samsung.da.items',
                    icon='mdi:chip', entity_category='diagnostic',
-                   value_fn=lambda items: _info_item_number(items, 'Firmware')),
+                   exists_fn=_has_info_version('Firmware', 0),
+                   value_fn=lambda items: _info_version(items, 'Firmware', 0)),
+        SensorDesc(key='firmware_version_2', field='x.com.samsung.da.items',
+                   icon='mdi:chip', entity_category='diagnostic',
+                   exists_fn=_has_info_version('Firmware', 1),
+                   value_fn=lambda items: _info_version(items, 'Firmware', 1)),
+        SensorDesc(key='firmware_version_3', field='x.com.samsung.da.items',
+                   icon='mdi:chip', entity_category='diagnostic',
+                   exists_fn=_has_info_version('Firmware', 2),
+                   value_fn=lambda items: _info_version(items, 'Firmware', 2)),
+        SensorDesc(key='outdoor_unit_version', field='x.com.samsung.da.items',
+                   icon='mdi:fan', entity_category='diagnostic',
+                   exists_fn=_has_info_version('Outdoor', 0),
+                   value_fn=lambda items: _info_version(items, 'Outdoor', 0)),
+        SensorDesc(key='touch_ic_version', field='x.com.samsung.da.items',
+                   icon='mdi:gesture-tap', entity_category='diagnostic',
+                   exists_fn=_has_info_version('Touch IC', 0),
+                   value_fn=lambda items: _info_version(items, 'Touch IC', 0)),
     ),
 )
 

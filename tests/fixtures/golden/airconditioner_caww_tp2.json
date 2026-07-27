@@ -1,7 +1,6 @@
 {
   "state_keys": [
     "air_filter_status",
-    "air_filter_threshold",
     "air_filter_usage",
     "air_filter_usage_hours",
     "alarm_code",
@@ -17,6 +16,7 @@
     "firmware_version",
     "humidity",
     "mute_once",
+    "outdoor_unit_version",
     "power_watts",
     "software_version",
     "tropical_night_mode"

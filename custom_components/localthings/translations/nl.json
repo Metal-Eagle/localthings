@@ -158,6 +158,9 @@
       "ai_energy_level": {
         "name": "Niveau AI Energy Mode"
       },
+      "air_filter_threshold": {
+        "name": "Filteralarmdrempel"
+      },
       "beverage_zone_mode": {
         "name": "Modus drankenzone",
         "state": {
@@ -484,14 +487,23 @@
       "air_filter_usage_hours": {
         "name": "Filterverbruik (uren)"
       },
-      "air_filter_threshold": {
-        "name": "Filteralarmdrempel"
-      },
       "software_version": {
         "name": "Softwareversie"
       },
       "firmware_version": {
         "name": "Firmwareversie"
+      },
+      "firmware_version_2": {
+        "name": "Firmwareversie (secundair)"
+      },
+      "firmware_version_3": {
+        "name": "Firmwareversie (tertiair)"
+      },
+      "outdoor_unit_version": {
+        "name": "Versie buiteneenheid"
+      },
+      "touch_ic_version": {
+        "name": "Touch-IC-versie"
       },
       "air_sensing_state": {
         "name": "Status luchtmeting"

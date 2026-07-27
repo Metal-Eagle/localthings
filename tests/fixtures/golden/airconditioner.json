@@ -1,7 +1,6 @@
 {
   "state_keys": [
     "air_filter_status",
-    "air_filter_threshold",
     "air_filter_usage",
     "air_filter_usage_hours",
     "air_purify",
@@ -20,8 +19,10 @@
     "firmware_version",
     "humidity",
     "odor",
+    "outdoor_unit_version",
     "power_watts",
     "software_version",
+    "super_fine_dust",
     "tropical_night_mode"
   ]
 }

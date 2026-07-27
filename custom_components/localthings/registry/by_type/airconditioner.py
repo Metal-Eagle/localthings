@@ -15,12 +15,14 @@ from ._base import DeviceRegistry, _build
 # /information/vs/0 is globally ignored (serial/model identity plumbing), but
 # the AC exposes Software/Firmware version in its items[] -- model those here
 # and drop the no-entity coverage entry so INFO is the sole cap on the href.
-_AC_IGNORED = [c for c in ignored.IGNORED if c.href != '/information/vs/0']
+# Renamed from the capabilities module's _AC_IGNORED (a list of href strings)
+# to avoid the two-meaning collision noted in review.
+_IGNORED_LESS_INFO = [c for c in ignored.IGNORED if c.href != '/information/vs/0']
 
 REGISTRY = DeviceRegistry(
     name='airconditioner',
     capabilities=_build([
-        *_AC_IGNORED,
+        *_IGNORED_LESS_INFO,
         *common.UNIVERSAL,
         dishwasher.DIAGNOSIS,
         airconditioner.CLIMATE,

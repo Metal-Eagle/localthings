@@ -9,7 +9,7 @@ from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import for_device, for_device_by_model
 from custom_components.localthings.registry.capabilities import airconditioner
 from custom_components.localthings.registry.discovery import discover
-from custom_components.localthings.registry.entities import ClimateDesc
+from custom_components.localthings.registry.entities import ClimateDesc, SelectDesc
 
 from tests.conftest import _load_device
 
@@ -440,10 +440,16 @@ def test_beep_read_from_volume_token():
 
 
 def test_beep_write_is_single_token_options_merge():
-    """On writes `['Volume_100']`, Off writes `['Volume_Mute']` -- one-element
-    options array, not a full RMW (which reverts on ARTIK051_PRAC)."""
+    """One-element options array, not a full RMW (which reverts on
+    ARTIK051_PRAC). 'On' restores the last non-Mute level so an intermediate
+    setting (e.g. Volume_50) survives an off/on cycle; falls back to 100 when
+    no prior level is known or the prior token is itself Mute."""
     write = _beep_desc().write_fn
     assert write('On', {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_100']})
+    assert write('On', {'x.com.samsung.da.options': ['Volume_50']}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_50']})
+    assert write('On', {'x.com.samsung.da.options': ['Volume_Mute']}) == (
         ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_100']})
     assert write('Off', {}) == (
         ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_Mute']})
@@ -520,59 +526,100 @@ def test_tropical_night_state_levels_across_fixtures():
 
 
 def test_air_filter_usage_hours_reads_raw_count():
-    """filterUsage is a raw hour count (41 of 500); the existing
-    air_filter_usage is the percentage (8%), this one is the raw hours."""
+    """filterUsage is a lifetime hour counter (41 of 500) that resets on
+    filter replacement -- total_increasing, not measurement. Unit comes from
+    filterCapacityUnit via unit_fn, not a hardcoded 'h'."""
     desc = next(e for e in airconditioner.AIR_FILTER.entities
                 if e.key == 'air_filter_usage_hours')
     assert desc.value_fn('41') == 41
     assert desc.value_fn(41) == 41
     assert desc.value_fn(None) is None
     assert desc.value_fn('not-a-number') is None
-    assert desc.unit == 'h' and desc.device_class == 'duration'
+    assert desc.device_class == 'duration'
+    assert desc.state_class == 'total_increasing'
+    assert desc.unit_fn({'x.com.samsung.da.filterCapacityUnit': 'Hour'}) == 'h'
+    assert desc.unit_fn({'x.com.samsung.da.filterCapacityUnit': 'Minute'}) == 'min'
+    assert desc.unit_fn({}) == 'h'  # static fallback when the field is absent
 
 
-def test_air_filter_threshold_reads_desired_usage():
-    """filterDesiredUsage is the alarm threshold in hours (read-only local;
-    setting it is cloud-only via samsungce.dustFilterAlarm)."""
+def test_air_filter_threshold_is_writable_select():
+    """filterDesiredUsage is a locally writable option (confirmed live on
+    ARTIK051_PRAC: POST 700 -> 2.04, persisted). Exposed as a Select keyed to
+    the device's supportedFilterDesiredUsage enum; the write POSTs the scalar
+    field back to /filter/airdustfilter/vs/0. Only binds where the enum is
+    advertised -- boards without it leave this writable field unexposed rather
+    than guess the valid set."""
     desc = next(e for e in airconditioner.AIR_FILTER.entities
                 if e.key == 'air_filter_threshold')
-    assert desc.value_fn('500') == 500
-    assert desc.value_fn(500) == 500
+    assert isinstance(desc, SelectDesc)
+    assert desc.options_field == 'x.com.samsung.da.supportedFilterDesiredUsage'
+    assert desc.exists_fn(
+        {'x.com.samsung.da.supportedFilterDesiredUsage': ['180', '300', '500', '700']},
+        {}) is True
+    assert desc.exists_fn({}, {}) is False
+    # Current value is stringified for option matching.
+    assert desc.value_fn('500') == '500'
+    assert desc.value_fn(500) == '500'
     assert desc.value_fn(None) is None
-    assert getattr(desc, 'write_fn', None) is None
-    assert desc.unit == 'h' and desc.device_class == 'duration'
+    # Write POSTs the selected option as the scalar field.
+    assert desc.write_fn('700', {}) == (
+        ['filter', 'airdustfilter', 'vs', '0'],
+        {'x.com.samsung.da.filterDesiredUsage': '700'})
 
 
-def test_air_filter_hours_and_threshold_in_state():
+def test_air_filter_threshold_absent_without_supported_enum():
+    """WindFree (ARTIK051_PRAC) advertises no supportedFilterDesiredUsage, so
+    the writable threshold Select must not bind there -- even though the
+    scalar field is present and writable. Don't expose a control whose valid
+    options aren't known."""
     reg, resources = _ac_windfree()
     state = flatten(
         discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert 'air_filter_threshold' not in state
     assert state['air_filter_usage_hours'] == 41
-    assert state['air_filter_threshold'] == 500
     assert state['air_filter_usage'] == 8  # 41/500 -> 8%
+
+
+def test_air_filter_threshold_binds_on_enum_board():
+    """tp1x_rac advertises supportedFilterDesiredUsage -> threshold Select
+    binds, current value read from filterDesiredUsage."""
+    reg, resources = _resolve('airconditioner_tp1x_rac')
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['air_filter_threshold'] == '500'
 
 
 def test_air_quality_sensors_from_sensors_vs_items():
     """/sensors/vs/0 items[] surface as diagnostic scalars (no unit advertised
     on the resource, so no device_class until a populated reading + unit is
-    observed -- the 'don't guess' rule)."""
+    observed -- the 'don't guess' rule). CleanLevel is corroborated as numeric
+    by a top-level cleanLevel scalar, so it's an int measurement; the others
+    are string diagnostics. Dust/FineDust/SuperFineDust carry a 2-element
+    array whose second element is unconfirmed -- v[0] is taken as the reading
+    (see _sensor_item_value)."""
     reg, resources = _ac_windfree()
     state = flatten(
         discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
-    for key in ('clean_level', 'odor', 'dust', 'fine_dust'):
-        assert key in state, key
-        assert state[key] == '0'
-    # SuperFineDust exists in the dump but is deliberately not modeled.
-    assert 'super_fine_dust' not in state
+    assert state['clean_level'] == 0           # numeric (int), corroborated
+    for key in ('odor', 'dust', 'fine_dust', 'super_fine_dust'):
+        assert state[key] == '0'               # string diagnostic
+    # tp1x_da_ac_rac_01011 is the only fixture with a non-zero air-quality
+    # reading -- the one that catches a value_fn regression.
+    reg2, resources2 = _ac_tp1x()
+    state2 = flatten(
+        discover(resources2, reg2.capabilities, reg2.pattern_capabilities), resources2)
+    assert state2['clean_level'] == 1
 
 
 def test_air_quality_absent_when_no_sensor_items():
-    """Boards whose /sensors/vs/0 has no items[] (TP1X_DA-AC-RAC-01001) bind no
-    air-quality entities -- exists_fn gates each on its item type."""
-    reg, resources = _resolve('airconditioner_tp1x_rac')
+    """A board whose /sensors/vs/0 carries an empty items[] (the cool-only
+    RAC variant) binds no air-quality entities -- exists_fn gates each on its
+    item type, not merely on the href being present."""
+    reg, resources = _resolve('airconditioner_tp1x_rac_coolonly')
+    assert '/sensors/vs/0' in resources  # the href is there, just empty
     state = flatten(
         discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
-    for key in ('clean_level', 'odor', 'dust', 'fine_dust'):
+    for key in ('clean_level', 'odor', 'dust', 'fine_dust', 'super_fine_dust'):
         assert key not in state, key
 
 
@@ -592,26 +639,76 @@ def test_sensor_item_value_picks_first_value():
 def test_software_and_firmware_version_from_info_items():
     """/information/vs/0 items[] carry Software/Firmware version strings
     (the href is otherwise identity plumbing; the AC registry drops the global
-    ignore so INFO is the sole cap on it)."""
+    ignore so INFO is the sole cap on it). Each version item is a distinct
+    MCU; they're exposed per-item rather than collapsed to one 'first wins'."""
     reg, resources = _ac_windfree()
     state = flatten(
         discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
     assert state['software_version'] == '02181A230313'
     assert state['firmware_version'] == '20082000,FFFFFFFF'
+    assert state['outdoor_unit_version'] == '20091600,10000400'
+    # windfree has a single Firmware item -> no _2/_3 entities.
+    assert 'firmware_version_2' not in state
+    assert 'touch_ic_version' not in state
 
 
-def test_info_item_number_picks_first_match():
-    """_info_item_number returns the number of the first item with the given
-    type; None when absent. Multiple Firmware items -> first wins."""
+def test_info_version_exposes_each_firmware_mcu():
+    """tp1x_da_ac_rac_01011 reports three Firmware items (separate MCUs) --
+    each surfaces as its own diagnostic, not collapsed to the first."""
+    reg, resources = _ac_tp1x()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['software_version'] == '02762A260401'
+    assert state['firmware_version'] == '02756C25082500,FFFFFFFFFFFFFF'
+    assert state['firmware_version_2'] == '02669A24092600,02636A10001200'
+    assert state['firmware_version_3'] == '02672A10001000,FFFFFFFFFFFFFF'
+
+
+def test_info_version_skips_item_with_no_number():
+    """tp2x_rac_20k's second Firmware item carries no x.com.samsung.da.number
+    -- exists_fn suppresses firmware_version_2 rather than binding a
+    permanently-unknown entity."""
+    reg, resources = _resolve('airconditioner_tp2x_rac_20k')
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['firmware_version'] == '102296A23012700'
+    assert 'firmware_version_2' not in state
+
+
+def test_info_version_touch_ic_on_window_ac():
+    """window_ac additionally reports a Touch IC version item."""
+    resources = _load_device('airconditioner_window_ac')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['software_version'] == '02545A260601'
+    assert state['firmware_version'] == '02543A24061800,FFFFFFFFFFFFFF'
+    assert state['outdoor_unit_version'] == '02580A10000100,FFFFFFFFFFFFFF'
+    assert state['touch_ic_version'] == '02553A23031600,FFFFFFFFFFFFFF'
+
+
+def test_info_version_per_ordinal():
+    """_info_version returns the ordinal-th item of a type; None when absent
+    or (via exists_fn) when that item carries no number."""
     items = [
         {'x.com.samsung.da.type': 'Software', 'x.com.samsung.da.number': 'SW1'},
         {'x.com.samsung.da.type': 'Firmware', 'x.com.samsung.da.number': 'FW1'},
         {'x.com.samsung.da.type': 'Firmware', 'x.com.samsung.da.number': 'FW2'},
+        {'x.com.samsung.da.type': 'Firmware'},  # no number
     ]
-    assert airconditioner._info_item_number(items, 'Software') == 'SW1'
-    assert airconditioner._info_item_number(items, 'Firmware') == 'FW1'
-    assert airconditioner._info_item_number(items, 'Outdoor') is None
-    assert airconditioner._info_item_number(None, 'Software') is None
+    assert airconditioner._info_version(items, 'Software', 0) == 'SW1'
+    assert airconditioner._info_version(items, 'Firmware', 0) == 'FW1'
+    assert airconditioner._info_version(items, 'Firmware', 1) == 'FW2'
+    assert airconditioner._info_version(items, 'Firmware', 2) is None  # no number
+    assert airconditioner._info_version(items, 'Firmware', 3) is None  # no such ordinal
+    assert airconditioner._info_version(items, 'Outdoor', 0) is None
+    assert airconditioner._info_version(None, 'Software', 0) is None
+    assert airconditioner._has_info_version('Firmware', 0)(  # exists_fn
+        {'x.com.samsung.da.items': items}, {}) is True
+    assert airconditioner._has_info_version('Firmware', 2)(  # item w/o number
+        {'x.com.samsung.da.items': items}, {}) is False
 
 
 def test_info_drops_global_ignore_on_information_href():
