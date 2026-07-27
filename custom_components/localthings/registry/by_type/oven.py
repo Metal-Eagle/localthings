@@ -15,5 +15,6 @@ REGISTRY = DeviceRegistry(
         oven.OVEN_DOOR,
         oven.OVEN_CONNECTED,
         oven.OVEN_SPEC,
+        oven.OVEN_RECIPE_COOK,
     ]),
 )

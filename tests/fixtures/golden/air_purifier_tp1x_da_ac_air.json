@@ -1,0 +1,27 @@
+{
+  "state_keys": [
+    "alarm_code",
+    "child_lock",
+    "clean_level",
+    "device_active",
+    "display",
+    "display_light",
+    "dust",
+    "energy_kwh",
+    "energy_saved_kwh",
+    "fan",
+    "fine_dust",
+    "firmware_update",
+    "hepa_filter_status",
+    "hepa_filter_usage",
+    "mute_once",
+    "odor",
+    "panel_status",
+    "pet_filter_activation",
+    "power_switch",
+    "sound_mode",
+    "sound_output",
+    "sound_volume",
+    "super_fine_dust"
+  ]
+}

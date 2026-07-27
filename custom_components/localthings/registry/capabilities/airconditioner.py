@@ -18,7 +18,7 @@ from ..capability import Capability
 from ..entities import (
     BinarySensorDesc, ClimateDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
 )
-from .common import normalize_temp_unit
+from .common import filter_usage_percent, normalize_temp_unit
 from .laundry import option_write
 
 
@@ -170,6 +170,12 @@ HREF_TEMP_DESIRED = '/temperature/desired/0'      # target_temperature (write ta
 HREF_TEMP_CONTROL = '/temperature/control/vs/0'   # target_temperature_step
 HREF_WIND_STRENGTH = '/wind/strength/vs/0'        # fan_mode
 HREF_WIND_DIRECTION = '/wind/direction/vs/0'      # swing_mode
+# Newer boards (issue #126, TP1X_DA-AC-RAC-01011 WindFree variant) report no
+# HREF_WIND_DIRECTION at all and instead carry a 2-axis oscillation resource
+# (separate vertical/horizontal Swing|Fix toggles, each with its own angle).
+# climate.py falls back to this when HREF_WIND_DIRECTION is absent, the same
+# duality pattern as the OCF/vendor temperature channel below.
+HREF_WIND_OSCILLATION = '/wind/oscillation/vs/0'  # swing_mode fallback
 HREF_CONVENIENT = '/mode/convenient/vs/0'         # preset_mode
 HREF_TEMPS_VS = '/temperatures/vs/0'              # vendor temp fallback (items[] array)
 HREF_INFORMATION = '/information/vs/0'           # model/serial + Software/Firmware version items
@@ -177,7 +183,7 @@ HREF_INFORMATION = '/information/vs/0'           # model/serial + Software/Firmw
 CLIMATE_CONSUMED_HREFS = [
     HREF_POWER, HREF_POWER_VS, HREF_TEMP_CURRENT, HREF_TEMP_DESIRED,
     HREF_TEMP_CONTROL, HREF_TEMPS_VS, HREF_WIND_STRENGTH, HREF_WIND_DIRECTION,
-    HREF_CONVENIENT,
+    HREF_WIND_OSCILLATION, HREF_CONVENIENT,
 ]
 
 
@@ -205,18 +211,6 @@ def _temps_vs_current(rep):
 
 def _temps_vs_unit(rep):
     return normalize_temp_unit(_temps_vs_item(rep).get('x.com.samsung.da.unit'), '°C')
-
-
-def _filter_usage_percent(rep):
-    """Filter usage as a percentage of rated capacity. The device reports
-    `filterUsage` as a raw count in `filterCapacityUnit` (Hours here, e.g.
-    100 of a 500 capacity), so a plain value with a '%' unit would be wrong --
-    normalize to used/capacity. Returns None when capacity is missing/zero."""
-    used = _num(rep.get('x.com.samsung.da.filterUsage'))
-    cap = _num(rep.get('x.com.samsung.da.filterCapacity'))
-    if used is None or not cap:
-        return None
-    return round(used / cap * 100)
 
 
 def _first_mode(rep):
@@ -313,6 +307,15 @@ def _climate_write(payload, rep, href=None):
         return (['wind', 'strength', 'vs', '0'], {'x.com.samsung.da.modes': value})
     if kind == 'swing':
         return (['wind', 'direction', 'vs', '0'], {'x.com.samsung.da.modes': value})
+    if kind == 'oscillation':
+        # value is the HA swing_mode string ('off'/'vertical'/'horizontal'/
+        # 'both'); both axes are independent Swing|Fix toggles on this
+        # resource, so one HA value maps to a pair of fields written
+        # together (see climate.py's oscillation fallback).
+        return (['wind', 'oscillation', 'vs', '0'], {
+            'vertical': 'Swing' if value in ('vertical', 'both') else 'Fix',
+            'horizontal': 'Swing' if value in ('horizontal', 'both') else 'Fix',
+        })
     if kind == 'preset':
         return (['mode', 'convenient', 'vs', '0'], {'x.com.samsung.da.modes': value})
     return None
@@ -385,7 +388,7 @@ AIR_FILTER = Capability(
     href='/filter/airdustfilter/vs/0',
     poll_tier='cold',
     entities=(
-        SensorDesc(key='air_filter_usage', rep_fn=_filter_usage_percent,
+        SensorDesc(key='air_filter_usage', rep_fn=filter_usage_percent,
                    unit='%', state_class='measurement',
                    icon='mdi:air-filter', entity_category='diagnostic'),
         # filterUsage is a lifetime hour counter that only resets on filter
@@ -467,6 +470,31 @@ CURRENT_LIMIT = Capability(
         SensorDesc(key='current_limit_level', field='modes',
                    icon='mdi:current-ac',
                    entity_category='diagnostic'),
+    ),
+)
+
+# Overload-response setting (issue #126, TP1X_DA-AC-RAC-01011 WindFree
+# variant): `operation` toggles the feature and `mode` picks 'Alarm' vs
+# 'PowerSaving' out of `supportedModes`, with a `savingTime` duration
+# ('20'/'40'/'60' minutes) alongside. Plausible shape (compressor-overload
+# alarm vs. automatic power throttling), but nothing in the dump confirms
+# the exact behavioral difference between the two modes or whether writing
+# 'operation' is safe on live HVAC hardware -- exposed read-only per the
+# 'don't guess' rule, same precedent as CURRENT_LIMIT above.
+ANOMALY_LOAD = Capability(
+    href='/anomalyload/vs/0',
+    poll_tier='cold',
+    entities=(
+        BinarySensorDesc(key='overload_protection_active', field='operation',
+                          icon='mdi:flash-alert',
+                          entity_category='diagnostic',
+                          value_fn=lambda v: v == 'On'),
+        SensorDesc(key='overload_protection_mode', field='mode',
+                   device_class='enum',
+                   options=('alarm', 'powersaving'),
+                   translation_key='overload_protection_mode',
+                   icon='mdi:flash-alert', entity_category='diagnostic',
+                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
     ),
 )
 

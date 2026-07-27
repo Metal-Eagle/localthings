@@ -493,6 +493,142 @@ def test_registry_reproduces_golden_state_keys_for_oven():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_washer_wa55a7700av():
+    """DA_WM_TP1_21_COMMON top-load washer (model WA55A7700AV, issue #111)
+    -- a different board generation than the WA8000T's TP2_20_COMMON,
+    reached through the same 'WA' consumer-model-prefix fallback (issue
+    #106). Binds cleanly against the existing washer registry with zero
+    unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('washer_wa55a7700av')
+    golden = json.loads((GOLDEN / 'washer_wa55a7700av.json').read_text())
+    state_keys = _new_state_keys('washer_wa55a7700av', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_range_ne8300d():
+    """TP1X_DA-KS-RANGE-0102X (model NE8300D, issue #112) -- reports no
+    oneUiVersion; resolved via the '-RANGE-' modelNum token fallback.
+    Binds cleanly against the existing range registry, including
+    /cooktopmonitoring/vs/0 via range.COOKTOP_MONITORING, with zero
+    unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('range_ne8300d')
+    golden = json.loads((GOLDEN / 'range_ne8300d.json').read_text())
+    state_keys = _new_state_keys('range_ne8300d', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_ara_ww_tp1_22():
+    """ARA-WW-TP1-22-COMMON wall-mount RACs (model AR10/13/18BYEAAWKNME,
+    issues #115/#116/#117/#120) report no oneUiVersion and no
+    '_RAC_'/'-RAC-' token -- resolved via the 'ARA-WW-' modelNum fallback.
+    Same resource surface as the other TP1X-class room ACs; binds cleanly
+    against the existing airconditioner registry with zero unbound hrefs,
+    so no new device type was needed."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_ara_ww_tp1_22')
+    golden = json.loads((GOLDEN / 'airconditioner_ara_ww_tp1_22.json').read_text())
+    state_keys = _new_state_keys('airconditioner_ara_ww_tp1_22', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_windfree_oscillation():
+    """TP1X_DA-AC-RAC-01011_0000 Bespoke AI WindFree Deluxe (model
+    AR60H10D1JWNME, issue #126) -- the same board family as the
+    airconditioner_tp1x_da_ac_rac_01011 fixture, but a newer firmware
+    variant reporting no /wind/direction/vs/0 at all: swing lives on the
+    2-axis /wind/oscillation/vs/0 resource instead (airconditioner.
+    HREF_WIND_OSCILLATION, climate.py's oscillation fallback), and it adds
+    an /anomalyload/vs/0 overload-response resource (airconditioner.
+    ANOMALY_LOAD, read-only per the 'don't guess' rule). Binds cleanly
+    with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_windfree_oscillation')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_windfree_oscillation.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_windfree_oscillation', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_oven_mw7300b():
+    """TP1X_DA-KS-MICROWAVE-01041 combi microwave (model MW7300B, issue
+    #121) -- reports no oneUiVersion; resolved via the '-MICROWAVE-'
+    modelNum token fallback onto the *existing* oven registry rather than
+    a new device type, since it shares the same '/oven/vs/0' cavity and
+    '/mode/vs/0' cook-mode shape (Convection/AirFryer/Grill/MicroWave*).
+    The only href the oven registry didn't already cover was
+    /recipe/cook/vs/0 (oven.OVEN_RECIPE_COOK, an empty quick-recipe-display
+    blob with no entity)."""
+    from tests.conftest import _load_device
+    resources = _load_device('oven_mw7300b')
+    golden = json.loads((GOLDEN / 'oven_mw7300b.json').read_text())
+    state_keys = _new_state_keys('oven_mw7300b', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_air_purifier_tp1x_da_ac_air():
+    """TP1X_DA-AC-AIR-01031_0000 (issue #130) self-reports oneUiVersion
+    '7.0 Air purifier' and resolves via for_device() onto the existing
+    air_purifier registry (shared with the older ARTIK051_TVTL family via
+    per-href match_fn discrimination -- see capabilities/air_purifier.py).
+    Its /mode/vs/0 reports modes/supportedModes directly (Smart/Max/Mid/
+    WindFree/Sleep) rather than the older family's packed options[] scheme,
+    which the new air_purifier.FAN capability now binds to a real `fan`
+    entity (PRESET_MODE, not an ordered speed -- see fan.py). Binds with
+    zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_purifier_tp1x_da_ac_air')
+    golden = json.loads((GOLDEN / 'air_purifier_tp1x_da_ac_air.json').read_text())
+    state_keys = _new_state_keys('air_purifier_tp1x_da_ac_air', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_vacuum_station():
+    """A-VSKR-TP1-22-VS9500AL stick-vacuum clean/auto-empty station (issue
+    #131) -- reports no oneUiVersion; resolved via the new '-VSKR-'
+    modelNum fallback onto a new vacuum_station registry (see
+    capabilities/vacuum_station.py's module docstring for why this needed
+    a new device type rather than reusing an existing one: the dump has no
+    vacuum-body state at all, only station-specific dustbag/dustbin/
+    UV-sanitize resources that share no hrefs with anything else already
+    modeled). Binds with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('vacuum_station')
+    golden = json.loads((GOLDEN / 'vacuum_station.json').read_text())
+    state_keys = _new_state_keys('vacuum_station', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {
