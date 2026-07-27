@@ -510,6 +510,23 @@ def test_registry_reproduces_golden_state_keys_for_washer_wa55a7700av():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_range_ne8300d():
+    """TP1X_DA-KS-RANGE-0102X (model NE8300D, issue #112) -- reports no
+    oneUiVersion; resolved via the '-RANGE-' modelNum token fallback.
+    Binds cleanly against the existing range registry, including
+    /cooktopmonitoring/vs/0 via range.COOKTOP_MONITORING, with zero
+    unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('range_ne8300d')
+    golden = json.loads((GOLDEN / 'range_ne8300d.json').read_text())
+    state_keys = _new_state_keys('range_ne8300d', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {
