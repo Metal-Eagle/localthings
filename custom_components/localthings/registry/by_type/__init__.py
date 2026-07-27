@@ -86,6 +86,7 @@ _CONSUMER_PREFIX_TO_KEY: dict[str, str] = {
     'WD': 'washer',
     'WF': 'washer',
     'WV': 'washer',  # FlexWash twin units (e.g. WV55M9600AW) -- issue #19
+    'WA': 'washer',  # Top-load washers (e.g. WA8000T) -- issue #106
     'DV': 'dryer',
     'DW': 'dishwasher',
 }
@@ -118,6 +119,13 @@ def _consumer_model_key(description: str) -> Optional[str]:
     ('8600', a bare second model number with no recognizable prefix). Scan
     segments from the end and take the first one that resolves, rather
     than assuming the last segment is always it.
+
+    Only a 2-letter *prefix* match -- e.g. 'WAC' (the Window Air Conditioner
+    board-family token, issue #87) also starts with 'WA' (the top-load-washer
+    prefix, issue #106) at this granularity. for_device_by_model() calls the
+    board-family modelNum checks first and this function only as a fallback,
+    so that ambiguity resolves correctly without this function needing to
+    know about unrelated device families.
     """
     segments = (description or '').split('/', 1)[0].split('_')
     for segment in reversed(segments):
@@ -140,7 +148,12 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
         DeviceRegistry if the consumer-model code or modelNum resolves to a
         known type, None otherwise.
     """
-    key = _consumer_model_key(description)
+    # Board-family modelNum tokens are checked first, and the fuzzier
+    # 2-letter consumer-model prefix from `description` only as a fallback
+    # (see the bottom of this function) -- some board tokens are themselves
+    # only 2-3 letters long ('WAC', issue #87) and would otherwise collide
+    # with an unrelated consumer prefix at that granularity ('WA', issue #106).
+    key = None
     if key is None and 'REF' in _model_num_segments(model_num):
         key = 'refrigerator'
     # Room air conditioners (e.g. ARTIK051_PRAC_20K) report no oneUiVersion and
@@ -210,6 +223,11 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # board family's.
     if key is None and '-COOKTOP-' in (model_num or '').upper():
         key = 'induction_cooktop'
+    # Consumer-model prefix from `description` (washer/dryer/dishwasher) --
+    # last, since it's the fuzziest match (a bare 2-letter prefix) and would
+    # otherwise shadow the more specific board-family tokens above.
+    if key is None:
+        key = _consumer_model_key(description)
     return _REGISTRY_BY_KEY.get(key) if key else None
 
 
