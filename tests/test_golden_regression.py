@@ -166,6 +166,27 @@ def test_registry_reproduces_golden_state_keys_for_artik051_ref_17k():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_artik051_dongle_ref():
+    """ARTIK051_DONGLE_REF standalone freezer (issues #77/#83) -- reports no
+    oneUiVersion and a pipe-delimited modelNum ('..._DONGLE_REF|<rest>')
+    that the old '_REF_' substring check missed entirely; resolved via the
+    segment-based check in for_device_by_model. Its door
+    (/door/onedoorfreezer/vs/0) and temperature
+    (/temperature/{current,desired}/freezer/0) hrefs only bind through
+    fridge.py's pattern capabilities, which the 'unknown' fallback never
+    tries -- so this also regression-tests that those resources bind at
+    all once routed to the right registry."""
+    from tests.conftest import _load_device
+    resources = _load_device('refrigerator_artik051_dongle_ref')
+    golden = json.loads((GOLDEN / 'refrigerator_artik051_dongle_ref.json').read_text())
+    state_keys = _new_state_keys('refrigerator_artik051_dongle_ref', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_tp2x_ref_20k():
     """TP2X_REF_20K -- CV_FDR_-prefixed flex zone (issue #32) plus the extra
     energy fields (cumulativeConsumption/monthlyConsumption/

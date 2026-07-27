@@ -87,6 +87,22 @@ _CONSUMER_PREFIX_TO_KEY: dict[str, str] = {
 }
 
 
+def _model_num_segments(model_num: str) -> list[str]:
+    """Underscore-delimited segments of modelNum's pipe-prefix.
+
+    Most boards wrap a token in underscores on both sides ('..._REF_...'),
+    which a plain substring check catches fine. But the ARTIK051_DONGLE_REF
+    family (issues #77, #83) reports modelNum as
+    '<board>_DONGLE_REF|<rest...>' -- REF is the *last* segment before the
+    pipe, with no trailing underscore, so '_REF_' never matches and the
+    device silently fell back to 'unknown'. Splitting on '_' and checking
+    segment membership catches both shapes without caring which side (if
+    either) has a delimiter.
+    """
+    prefix = (model_num or '').split('|', 1)[0]
+    return prefix.split('_')
+
+
 def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegistry]:
     """Fallback device-type detection for hardware that never reports
     oneUiVersion (confirmed for washers -- their /otninformation/vs/0 has
@@ -102,7 +118,7 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     """
     token = (description or '').split('/', 1)[0].rsplit('_', 1)[-1]
     key = _CONSUMER_PREFIX_TO_KEY.get(token[:2].upper())
-    if key is None and '_REF_' in (model_num or ''):
+    if key is None and 'REF' in _model_num_segments(model_num):
         key = 'refrigerator'
     # Room air conditioners (e.g. ARTIK051_PRAC_20K) report no oneUiVersion and
     # a modelNum carrying the '_PRAC_' (Package Room Air Conditioner) token.

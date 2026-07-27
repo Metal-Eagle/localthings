@@ -573,15 +573,27 @@ FLEX_ZONE = Capability(
 # Generic door pattern capability (href=None — use as pattern_cap only)
 # ---------------------------------------------------------------------------
 
+def _door_open_state(rep):
+    """Most /door/* resources report bare `openState`, but the
+    ARTIK051_DONGLE_REF family's /door/onedoorfreezer/vs/0 (issues #77, #83)
+    reports the vendor-prefixed `x.com.samsung.da.openState` instead. This
+    capability still binds either way (href_prefix match doesn't care about
+    field names), but a plain `field=` lookup against the wrong key means
+    the entity exists and is permanently unavailable -- check both."""
+    v = rep.get('openState')
+    if v is None:
+        v = rep.get('x.com.samsung.da.openState')
+    return v == 'Open'
+
+
 DOOR_GENERIC = Capability(
     href=None,
     href_prefix='/door/',
     poll_tier='hot',
     entities=(
-        BinarySensorDesc(key='open', field='openState',
+        BinarySensorDesc(key='open', rep_fn=_door_open_state,
                          translation_key='instance_open',
-                         use_instance_name=True, device_class='door',
-                         value_fn=lambda v: v == 'Open'),
+                         use_instance_name=True, device_class='door'),
     ),
 )
 
