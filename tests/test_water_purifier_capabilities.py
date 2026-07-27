@@ -138,3 +138,80 @@ def test_mode_hrefs_are_ignored_not_guessed():
     ignored_hrefs = {cap.href for cap in water_purifier.COVERAGE}
     assert '/mode/vs/0' in ignored_hrefs
     assert '/automation/waterpurifier/vs/0' in ignored_hrefs
+
+
+# ---------------------------------------------------------------------------
+# Coffee-capable variant (issue #107) -- /favorite/coffee/vs/0 and
+# /favorite/hotwater/vs/0, not present in issue #90's original dump.
+# ---------------------------------------------------------------------------
+
+def _water_purifier_coffee():
+    resources = _load_device('water_purifier_coffee')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
+    )
+    return reg, resources
+
+
+def _bound_coffee():
+    reg, resources = _water_purifier_coffee()
+    return discover(resources, reg.capabilities, reg.pattern_capabilities), resources
+
+
+def _state_coffee():
+    bound, resources = _bound_coffee()
+    return flatten(bound, resources)
+
+
+def _desc_coffee(key):
+    bound, _ = _bound_coffee()
+    return next(b.desc for b in bound if b.desc.key == key)
+
+
+def test_coffee_variant_no_unbound_hrefs():
+    """Every resource in the issue #107 dump binds or is covered, including
+    the four coffee-recipe hrefs not present in issue #90's dump."""
+    reg, resources = _water_purifier_coffee()
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
+def test_coffee_variant_expected_state_keys_present():
+    state = _state_coffee()
+    for key in ('favorite_coffee_enabled', 'coffee_brew_status',
+                'favorite_hotwater_enabled', 'favorite_hotwater_temperature'):
+        assert key in state, key
+
+
+def test_favorite_coffee_write_contract():
+    desc = _desc_coffee('favorite_coffee_enabled')
+    assert desc.write_fn('On', {}) == (
+        ['favorite', 'coffee', 'vs', '0'], {'favorite.activate': 'On'})
+    assert desc.write_fn('Off', {}) == (
+        ['favorite', 'coffee', 'vs', '0'], {'favorite.activate': 'Off'})
+
+
+def test_favorite_hotwater_write_contract():
+    enabled = _desc_coffee('favorite_hotwater_enabled')
+    assert enabled.write_fn('On', {}) == (
+        ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Unlocked'})
+    assert enabled.write_fn('Off', {}) == (
+        ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Locked'})
+
+
+def test_favorite_hotwater_temperature_options_come_from_live_supported_list():
+    desc = _desc_coffee('favorite_hotwater_temperature')
+    assert desc.options_field == 'x.com.samsung.da.favorite.supportedList'
+
+
+def test_coffee_recipe_hrefs_are_ignored_not_guessed():
+    """Static capability-advertisement blobs or empty resources -- no live
+    'current recipe'/'current custom slot' field to expose, per the 'don't
+    guess' rule."""
+    from custom_components.localthings.registry.capabilities import water_purifier
+    ignored_hrefs = {cap.href for cap in water_purifier.COVERAGE}
+    for href in ('/brand/recipe/info/vs/0', '/coffee/custom/recipe/vs/0',
+                 '/recipe/coffee/vs/0', '/recipe/coffee/deletion/vs/0'):
+        assert href in ignored_hrefs, href

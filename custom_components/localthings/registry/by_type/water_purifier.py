@@ -12,6 +12,8 @@ REGISTRY = DeviceRegistry(
         water_purifier.DISPENSE,
         water_purifier.STATUS,
         water_purifier.FAVORITE_CAPACITY,
+        water_purifier.FAVORITE_HOTWATER,
+        water_purifier.COFFEE,
         water_purifier.LOCK,
         *water_purifier.COVERAGE,
     ]),
