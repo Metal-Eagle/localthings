@@ -287,6 +287,42 @@ class TestArtik051DongleRefFixtureCoverage:
         assert state['freezer_setpoint'] == -20.0
 
 
+class TestArtik051DongleRefCoolerFixtureCoverage:
+    """Issue #78: RR40M7165WW, the fridge half of the same household
+    ARTIK051_DONGLE_REF dongle setup as issue #77's freezer. Notably reports
+    *two* door hrefs (/door/cooler/0 and /door/onedoorfreezer/vs/0) despite
+    being a single-door fridge, not a fridge/freezer combo -- apparently
+    shared firmware naming across the product line, not a real second
+    compartment. Both must still resolve to zero unbound hrefs and real
+    values with the same fix as #77."""
+
+    def test_no_unbound_hrefs_and_expected_entities(self):
+        from custom_components.localthings.registry.adapter import flatten
+        from custom_components.localthings.registry.by_type import (
+            for_device_by_model, refrigerator,
+        )
+        from custom_components.localthings.registry.discovery import discover
+        from tests.conftest import _load_device
+
+        resources = _load_device('refrigerator_artik051_dongle_ref_cooler')
+        info = resources['/information/vs/0']
+        reg = for_device_by_model(
+            info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+        assert reg is not None and reg.name == 'refrigerator'
+
+        unbound = []
+        bound = discover(
+            resources, refrigerator.REGISTRY.capabilities,
+            refrigerator.REGISTRY.pattern_capabilities, log=unbound.append,
+        )
+        assert unbound == []
+        state = flatten(bound, resources)
+        assert state['door_cooler_open'] is False
+        assert state['door_onedoorfreezer_open'] is False
+        assert state['cooler_temperature'] == 3.0
+        assert state['cooler_setpoint'] == 3.0
+
+
 class TestRefrigeratorAiEnergyLevelFixtureCoverage:
     """AI energy-saving level (common.AI_ENERGY_LEVEL, see
     test_common_capabilities.py) is exercised end-to-end here against the

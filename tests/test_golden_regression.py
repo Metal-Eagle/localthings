@@ -166,6 +166,24 @@ def test_registry_reproduces_golden_state_keys_for_artik051_ref_17k():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_artik051_dongle_ref_cooler():
+    """RR40M7165WW (issue #78) -- the same ARTIK051_DONGLE_REF household
+    dongle family as issue #77's freezer, but the fridge half: reports
+    /door/cooler/0 *and* /door/onedoorfreezer/vs/0 (the latter apparently
+    shared firmware naming, not an actual second freezer compartment) plus
+    /temperature/{current,desired}/cooler/0. Same pipe-delimited modelNum
+    detection gap and DOOR_GENERIC field-name gap as #77, same fix."""
+    from tests.conftest import _load_device
+    resources = _load_device('refrigerator_artik051_dongle_ref_cooler')
+    golden = json.loads((GOLDEN / 'refrigerator_artik051_dongle_ref_cooler.json').read_text())
+    state_keys = _new_state_keys('refrigerator_artik051_dongle_ref_cooler', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_artik051_dongle_ref():
     """ARTIK051_DONGLE_REF standalone freezer (issues #77/#83) -- reports no
     oneUiVersion and a pipe-delimited modelNum ('..._DONGLE_REF|<rest>')
