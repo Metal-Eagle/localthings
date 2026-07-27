@@ -4,7 +4,7 @@ from typing import Optional
 from ._base import DeviceRegistry
 from . import (
     air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
-    oven, range as _range, range_hood, refrigerator, washer,
+    oven, range as _range, range_hood, refrigerator, washer, water_purifier,
 )
 
 __all__ = [
@@ -28,6 +28,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'range_hood': range_hood.REGISTRY,
     'refrigerator': refrigerator.REGISTRY,
     'washer': washer.REGISTRY,
+    'water_purifier': water_purifier.REGISTRY,
 }
 
 
@@ -165,6 +166,10 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     model_identity = f'{model_num} {description}'.upper()
     if key is None and ('_COOKTOP' in model_identity or '_GB_CT_' in model_identity):
         key = 'cooktop'
+    # Water purifiers (e.g. TP2X_WATERPURIFIER_20K, issue #90) report no
+    # oneUiVersion and carry the 'WATERPURIFIER' board-family token.
+    if key is None and 'WATERPURIFIER' in model_identity:
+        key = 'water_purifier'
     if key is None and model_identity.startswith('AHD-'):
         key = 'range_hood'
     # Range/cooktop-oven combos (e.g. TP1X_DA-KS-RANGE-0102X, issue #44) --

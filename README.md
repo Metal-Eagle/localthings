@@ -26,12 +26,13 @@ Your state stays on your LAN: HA talks to the appliance over a direct DTLS sessi
 | Dehumidifier | `by_type/dehumidifier.py` |
 | Dryer | `by_type/dryer.py` |
 | Oven | `by_type/oven.py` |
-| Cooktop (read-only burner status) | `by_type/cooktop.py` |
+| Gas cooktop (read-only burner status) | `by_type/cooktop.py` |
 | Range hood | `by_type/range_hood.py` |
 | Range | `by_type/range.py` |
 | Dishwasher | `by_type/dishwasher.py` |
 | Refrigerator | `by_type/refrigerator.py` |
 | Washer | `by_type/washer.py` |
+| Water purifier | `by_type/water_purifier.py` |
 
 Each registry composes shared and family-specific `Capability` objects from `registry/capabilities/`; those modules document the individual resources/entities in more depth than a README table can stay current with.
 
