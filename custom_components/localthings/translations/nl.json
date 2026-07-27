@@ -205,6 +205,8 @@
       "dryer_cycle_table_03": {
         "name": "Programma",
         "state": {
+          "01": "Normaal",
+          "06": "Tijdprogramma",
           "16": "Katoen",
           "18": "Synthetisch",
           "19": "Fijne was",
@@ -397,10 +399,13 @@
           "38": "Katoen drogen",
           "39": "Synthetisch drogen",
           "3a": "Trommel reinigen",
+          "52": "Eco koud",
           "53": "Intensief",
+          "54": "Handdoeken",
           "55": "Sportkleding",
           "57": "Fijn",
           "5e": "Spoelen+centrifugeren",
+          "60": "Zelfreinigend+",
           "65": "Bonte was",
           "66": "Spijkergoed",
           "7c": "Witte was",

@@ -205,6 +205,8 @@
       "dryer_cycle_table_03": {
         "name": "Cycle",
         "state": {
+          "01": "Normal",
+          "06": "Time dry",
           "16": "Cotton",
           "18": "Synthetics",
           "19": "Delicates",
@@ -397,10 +399,13 @@
           "38": "Cotton Dry",
           "39": "Synthetics Dry",
           "3a": "Drum Clean",
+          "52": "Eco Cold",
           "53": "Heavy Duty",
+          "54": "Towels",
           "55": "Activewear",
           "57": "Delicate",
           "5e": "Rinse+Spin",
+          "60": "Self Clean+",
           "65": "Colors",
           "66": "Denim",
           "7c": "Whites",
