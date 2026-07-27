@@ -457,6 +457,9 @@
       "current_temp_c": {
         "name": "Temperatuur"
       },
+      "current_temperature_c": {
+        "name": "Temperatuur"
+      },
       "diagnosis": {
         "name": "Diagnose"
       },
@@ -525,6 +528,9 @@
       },
       "hood_filter_usage": {
         "name": "Filterverbruik"
+      },
+      "humidity": {
+        "name": "Luchtvochtigheid"
       },
       "instance_temperature": {
         "name": "Temperatuur {instance_name}"

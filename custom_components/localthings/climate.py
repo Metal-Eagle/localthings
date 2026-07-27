@@ -84,6 +84,7 @@ _DEVICE_TO_SWING: dict[str, str] = {
     'Fix': 'off',
     'All': 'both',
     'Up_And_Low': 'vertical',
+    'Left_And_Right': 'horizontal',  # issue #75
 }
 _SWING_TO_DEVICE = {v: k for k, v in _DEVICE_TO_SWING.items()}
 
