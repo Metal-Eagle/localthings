@@ -111,6 +111,27 @@ class TestWasherRegistry:
             assert href in registry.capabilities, f"{href} missing from washer registry"
 
 
+class TestConsumerModelKey:
+    def test_finds_key_in_last_segment(self):
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key('DA_WM_TP1_21_COMMON_WW5000C') == 'washer'
+
+    def test_finds_key_before_a_trailing_unrecognized_segment(self):
+        """Issue #79: 'DVE50A8800_8600' pairs two model numbers -- the real
+        consumer token is the second-to-last segment, not the last."""
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key(
+            'DA_WM_TP1_21_COMMON_DVE50A8800_8600/DC92-02835A_0080') == 'dryer'
+
+    def test_ignores_everything_after_first_slash(self):
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key('DA_WM_TP1_21_COMMON_WW5000C/DW9000_board') == 'washer'
+
+    def test_none_when_no_segment_matches(self):
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key('ARTIK051_DONGLE_REF') is None
+
+
 class TestForDeviceByModel:
     """Fallback device-type detection for hardware without oneUiVersion."""
 
@@ -138,6 +159,20 @@ class TestForDeviceByModel:
         from custom_components.localthings.registry.by_type import for_device_by_model
         reg = for_device_by_model(
             'DA_WM_TP2_20_COMMON_DV5000T', 'DA_WM_TP2_20_COMMON_DV5000T',
+        )
+        assert reg is not None
+        assert reg.name == 'dryer'
+
+    def test_dryer_dve50a8600_paired_model_numbers_in_description(self):
+        """Issue #79: description pairs two model numbers
+        ('..._DVE50A8800_8600/DC92-...'), so the 'DV' consumer token is one
+        segment before the literal last segment ('8600', which has no
+        recognizable prefix on its own). The old last-segment-only check
+        fell through to 'unknown' here."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'DA_WM_TP1_21_COMMON|20286441|300000010015110002A3031700000000',
+            'DA_WM_TP1_21_COMMON_DVE50A8800_8600/DC92-02835A_0080',
         )
         assert reg is not None
         assert reg.name == 'dryer'

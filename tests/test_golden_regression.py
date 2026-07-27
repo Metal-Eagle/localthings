@@ -73,6 +73,23 @@ def test_registry_reproduces_golden_state_keys_for_dryer():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_dryer_dve50a8600():
+    """DVE50A8600V/A3 (issue #79) -- description pairs two model numbers
+    ('..._DVE50A8800_8600/...'), so the true 'DV' consumer-model token sits
+    one segment before the actual last segment ('8600'). The old
+    last-segment-only check missed it and fell back to 'unknown'; resolved
+    via _consumer_model_key scanning segments from the end."""
+    from tests.conftest import _load_device
+    resources = _load_device('dryer_dve50a8600')
+    golden = json.loads((GOLDEN / 'dryer_dve50a8600.json').read_text())
+    state_keys = _new_state_keys('dryer_dve50a8600', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_airconditioner():
     from tests.conftest import _load_device
     resources = _load_device('airconditioner')
