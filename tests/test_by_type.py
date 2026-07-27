@@ -114,6 +114,25 @@ class TestWasherRegistry:
             assert href in registry.capabilities, f"{href} missing from washer registry"
 
 
+class TestModelNumSegments:
+    def test_splits_pipe_prefix_on_underscore(self):
+        from custom_components.localthings.registry.by_type import _model_num_segments
+        assert _model_num_segments('ARTIK051_DONGLE_REF|00127641|000800200014') == [
+            'ARTIK051', 'DONGLE', 'REF',
+        ]
+
+    def test_ignores_everything_after_first_pipe(self):
+        from custom_components.localthings.registry.by_type import _model_num_segments
+        assert _model_num_segments('TP2X_RAC_20K|abc|REF_should_not_appear') == [
+            'TP2X', 'RAC', '20K',
+        ]
+
+    def test_empty_for_none_or_empty_input(self):
+        from custom_components.localthings.registry.by_type import _model_num_segments
+        assert _model_num_segments('') == ['']
+        assert _model_num_segments(None) == ['']
+
+
 class TestConsumerModelKey:
     def test_finds_key_in_last_segment(self):
         from custom_components.localthings.registry.by_type import _consumer_model_key
@@ -212,6 +231,20 @@ class TestForDeviceByModel:
         reg = for_device_by_model(
             'TP1X_REF_21K|00156941|00050126001611304100000031010000',
             'TP1X_REF_21K',
+        )
+        assert reg is not None
+        assert reg.name == 'refrigerator'
+
+    def test_refrigerator_dongle_ref_pipe_delimited_modelnum(self):
+        """Issues #77/#83: the ARTIK051_DONGLE_REF family's modelNum is
+        '<board>_DONGLE_REF|<rest>' -- REF is the last underscore segment
+        before the pipe, with no trailing underscore, so the plain '_REF_'
+        substring check used to miss it entirely and the device fell back
+        to 'unknown' with only common capabilities."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'ARTIK051_DONGLE_REF|00127641|00080020001430300100000000000000',
+            'ARTIK_REF_17K',
         )
         assert reg is not None
         assert reg.name == 'refrigerator'
