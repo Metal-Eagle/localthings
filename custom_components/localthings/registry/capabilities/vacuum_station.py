@@ -15,23 +15,9 @@ docstring for that rule).
 
 Resources verified against the issue #131 diagnostics dump.
 """
-from datetime import datetime, timezone
-
 from ..capability import Capability
 from ..entities import BinarySensorDesc, SelectDesc, SensorDesc, SwitchDesc
-from .common import int_or_none
-
-
-def _parse_iso_utc(raw):
-    """Bare ISO datetime with no timezone field alongside it -- treated as
-    UTC, matching this integration's convention for other bare ISO datetime
-    fields (see water_purifier.py's own _parse_iso_utc)."""
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw).replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
+from .common import int_or_none, parse_iso_utc as _parse_iso_utc
 
 
 DUSTBAG = Capability(
