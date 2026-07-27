@@ -3,8 +3,8 @@ from typing import Optional
 
 from ._base import DeviceRegistry
 from . import (
-    air_purifier, airconditioner, cooktop, dishwasher, dryer, oven,
-    range as _range, range_hood, refrigerator, washer,
+    air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
+    oven, range as _range, range_hood, refrigerator, washer,
 )
 
 __all__ = [
@@ -19,6 +19,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'airconditioner': airconditioner.REGISTRY,
     'air_conditioner': airconditioner.REGISTRY,
     'cooktop': cooktop.REGISTRY,
+    'dehumidifier': dehumidifier.REGISTRY,
     'dishwasher': dishwasher.REGISTRY,
     'dryer': dryer.REGISTRY,
     'oven': oven.REGISTRY,
@@ -122,6 +123,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # resource (see airconditioner.py's _AC_IGNORED).
     if key is None and '-CAWW-' in (model_num or '').upper():
         key = 'airconditioner'
+    # Dehumidifiers (e.g. TP1X_DA_AC_DHM_01001_0000, issue #88) share the
+    # DA_AC_ board family with the room-AC models above but carry the
+    # '_DHM_' (DeHuMidifier) token instead of '_RAC_'/'_PRAC_'. Distinct
+    # registry: target humidity, not temperature, is the primary control,
+    # and there's no climate composite.
+    if key is None and '_DHM_' in (model_num or ''):
+        key = 'dehumidifier'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
     if key is None and '_TVTL_' in (model_num or ''):

@@ -118,6 +118,9 @@
       },
       "sound_volume": {
         "name": "Sound volume"
+      },
+      "target_humidity": {
+        "name": "Target humidity"
       }
     },
     "select": {
@@ -285,6 +288,9 @@
           "plate_warm": "Plate warm",
           "air_fry": "Air fry"
         }
+      },
+      "operating_mode": {
+        "name": "Operating mode"
       },
       "pantry_zone_mode": {
         "name": "Pantry zone mode",
@@ -522,6 +528,9 @@
       },
       "hood_filter_capacity": {
         "name": "Filter capacity"
+      },
+      "humidity": {
+        "name": "Humidity"
       },
       "hood_filter_usage": {
         "name": "Filter usage"
