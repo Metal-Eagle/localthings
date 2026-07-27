@@ -189,6 +189,8 @@ PROBE_STATUS = Capability(
         SensorDesc(key='probe_target_temperature', field='targetTemperature',
                    device_class='temperature', entity_category='diagnostic',
                    unit_fn=lambda rep: normalize_temp_unit(rep.get('temperatureUnit'), '°C')),
+    ),
+)
 
 # Some range boards (issue #74's NE63B8411SS) report no /cooktop/status/vs/0
 # burner array at all -- their local API only exposes this coarse
