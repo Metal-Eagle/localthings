@@ -131,11 +131,12 @@ def test_climate_consumed_hrefs_declared_as_coverage():
     (as no-entity coverage caps) so they don't leak as gaps -- but produce no
     standalone entities. /temperature/current/0 and /temperatures/vs/0 are
     NOT in this list -- CURRENT_TEMPERATURE / CURRENT_TEMPERATURE_VS give
-    those two real sensor entities (issue #75)."""
+    those two real sensor entities (issue #75). /sensors/vs/0 is also NOT
+    here -- AIR_QUALITY gives it real entity sensors."""
     reg, _ = _ac()
     for href in ('/power/0', '/power/vs/0', '/temperature/desired/0',
                  '/wind/strength/vs/0', '/mode/convenient/vs/0',
-                 '/sensors/vs/0', '/humidity/0'):
+                 '/humidity/0'):
         caps = reg.capabilities.get(href)
         assert caps, href
         assert all(c.entities == () for c in caps), href
@@ -405,3 +406,221 @@ def test_humidity_reads_five_percent_field_not_stuck_humidity_field():
     desc = airconditioner.HUMIDITY.entities[0]
     rep = {'x.com.samsung.da.humidity': '0', 'x.com.samsung.da.fivepercentHumidity': '42'}
     assert desc.value_fn(rep.get(desc.field)) == 42.0
+
+
+# ---------------------------------------------------------------------------
+# Additive entities layered on the ARTIK051_PRAC family on top of the upstream
+# registry: beep (Volume_* option), tropical night mode (Sleep_<N> option),
+# filter usage hours + alarm threshold (filterUsage / filterDesiredUsage),
+# air-quality sensors (/sensors/vs/0 items), and software/firmware version
+# (/information/vs/0 items). Beep and tropical night use the single-token
+# option_write merge -- a full options RMW reverts on ARTIK051_PRAC (see the
+# [[samsung-ac-local-vs-cloud-control]] memory).
+# ---------------------------------------------------------------------------
+
+def _beep_desc():
+    return next(e for e in airconditioner.CLIMATE.entities if e.key == 'beep')
+
+
+def _tropical_desc():
+    return next(e for e in airconditioner.CLIMATE.entities
+                if e.key == 'tropical_night_mode')
+
+
+def test_beep_read_from_volume_token():
+    """Volume_100 (and any non-Mute) -> on; Volume_Mute -> off; no Volume_ slot
+    -> None (entity won't bind via exists_fn)."""
+    assert airconditioner._beep_on(
+        {'x.com.samsung.da.options': ['Volume_100']}) is True
+    assert airconditioner._beep_on(
+        {'x.com.samsung.da.options': ['Volume_Mute']}) is False
+    assert airconditioner._beep_on(
+        {'x.com.samsung.da.options': ['Light_Off']}) is None
+    assert airconditioner._beep_on({}) is None
+
+
+def test_beep_write_is_single_token_options_merge():
+    """On writes `['Volume_100']`, Off writes `['Volume_Mute']` -- one-element
+    options array, not a full RMW (which reverts on ARTIK051_PRAC)."""
+    write = _beep_desc().write_fn
+    assert write('On', {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_100']})
+    assert write('Off', {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_Mute']})
+    assert write('Bogus', {}) is None
+
+
+def test_beep_absent_when_no_volume_token():
+    """TP1X_DA-AC-RAC-01011 carries no Volume_ option -- beep must not bind."""
+    reg, resources = _ac_tp1x()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert 'beep' not in state
+
+
+def test_beep_state_on_windfree():
+    """The WindFree fixture reports Volume_100 -> beep reads True."""
+    reg, resources = _ac_windfree()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['beep'] is True
+
+
+def test_tropical_night_read_from_sleep_token():
+    """Sleep_<N> -> N; absent -> None."""
+    assert airconditioner._tropical_night_value(
+        {'x.com.samsung.da.options': ['Sleep_0']}) == 0
+    assert airconditioner._tropical_night_value(
+        {'x.com.samsung.da.options': ['Sleep_16']}) == 16
+    assert airconditioner._tropical_night_value(
+        {'x.com.samsung.da.options': ['Volume_100']}) is None
+    assert airconditioner._tropical_night_value({}) is None
+
+
+def test_tropical_night_write_is_single_token_options_merge():
+    """Valid 0-16 -> `['Sleep_<N>']`; out of range / non-numeric -> None (no
+    write). Cloud counterpart: custom.airConditionerTropicalNightMode (0-16)."""
+    write = _tropical_desc().write_fn
+    assert write(0, {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Sleep_0']})
+    assert write(16, {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Sleep_16']})
+    assert write(17, {}) is None
+    assert write(-1, {}) is None
+    assert write('not-a-number', {}) is None
+    # Float rounds to nearest int within range.
+    assert write(5.6, {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Sleep_6']})
+
+
+def test_tropical_night_absent_when_no_sleep_token():
+    """TP1X_DA-AC-WAC (window AC) carries no Sleep_ option -- tropical night
+    mode must not bind."""
+    resources = _load_device('airconditioner_window_ac')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert 'tropical_night_mode' not in state
+
+
+def test_tropical_night_state_levels_across_fixtures():
+    """Sleep_0 / Sleep_6 / Sleep_16 surface as 0 / 6 / 16 respectively."""
+    def level(name):
+        res = _load_device(name)
+        info = res['/information/vs/0']
+        r = for_device_by_model(
+            info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+        return flatten(discover(res, r.capabilities, r.pattern_capabilities), res).get(
+            'tropical_night_mode')
+    assert level('airconditioner_windfree') == 0
+    assert level('airconditioner_tp1x_da_ac_rac_01011') == 6
+    assert level('airconditioner_tp2x_rac_20k') == 16
+
+
+def test_air_filter_usage_hours_reads_raw_count():
+    """filterUsage is a raw hour count (41 of 500); the existing
+    air_filter_usage is the percentage (8%), this one is the raw hours."""
+    desc = next(e for e in airconditioner.AIR_FILTER.entities
+                if e.key == 'air_filter_usage_hours')
+    assert desc.value_fn('41') == 41
+    assert desc.value_fn(41) == 41
+    assert desc.value_fn(None) is None
+    assert desc.value_fn('not-a-number') is None
+    assert desc.unit == 'h' and desc.device_class == 'duration'
+
+
+def test_air_filter_threshold_reads_desired_usage():
+    """filterDesiredUsage is the alarm threshold in hours (read-only local;
+    setting it is cloud-only via samsungce.dustFilterAlarm)."""
+    desc = next(e for e in airconditioner.AIR_FILTER.entities
+                if e.key == 'air_filter_threshold')
+    assert desc.value_fn('500') == 500
+    assert desc.value_fn(500) == 500
+    assert desc.value_fn(None) is None
+    assert getattr(desc, 'write_fn', None) is None
+    assert desc.unit == 'h' and desc.device_class == 'duration'
+
+
+def test_air_filter_hours_and_threshold_in_state():
+    reg, resources = _ac_windfree()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['air_filter_usage_hours'] == 41
+    assert state['air_filter_threshold'] == 500
+    assert state['air_filter_usage'] == 8  # 41/500 -> 8%
+
+
+def test_air_quality_sensors_from_sensors_vs_items():
+    """/sensors/vs/0 items[] surface as diagnostic scalars (no unit advertised
+    on the resource, so no device_class until a populated reading + unit is
+    observed -- the 'don't guess' rule)."""
+    reg, resources = _ac_windfree()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    for key in ('clean_level', 'odor', 'dust', 'fine_dust'):
+        assert key in state, key
+        assert state[key] == '0'
+    # SuperFineDust exists in the dump but is deliberately not modeled.
+    assert 'super_fine_dust' not in state
+
+
+def test_air_quality_absent_when_no_sensor_items():
+    """Boards whose /sensors/vs/0 has no items[] (TP1X_DA-AC-RAC-01001) bind no
+    air-quality entities -- exists_fn gates each on its item type."""
+    reg, resources = _resolve('airconditioner_tp1x_rac')
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    for key in ('clean_level', 'odor', 'dust', 'fine_dust'):
+        assert key not in state, key
+
+
+def test_sensor_item_value_picks_first_value():
+    """_sensor_item_value returns the first element of the value list, as a
+    string; None when the item is absent or its value is empty."""
+    items = [
+        {'x.com.samsung.da.type': 'Dust', 'x.com.samsung.da.value': ['0', '0']},
+        {'x.com.samsung.da.type': 'Odor', 'x.com.samsung.da.value': []},
+    ]
+    assert airconditioner._sensor_item_value(items, 'Dust') == '0'
+    assert airconditioner._sensor_item_value(items, 'Odor') is None
+    assert airconditioner._sensor_item_value(items, 'Missing') is None
+    assert airconditioner._sensor_item_value(None, 'Dust') is None
+
+
+def test_software_and_firmware_version_from_info_items():
+    """/information/vs/0 items[] carry Software/Firmware version strings
+    (the href is otherwise identity plumbing; the AC registry drops the global
+    ignore so INFO is the sole cap on it)."""
+    reg, resources = _ac_windfree()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['software_version'] == '02181A230313'
+    assert state['firmware_version'] == '20082000,FFFFFFFF'
+
+
+def test_info_item_number_picks_first_match():
+    """_info_item_number returns the number of the first item with the given
+    type; None when absent. Multiple Firmware items -> first wins."""
+    items = [
+        {'x.com.samsung.da.type': 'Software', 'x.com.samsung.da.number': 'SW1'},
+        {'x.com.samsung.da.type': 'Firmware', 'x.com.samsung.da.number': 'FW1'},
+        {'x.com.samsung.da.type': 'Firmware', 'x.com.samsung.da.number': 'FW2'},
+    ]
+    assert airconditioner._info_item_number(items, 'Software') == 'SW1'
+    assert airconditioner._info_item_number(items, 'Firmware') == 'FW1'
+    assert airconditioner._info_item_number(items, 'Outdoor') is None
+    assert airconditioner._info_item_number(None, 'Software') is None
+
+
+def test_info_drops_global_ignore_on_information_href():
+    """The AC registry drops /information/vs/0 from ignored.IGNORED so INFO is
+    the sole capability on the href (no no-entity coverage cap duplicates)."""
+    reg, _ = _ac()
+    caps = reg.capabilities.get('/information/vs/0')
+    assert caps, '/information/vs/0'
+    # INFO is the only cap on the href, and it carries real entities.
+    assert len(caps) == 1
+    assert caps[0] is airconditioner.INFO
+    assert airconditioner.INFO.entities != ()

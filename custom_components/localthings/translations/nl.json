@@ -149,6 +149,9 @@
       },
       "target_humidity": {
         "name": "Doelvochtigheid"
+      },
+      "tropical_night_mode": {
+        "name": "Tropische nachtmodus"
       }
     },
     "select": {
@@ -478,6 +481,18 @@
       "air_filter_usage": {
         "name": "Filterverbruik"
       },
+      "air_filter_usage_hours": {
+        "name": "Filterverbruik (uren)"
+      },
+      "air_filter_threshold": {
+        "name": "Filteralarmdrempel"
+      },
+      "software_version": {
+        "name": "Softwareversie"
+      },
+      "firmware_version": {
+        "name": "Firmwareversie"
+      },
       "air_sensing_state": {
         "name": "Status luchtmeting"
       },
@@ -728,6 +743,9 @@
       },
       "auto_clean": {
         "name": "Automatisch reinigen"
+      },
+      "beep": {
+        "name": "Piep"
       },
       "auto_door_opener": {
         "name": "Automatische deuropener"

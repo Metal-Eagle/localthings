@@ -1,20 +1,25 @@
 {
   "state_keys": [
     "air_filter_status",
+    "air_filter_threshold",
     "air_filter_usage",
+    "air_filter_usage_hours",
     "alarm_code",
     "auto_clean",
+    "beep",
     "climate",
     "current_temperature_c",
     "display_light",
     "energy_kwh",
     "energy_saved_kwh",
     "firmware_update",
+    "firmware_version",
     "humidity",
     "mute_once",
     "power_watts",
     "selfcheck_error",
     "selfcheck_result",
-    "selfcheck_status"
+    "selfcheck_status",
+    "software_version"
   ]
 }

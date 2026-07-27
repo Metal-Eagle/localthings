@@ -15,9 +15,97 @@ different schema (see capabilities/__init__.py). They live only in the AC
 by_type registry.
 """
 from ..capability import Capability
-from ..entities import BinarySensorDesc, ClimateDesc, SensorDesc, SwitchDesc
+from ..entities import (
+    BinarySensorDesc, ClimateDesc, NumberDesc, SensorDesc, SwitchDesc,
+)
 from .common import normalize_temp_unit
 from .laundry import option_write
+
+
+def _int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _option_token(rep, prefix):
+    """Return the `<prefix>_<value>` token from /mode/vs/0 options, else None."""
+    for o in _mode_options(rep):
+        if isinstance(o, str) and o.startswith(prefix + '_'):
+            return o
+    return None
+
+
+def _beep_on(rep):
+    """Beep on/off from the `Volume_*` option token: Volume_Mute = off,
+    Volume_100 (and any non-Mute) = on. None when no Volume_ slot."""
+    tok = _option_token(rep, 'Volume')
+    if tok is None:
+        return None
+    return tok != 'Volume_Mute'
+
+
+def _beep_write(payload, rep, href=None):
+    """Toggle beep via a single-token /mode/vs/0 options write (option_write's
+    one-token merge -- a full options RMW reverts on ARTIK051_PRAC)."""
+    if payload not in ('On', 'Off'):
+        return None
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': option_write('Volume', '100' if payload == 'On' else 'Mute'),
+    }
+
+
+def _tropical_night_value(rep):
+    """Tropical night mode level (0-16) from the `Sleep_<N>` option token."""
+    tok = _option_token(rep, 'Sleep')
+    if tok is None or '_' not in tok:
+        return None
+    return _int(tok.split('_', 1)[1])
+
+
+def _tropical_night_write(value, rep, href=None):
+    """Set tropical night level via a single-token `Sleep_<N>` options write.
+    Samsung cloud counterpart: custom.airConditionerTropicalNightMode (0-16)."""
+    try:
+        level = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= level <= 16:
+        return None
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': option_write('Sleep', str(level)),
+    }
+
+
+def _info_item_number(items, type_):
+    """x.com.samsung.da.number of the /information/vs/0 item with the given
+    x.com.samsung.da.type ('Software'/'Firmware'), else None."""
+    for it in (items or []):
+        if isinstance(it, dict) and it.get('x.com.samsung.da.type') == type_:
+            return it.get('x.com.samsung.da.number')
+    return None
+
+
+def _sensor_item_value(items, type_):
+    """First value of the /sensors/vs/0 item with the given
+    x.com.samsung.da.type, as a diagnostic scalar string. The resource exposes
+    no unit, so no device_class is set until a populated reading + unit is
+    observed (the 'don't guess' rule)."""
+    for it in (items or []):
+        if isinstance(it, dict) and it.get('x.com.samsung.da.type') == type_:
+            v = it.get('x.com.samsung.da.value')
+            if isinstance(v, list) and v:
+                return str(v[0])
+            return None
+    return None
+
+
+def _has_sensor_type(type_):
+    def fn(rep, resources):
+        return any(isinstance(i, dict) and i.get('x.com.samsung.da.type') == type_
+                   for i in (rep.get('x.com.samsung.da.items') or []))
+    return fn
 
 # ---------------------------------------------------------------------------
 # Canonical AC resource hrefs. The climate entity (climate.py) binds the
@@ -37,6 +125,7 @@ HREF_WIND_STRENGTH = '/wind/strength/vs/0'        # fan_mode
 HREF_WIND_DIRECTION = '/wind/direction/vs/0'      # swing_mode
 HREF_CONVENIENT = '/mode/convenient/vs/0'         # preset_mode
 HREF_TEMPS_VS = '/temperatures/vs/0'              # vendor temp fallback (items[] array)
+HREF_INFORMATION = '/information/vs/0'           # model/serial + Software/Firmware version items
 
 CLIMATE_CONSUMED_HREFS = [
     HREF_POWER, HREF_POWER_VS, HREF_TEMP_CURRENT, HREF_TEMP_DESIRED,
@@ -201,6 +290,19 @@ CLIMATE = Capability(
                    exists_fn=_has_display_light_option,
                    write_fn=_display_light_write,
                    icon='mdi:led-on', entity_category='config'),
+        # Beep on/off from the `Volume_*` option token (Volume_Mute/Volume_100).
+        # Single-token option_write; a full options RMW reverts on ARTIK051_PRAC.
+        SwitchDesc(key='beep', rep_fn=_beep_on,
+                   exists_fn=lambda rep, resources: _option_token(rep, 'Volume') is not None,
+                   write_fn=_beep_write,
+                   icon='mdi:volume-high', entity_category='config'),
+        # Tropical night mode level (0-16) from the `Sleep_<N>` option token.
+        # Single-token option_write. Cloud: custom.airConditionerTropicalNightMode.
+        NumberDesc(key='tropical_night_mode', rep_fn=_tropical_night_value,
+                   exists_fn=lambda rep, resources: _option_token(rep, 'Sleep') is not None,
+                   write_fn=_tropical_night_write,
+                   native_min=0, native_max=16, step=1,
+                   icon='mdi:weather-night', entity_category='config'),
     ),
 )
 
@@ -239,6 +341,17 @@ AIR_FILTER = Capability(
         SensorDesc(key='air_filter_usage', rep_fn=_filter_usage_percent,
                    unit='%', state_class='measurement',
                    icon='mdi:air-filter', entity_category='diagnostic'),
+        SensorDesc(key='air_filter_usage_hours',
+                   field='x.com.samsung.da.filterUsage',
+                   device_class='duration',
+                   state_class='measurement', unit='h',
+                   icon='mdi:air-filter', entity_category='diagnostic',
+                   value_fn=_int),
+        SensorDesc(key='air_filter_threshold',
+                   field='x.com.samsung.da.filterDesiredUsage',
+                   device_class='duration',
+                   unit='h', icon='mdi:alarm', entity_category='diagnostic',
+                   value_fn=_int),
         SensorDesc(key='air_filter_status', field='x.com.samsung.da.filterStatus',
                    device_class='enum',
                    options=('normal', 'wash', 'replace'),
@@ -341,6 +454,43 @@ HUMIDITY = Capability(
     ),
 )
 
+# /sensors/vs/0 items[] carry live air-quality readings (CleanLevel, Odor, Dust,
+# FineDust). The resource exposes no unit, so these are diagnostic scalars with
+# no device_class until a populated reading + unit is observed. Removed from
+# _AC_IGNORED below so AIR_QUALITY is the sole cap on the href.
+AIR_QUALITY = Capability(
+    href='/sensors/vs/0',
+    poll_tier='cold',
+    entities=tuple(
+        SensorDesc(key=key, field='x.com.samsung.da.items',
+                   icon=icon, entity_category='diagnostic',
+                   exists_fn=_has_sensor_type(type_),
+                   value_fn=lambda items, t=type_: _sensor_item_value(items, t))
+        for key, icon, type_ in (
+            ('clean_level', 'mdi:broom', 'CleanLevel'),
+            ('odor', 'mdi:weather-windy', 'Odor'),
+            ('dust', 'mdi:cloud', 'Dust'),
+            ('fine_dust', 'mdi:cloud-outline', 'FineDust'),
+        )
+    ),
+)
+
+# Software/Firmware version from /information/vs/0 items[] (the href is
+# globally ignored as identity plumbing; the AC registry drops that entry so
+# INFO is the sole cap on it). Diagnostic, read-only.
+INFO = Capability(
+    href=HREF_INFORMATION,
+    poll_tier='cold',
+    entities=(
+        SensorDesc(key='software_version', field='x.com.samsung.da.items',
+                   icon='mdi:package-variant', entity_category='diagnostic',
+                   value_fn=lambda items: _info_item_number(items, 'Software')),
+        SensorDesc(key='firmware_version', field='x.com.samsung.da.items',
+                   icon='mdi:chip', entity_category='diagnostic',
+                   value_fn=lambda items: _info_item_number(items, 'Firmware')),
+    ),
+)
+
 # ---------------------------------------------------------------------------
 # AC-scoped coverage: the CLIMATE_CONSUMED_HREFS above (read by the climate
 # entity) plus vendor duplicates / all-zero-ambiguous / plumbing resources.
@@ -360,9 +510,6 @@ HUMIDITY = Capability(
 # of waiting on the summary sweep.
 # ---------------------------------------------------------------------------
 _AC_IGNORED = [
-    # All-zero and ambiguously encoded on this model (2-value arrays); the
-    # 'don't guess' rule -- leave unmodeled rather than invent entities.
-    '/sensors/vs/0',
     # Stuck at "0" on every dump seen -- HUMIDITY above reads the vendor
     # resource's usable fivepercentHumidity field instead; this OCF-standard
     # one has no corresponding live value confirmed yet.

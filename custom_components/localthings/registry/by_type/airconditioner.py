@@ -12,16 +12,23 @@ Reuses dishwasher.DIAGNOSIS for /diagnosis/vs/0.
 from ..capabilities import airconditioner, common, dishwasher, ignored
 from ._base import DeviceRegistry, _build
 
+# /information/vs/0 is globally ignored (serial/model identity plumbing), but
+# the AC exposes Software/Firmware version in its items[] -- model those here
+# and drop the no-entity coverage entry so INFO is the sole cap on the href.
+_AC_IGNORED = [c for c in ignored.IGNORED if c.href != '/information/vs/0']
+
 REGISTRY = DeviceRegistry(
     name='airconditioner',
     capabilities=_build([
-        *ignored.IGNORED,
+        *_AC_IGNORED,
         *common.UNIVERSAL,
         dishwasher.DIAGNOSIS,
         airconditioner.CLIMATE,
         airconditioner.AIR_PURIFY,
         airconditioner.AUTO_CLEAN,
         airconditioner.AIR_FILTER,
+        airconditioner.AIR_QUALITY,
+        airconditioner.INFO,
         airconditioner.DISPLAY_LIGHT,
         airconditioner.MUTE_ONCE,
         airconditioner.CURRENT_LIMIT,

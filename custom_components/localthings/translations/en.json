@@ -149,6 +149,9 @@
       },
       "target_humidity": {
         "name": "Target humidity"
+      },
+      "tropical_night_mode": {
+        "name": "Tropical night mode"
       }
     },
     "select": {
@@ -478,6 +481,18 @@
       "air_filter_usage": {
         "name": "Filter usage"
       },
+      "air_filter_usage_hours": {
+        "name": "Filter usage hours"
+      },
+      "air_filter_threshold": {
+        "name": "Filter alarm threshold"
+      },
+      "software_version": {
+        "name": "Software version"
+      },
+      "firmware_version": {
+        "name": "Firmware version"
+      },
       "air_sensing_state": {
         "name": "Air sensing state"
       },
@@ -728,6 +743,9 @@
       },
       "auto_clean": {
         "name": "Auto clean"
+      },
+      "beep": {
+        "name": "Beep"
       },
       "auto_door_opener": {
         "name": "Auto door opener"
