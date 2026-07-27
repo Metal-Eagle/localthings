@@ -42,9 +42,12 @@ class TestForDevice:
         assert registry.name == 'refrigerator'
 
     def test_for_device_returns_cooktop_registry(self):
+        """The registry's own .name is 'gas_cooktop' (disambiguated from
+        induction_cooktop), but the lookup key devices route through stays
+        'cooktop' -- oneUiVersion "Cooktop" still resolves here."""
         registry = for_device('7.0 Cooktop')
         assert registry is not None
-        assert registry.name == 'cooktop'
+        assert registry.name == 'gas_cooktop'
 
     def test_for_device_returns_range_hood_registry(self):
         registry = for_device('7.0 Range Hood')
@@ -225,6 +228,31 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_water_purifier_via_waterpurifier_token(self):
+        """Issue #90: a water purifier (TP2X_WATERPURIFIER_20K) reports no
+        oneUiVersion and no consumer-prefix match; falls back to the
+        'WATERPURIFIER' token shared by modelNum and description."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP2X_WATERPURIFIER_20K|00132341|900000000215130001060F0000020000',
+            'TP2X_WATERPURIFIER_20K',
+        )
+        assert reg is not None
+        assert reg.name == 'water_purifier'
+    
+    def test_airconditioner_via_wac_token(self):
+        """Issue #87: a Bespoke Window AC (AW06C7155EWAZ) reports no
+        oneUiVersion and a modelNum carrying the '_WAC_' (Window Air
+        Conditioner) token instead of '_RAC_'/'_PRAC_'; falls back to the
+        '_WAC_' token in modelNum."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA_AC_WAC_01001_0000|40460041|50030018001611020A00000000000000',
+            'AW06C7155EWAZ',
+        )
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model
@@ -233,7 +261,7 @@ class TestForDeviceByModel:
             'ARTIK051_GLOBAL_COOKTOP',
         )
         assert reg is not None
-        assert reg.name == 'cooktop'
+        assert reg.name == 'gas_cooktop'
 
     def test_range_hood_via_ahd_model(self):
         from custom_components.localthings.registry.by_type import for_device_by_model
@@ -316,7 +344,7 @@ class TestForDeviceByResources:
         reg = for_device_by_resources(_load_device('cooktop'))
 
         assert reg is not None
-        assert reg.name == 'cooktop'
+        assert reg.name == 'gas_cooktop'
 
     def test_unrelated_mode_options_are_not_cooktop(self):
         from custom_components.localthings.registry.by_type import for_device_by_resources

@@ -3,8 +3,9 @@ from typing import Optional
 
 from ._base import DeviceRegistry
 from . import (
-    air_purifier, airconditioner, cooktop, dishwasher, dryer, induction_cooktop, oven,
-    range as _range, range_hood, refrigerator, washer,
+    air_purifier, airconditioner, cooktop, dishwasher, dryer,
+    induction_cooktop, oven, range as _range, range_hood, refrigerator,
+    washer, water_purifier,
 )
 
 __all__ = [
@@ -28,6 +29,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'range_hood': range_hood.REGISTRY,
     'refrigerator': refrigerator.REGISTRY,
     'washer': washer.REGISTRY,
+    'water_purifier': water_purifier.REGISTRY,
 }
 
 
@@ -142,6 +144,15 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # resource (see airconditioner.py's _AC_IGNORED).
     if key is None and '-CAWW-' in (model_num or '').upper():
         key = 'airconditioner'
+    # Window air conditioners (e.g. TP1X_DA_AC_WAC_01001_0000, issue #87)
+    # report no oneUiVersion and carry the '_WAC_' (Window Air Conditioner)
+    # token instead of '_RAC_'/'_PRAC_'. Same TP1X-class resource surface
+    # as the room-AC models above (mode/convenient/wind/temperature/power/
+    # filter/humidity all confirmed against the issue #87 dump binding
+    # cleanly against the existing airconditioner registry once routed
+    # here) -- no WAC-specific resources needed.
+    if key is None and '_WAC_' in (model_num or ''):
+        key = 'airconditioner'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
     if key is None and '_TVTL_' in (model_num or ''):
@@ -149,6 +160,10 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     model_identity = f'{model_num} {description}'.upper()
     if key is None and ('_COOKTOP' in model_identity or '_GB_CT_' in model_identity):
         key = 'cooktop'
+    # Water purifiers (e.g. TP2X_WATERPURIFIER_20K, issue #90) report no
+    # oneUiVersion and carry the 'WATERPURIFIER' board-family token.
+    if key is None and 'WATERPURIFIER' in model_identity:
+        key = 'water_purifier'
     if key is None and model_identity.startswith('AHD-'):
         key = 'range_hood'
     # Range/cooktop-oven combos (e.g. TP1X_DA-KS-RANGE-0102X, issue #44) --
