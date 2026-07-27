@@ -34,6 +34,9 @@
       "door_open": {
         "name": "Door"
       },
+      "filter_door_status": {
+        "name": "Filter door"
+      },
       "firmware_update": {
         "name": "Firmware update available"
       },
@@ -51,6 +54,9 @@
       },
       "periodic_air_sensing": {
         "name": "Periodic air sensing"
+      },
+      "pouring": {
+        "name": "Pouring"
       },
       "power_state": {
         "name": "Power state"
@@ -114,6 +120,9 @@
       "delay_start_hours": {
         "name": "Delay start"
       },
+      "dispense_capacity": {
+        "name": "Dispense capacity"
+      },
       "instance_setpoint": {
         "name": "{instance_name} setpoint"
       },
@@ -122,6 +131,9 @@
       },
       "sound_volume": {
         "name": "Sound volume"
+      },
+      "target_humidity": {
+        "name": "Target humidity"
       }
     },
     "select": {
@@ -193,6 +205,9 @@
           "8f": "Baby Care"
         }
       },
+      "dispense_type": {
+        "name": "Dispense type"
+      },
       "door_alert": {
         "name": "Door alarm",
         "state": {
@@ -205,6 +220,8 @@
       "dryer_cycle_table_03": {
         "name": "Cycle",
         "state": {
+          "01": "Normal",
+          "06": "Time dry",
           "16": "Cotton",
           "18": "Synthetics",
           "19": "Delicates",
@@ -220,6 +237,9 @@
           "1e": "Outdoor",
           "1f": "Mixed load"
         }
+      },
+      "favorite_capacity": {
+        "name": "Favorite capacity"
       },
       "finish_sound": {
         "name": "Finish sound",
@@ -251,6 +271,9 @@
           "high": "High",
           "extra_high": "Extra high"
         }
+      },
+      "hot_water_temperature": {
+        "name": "Hot water temperature"
       },
       "ice_type": {
         "name": "{instance_name} type",
@@ -289,6 +312,9 @@
           "plate_warm": "Plate warm",
           "air_fry": "Air fry"
         }
+      },
+      "operating_mode": {
+        "name": "Operating mode"
       },
       "pantry_zone_mode": {
         "name": "Pantry zone mode",
@@ -397,10 +423,13 @@
           "38": "Cotton Dry",
           "39": "Synthetics Dry",
           "3a": "Drum Clean",
+          "52": "Eco Cold",
           "53": "Heavy Duty",
+          "54": "Towels",
           "55": "Activewear",
           "57": "Delicate",
           "5e": "Rinse+Spin",
+          "60": "Self Clean+",
           "65": "Colors",
           "66": "Denim",
           "7c": "Whites",
@@ -513,6 +542,9 @@
       "fan_speed_level": {
         "name": "Fan speed level"
       },
+      "filter_clean_remain_time": {
+        "name": "Filter clean remaining time"
+      },
       "filter_progress": {
         "name": "Filter progress"
       },
@@ -536,6 +568,9 @@
       },
       "hood_filter_capacity": {
         "name": "Filter capacity"
+      },
+      "humidity": {
+        "name": "Humidity"
       },
       "hood_filter_usage": {
         "name": "Filter usage"
@@ -606,6 +641,18 @@
       "selfcheck_status": {
         "name": "Self-check status"
       },
+      "sterilize_last_time": {
+        "name": "Sterilize last time"
+      },
+      "sterilize_period": {
+        "name": "Sterilize period"
+      },
+      "sterilize_plan_time": {
+        "name": "Sterilize plan time"
+      },
+      "sterilize_run_time": {
+        "name": "Sterilize run time"
+      },
       "super_fine_dust": {
         "name": "Super fine dust"
       },
@@ -614,6 +661,9 @@
       },
       "water_liters": {
         "name": "Water consumption"
+      },
+      "waterpurifier_status": {
+        "name": "Status"
       },
       "machine_state": {
         "name": "Machine state",
@@ -661,6 +711,9 @@
       "bubble_soak": {
         "name": "Bubble soak"
       },
+      "buzz_lock": {
+        "name": "Buzzer lock"
+      },
       "cabinet_light_dim": {
         "name": "Brighten gradually"
       },
@@ -669,6 +722,9 @@
       },
       "child_lock": {
         "name": "Child lock"
+      },
+      "coldwater_lock": {
+        "name": "Cold water lock"
       },
       "defrost_delay": {
         "name": "Defrost delay"
@@ -679,8 +735,14 @@
       "fast_preheat": {
         "name": "Fast preheat"
       },
+      "favorite_capacity_enabled": {
+        "name": "Favorite capacity"
+      },
       "fridge_sound": {
         "name": "Sound"
+      },
+      "hotwater_lock": {
+        "name": "Hot water lock"
       },
       "ice_maker_enabled": {
         "name": "Ice maker"

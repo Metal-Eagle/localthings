@@ -73,11 +73,61 @@ def test_registry_reproduces_golden_state_keys_for_dryer():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_dryer_dve50a8600():
+    """DVE50A8600V/A3 (issue #79) -- description pairs two model numbers
+    ('..._DVE50A8800_8600/...'), so the true 'DV' consumer-model token sits
+    one segment before the actual last segment ('8600'). The old
+    last-segment-only check missed it and fell back to 'unknown'; resolved
+    via _consumer_model_key scanning segments from the end."""
+    from tests.conftest import _load_device
+    resources = _load_device('dryer_dve50a8600')
+    golden = json.loads((GOLDEN / 'dryer_dve50a8600.json').read_text())
+    state_keys = _new_state_keys('dryer_dve50a8600', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_airconditioner():
     from tests.conftest import _load_device
     resources = _load_device('airconditioner')
     golden = json.loads((GOLDEN / 'airconditioner.json').read_text())
     state_keys = _new_state_keys('airconditioner', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_dehumidifier():
+    """TP1X_DA_AC_DHM_01001_0000 (issue #88, AY18CG7500GED) shares the DA_AC_
+    board family with the room-AC models but carries the '_DHM_' token;
+    resolved via the '_DHM_' modelNum fallback in for_device_by_model into a
+    dedicated dehumidifier registry (target humidity, operating mode, reused
+    AC filter/auto-clean/mute-once capabilities)."""
+    from tests.conftest import _load_device
+    resources = _load_device('dehumidifier')
+    golden = json.loads((GOLDEN / 'dehumidifier.json').read_text())
+    state_keys = _new_state_keys('dehumidifier', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_water_purifier():
+    """TP2X_WATERPURIFIER_20K (issue #90) reports no oneUiVersion; resolved
+    via the 'WATERPURIFIER' modelNum/description fallback into a dedicated
+    water_purifier registry (dispense settings, sterilize/filter status,
+    favorite capacity, and the three lock switches)."""
+    from tests.conftest import _load_device
+    resources = _load_device('water_purifier')
+    golden = json.loads((GOLDEN / 'water_purifier.json').read_text())
+    state_keys = _new_state_keys('water_purifier', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
@@ -263,6 +313,23 @@ def test_registry_reproduces_golden_state_keys_for_caww_tp2():
     resources = _load_device('airconditioner_caww_tp2')
     golden = json.loads((GOLDEN / 'airconditioner_caww_tp2.json').read_text())
     state_keys = _new_state_keys('airconditioner_caww_tp2', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_window_ac():
+    """TP1X_DA_AC_WAC_01001_0000 (issue #87, Bespoke Window AC AW06C7155EWAZ)
+    reports no oneUiVersion and carries the '_WAC_' (Window Air Conditioner)
+    token instead of '_RAC_'/'_PRAC_'; resolved via the '_WAC_' modelNum
+    fallback in for_device_by_model. Otherwise binds cleanly against the
+    existing airconditioner registry with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_window_ac')
+    golden = json.loads((GOLDEN / 'airconditioner_window_ac.json').read_text())
+    state_keys = _new_state_keys('airconditioner_window_ac', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

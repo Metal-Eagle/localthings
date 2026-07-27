@@ -3,8 +3,8 @@ from typing import Optional
 
 from ._base import DeviceRegistry
 from . import (
-    air_purifier, airconditioner, cooktop, dishwasher, dryer, oven,
-    range as _range, range_hood, refrigerator, washer,
+    air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
+    oven, range as _range, range_hood, refrigerator, washer, water_purifier,
 )
 
 __all__ = [
@@ -19,6 +19,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'airconditioner': airconditioner.REGISTRY,
     'air_conditioner': airconditioner.REGISTRY,
     'cooktop': cooktop.REGISTRY,
+    'dehumidifier': dehumidifier.REGISTRY,
     'dishwasher': dishwasher.REGISTRY,
     'dryer': dryer.REGISTRY,
     'oven': oven.REGISTRY,
@@ -27,6 +28,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'range_hood': range_hood.REGISTRY,
     'refrigerator': refrigerator.REGISTRY,
     'washer': washer.REGISTRY,
+    'water_purifier': water_purifier.REGISTRY,
 }
 
 
@@ -103,6 +105,26 @@ def _model_num_segments(model_num: str) -> list[str]:
     return prefix.split('_')
 
 
+def _consumer_model_key(description: str) -> Optional[str]:
+    """Registry key from the consumer-model token in `description`, or None.
+
+    Usually that token is the last '_'-delimited segment before any
+    '/board-info' suffix (e.g. '..._WW90DG6U25LEU4' -> 'WW90DG6U25LEU4').
+    But issue #79's dryer pairs two model numbers in one description --
+    '..._DVE50A8800_8600/DC92-...' -- so the true consumer token
+    ('DVE50A8800') sits one segment *before* the actual last segment
+    ('8600', a bare second model number with no recognizable prefix). Scan
+    segments from the end and take the first one that resolves, rather
+    than assuming the last segment is always it.
+    """
+    segments = (description or '').split('/', 1)[0].split('_')
+    for segment in reversed(segments):
+        key = _CONSUMER_PREFIX_TO_KEY.get(segment[:2].upper())
+        if key is not None:
+            return key
+    return None
+
+
 def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegistry]:
     """Fallback device-type detection for hardware that never reports
     oneUiVersion (confirmed for washers -- their /otninformation/vs/0 has
@@ -116,8 +138,7 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
         DeviceRegistry if the consumer-model code or modelNum resolves to a
         known type, None otherwise.
     """
-    token = (description or '').split('/', 1)[0].rsplit('_', 1)[-1]
-    key = _CONSUMER_PREFIX_TO_KEY.get(token[:2].upper())
+    key = _consumer_model_key(description)
     if key is None and 'REF' in _model_num_segments(model_num):
         key = 'refrigerator'
     # Room air conditioners (e.g. ARTIK051_PRAC_20K) report no oneUiVersion and
@@ -138,6 +159,22 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # resource (see airconditioner.py's _AC_IGNORED).
     if key is None and '-CAWW-' in (model_num or '').upper():
         key = 'airconditioner'
+    # Dehumidifiers (e.g. TP1X_DA_AC_DHM_01001_0000, issue #88) share the
+    # DA_AC_ board family with the room-AC models above but carry the
+    # '_DHM_' (DeHuMidifier) token instead of '_RAC_'/'_PRAC_'. Distinct
+    # registry: target humidity, not temperature, is the primary control,
+    # and there's no climate composite.
+    if key is None and '_DHM_' in (model_num or ''):
+        key = 'dehumidifier'
+    # Window air conditioners (e.g. TP1X_DA_AC_WAC_01001_0000, issue #87)
+    # report no oneUiVersion and carry the '_WAC_' (Window Air Conditioner)
+    # token instead of '_RAC_'/'_PRAC_'. Same TP1X-class resource surface
+    # as the room-AC models above (mode/convenient/wind/temperature/power/
+    # filter/humidity all confirmed against the issue #87 dump binding
+    # cleanly against the existing airconditioner registry once routed
+    # here) -- no WAC-specific resources needed.
+    if key is None and '_WAC_' in (model_num or ''):
+        key = 'airconditioner'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
     if key is None and '_TVTL_' in (model_num or ''):
@@ -145,6 +182,10 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     model_identity = f'{model_num} {description}'.upper()
     if key is None and ('_COOKTOP' in model_identity or '_GB_CT_' in model_identity):
         key = 'cooktop'
+    # Water purifiers (e.g. TP2X_WATERPURIFIER_20K, issue #90) report no
+    # oneUiVersion and carry the 'WATERPURIFIER' board-family token.
+    if key is None and 'WATERPURIFIER' in model_identity:
+        key = 'water_purifier'
     if key is None and model_identity.startswith('AHD-'):
         key = 'range_hood'
     # Range/cooktop-oven combos (e.g. TP1X_DA-KS-RANGE-0102X, issue #44) --

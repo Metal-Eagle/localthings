@@ -53,6 +53,22 @@ class _NoOpDescriptor:
 _RECOVERY_RETRY_S = 600.0  # re-attempt observe mode this often while polling
 
 
+def _is_placeholder_serial(serial: str) -> bool:
+    """True for a non-empty serialNum that isn't actually a real identity.
+
+    The ARTIK051_DONGLE_REF firmware family reports the literal string
+    'Nothing(SVC)' for every unit -- non-empty, so the plain `if not
+    serial` check below doesn't catch it, and `device_serial` feeds both
+    the HA device-registry identifier and every entity's unique_id
+    (entity.py), so two such units on the same install silently collide
+    and the second one's entities get dropped (issue #83). Mirrors the
+    identical helper in config_flow.py's `_probe_and_validate` -- kept
+    separate rather than imported to avoid pulling the config-flow module
+    into the runtime coordinator's import graph for a two-line check.
+    """
+    return serial.strip().lower().startswith('nothing')
+
+
 class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Manages one Samsung appliance: session, discovery, polling."""
 
@@ -316,7 +332,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._unbound_hrefs = unbound
 
         serial = info.get('x.com.samsung.da.serialNum', '')
-        if not serial:
+        if not serial or _is_placeholder_serial(serial):
             serial = self._entry.data[CONF_HOST]
         self.device_serial = serial
 
