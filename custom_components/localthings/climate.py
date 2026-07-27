@@ -393,6 +393,16 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         return _HVAC_TO_DEVICE.get(hvac_mode)
 
     async def async_set_temperature(self, **kwargs) -> None:
+        # HA's set_temperature service forwards an optional hvac_mode here; honour
+        # it (set the mode first -- that also powers the unit on when it was off),
+        # matching the climate contract other integrations follow. Without this a
+        # set_temperature call carrying hvac_mode (e.g. a dashboard "turn on to
+        # Auto 24" button) set the setpoint but never changed mode or powered on.
+        hvac_mode = kwargs.get('hvac_mode')
+        if hvac_mode is not None:
+            await self.async_set_hvac_mode(hvac_mode)
+            if hvac_mode == HVACMode.OFF:
+                return
         temp = kwargs.get('temperature')
         if temp is None:
             return
