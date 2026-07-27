@@ -248,6 +248,23 @@ def test_registry_reproduces_golden_state_keys_for_caww_tp2():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_window_ac():
+    """TP1X_DA_AC_WAC_01001_0000 (issue #87, Bespoke Window AC AW06C7155EWAZ)
+    reports no oneUiVersion and carries the '_WAC_' (Window Air Conditioner)
+    token instead of '_RAC_'/'_PRAC_'; resolved via the '_WAC_' modelNum
+    fallback in for_device_by_model. Otherwise binds cleanly against the
+    existing airconditioner registry with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_window_ac')
+    golden = json.loads((GOLDEN / 'airconditioner_window_ac.json').read_text())
+    state_keys = _new_state_keys('airconditioner_window_ac', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_tp1x_rac():
     """TP1X_DA-AC-RAC-01001_0000 (issue #38) -- fuller RAC board with display
     light, self-check, mute-once, and a current-limit setting."""
