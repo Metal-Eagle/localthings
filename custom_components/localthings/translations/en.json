@@ -165,6 +165,9 @@
       "oven_setpoint": {
         "name": "Setpoint"
       },
+      "setpoint": {
+        "name": "Setpoint"
+      },
       "sound_volume": {
         "name": "Sound volume"
       },
@@ -342,6 +345,22 @@
         "state": {
           "low": "Low",
           "high": "High"
+        }
+      },
+      "cooking_mode": {
+        "name": "Cooking mode",
+        "state": {
+          "no_operation": "No operation",
+          "micro_wave": "Microwave",
+          "micro_wave_grill": "Microwave + grill",
+          "micro_wave_convection": "Microwave + convection",
+          "convection": "Convection",
+          "air_fryer": "Air fry",
+          "grill": "Grill",
+          "autocook": "Auto cook",
+          "autocook_custom": "Auto cook (custom)",
+          "deodorization": "Deodorize",
+          "keep_warm": "Keep warm"
         }
       },
       "oven_mode": {
@@ -703,6 +722,12 @@
       },
       "oven_state": {
         "name": "Cavity state"
+      },
+      "cavity_state": {
+        "name": "Cavity state"
+      },
+      "power_level": {
+        "name": "Power level"
       },
       "paired_hood_fan_speed": {
         "name": "Paired hood fan speed"
