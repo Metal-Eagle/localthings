@@ -41,7 +41,7 @@ def test_expected_entities_present():
     for key in (
         'power_switch', 'alarm_code', 'dust', 'fine_dust', 'super_fine_dust',
         'odor', 'clean_level', 'filter_progress', 'device_active',
-        'diagnosis_status', 'fan', 'fan_direction',
+        'diagnosis_status', 'airflow_fan', 'fan_direction',
         'display_light', 'operating_mode',
     ):
         assert key in state, key
@@ -121,7 +121,7 @@ def test_airflow_fan_write_contract():
     (two independent units, 60-90s apart per setting): /airflow/0's `speed`
     is a clean, monotonic 0-4 code, so the write is a plain int passthrough
     -- no named-preset table needed (see fan.py's LocalThingsAirflowFan)."""
-    fan_desc = next(e for e in air_purifier.AIRFLOW_GENERIC.entities if e.key == 'fan')
+    fan_desc = next(e for e in air_purifier.AIRFLOW_GENERIC.entities if e.key == 'airflow_fan')
     assert fan_desc.write_fn(('speed', 3), {}) == (['airflow', '0'], {'speed': 3})
     assert fan_desc.write_fn(('power', True, '/power/vs/0'), {}) == (
         ['power', 'vs', '0'], {'x.com.samsung.da.power': 'On'},
@@ -136,5 +136,5 @@ def test_airflow_speed_reads_from_dump():
     fan_direction stays a plain diagnostic (every dump seen reads 'Off'
     regardless of fan setting)."""
     state = _state()
-    assert state['fan'] == 0
+    assert state['airflow_fan'] == 0
     assert state['fan_direction'] == 'Off'

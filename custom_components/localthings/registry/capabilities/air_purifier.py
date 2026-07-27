@@ -136,16 +136,6 @@ DEVICE_ACTIVE = Capability(
     ),
 )
 
-# Confirmed via issue #56's second, properly-spaced round of diagnostics
-# (two independent units, 60-90s apart per setting): /airflow/0's `speed` is
-# a clean, monotonic 0-4 code across Auto/Sleep/Low/Medium/High, so it now
-# backs a real ordered-speed fan (fan.py's LocalThingsAirflowFan, same
-# SET_SPEED shape as the range hood's) instead of a read-only sensor --
-# no named-preset table needed, since HA's percentage steps map onto the
-# raw 0-4 code directly, the same way the range hood's numeric levels do.
-# `direction` stays a plain diagnostic: every dump seen (both rounds, both
-# units) reads 'Off' for it regardless of fan setting, so there's nothing
-# confirmed to control there yet.
 def _airflow_fan_write(payload, rep, href=None):
     kind, value, *args = payload
     if kind == 'power':
@@ -159,11 +149,29 @@ def _airflow_fan_write(payload, rep, href=None):
     return None
 
 
+# Confirmed via issue #56's second, properly-spaced round of diagnostics
+# (two independent units, 60-90s apart per setting): /airflow/0's `speed` is
+# a clean, monotonic 0-4 code across Auto/Sleep/Low/Medium/High, so it now
+# backs a real ordered-speed fan (fan.py's LocalThingsAirflowFan, same
+# SET_SPEED shape as the range hood's) instead of a read-only sensor --
+# no named-preset table needed, since HA's percentage steps map onto the
+# raw 0-4 code directly, the same way the range hood's numeric levels do.
+# `direction` stays a plain diagnostic: every dump seen (both rounds, both
+# units) reads 'Off' for it regardless of fan setting, so there's nothing
+# confirmed to control there yet.
+#
+# Keyed 'airflow_fan', not 'fan' -- FAN below (bound to the shared
+# /mode/vs/0 href) also uses 'fan', and BoundEntity's unique_id is built
+# from key alone (entity.py's _key), not href. FAN and AIRFLOW_GENERIC are
+# only *empirically* mutually exclusive (every dump seen has one board
+# generation's shape or the other, never both), not architecturally
+# enforced the way same-href caps are by _build()'s match_fn check -- a
+# same key would collide if a future board ever reported both.
 AIRFLOW_GENERIC = Capability(
-    href='/airflow/0',
+    href=HREF_AIRFLOW,
     poll_tier='warm',
     entities=(
-        FanDesc(key='fan', field='speed', write_fn=_airflow_fan_write),
+        FanDesc(key='airflow_fan', field='speed', write_fn=_airflow_fan_write),
         SensorDesc(key='fan_direction', field='direction',
                    icon='mdi:rotate-3d-variant',
                    entity_category='diagnostic'),

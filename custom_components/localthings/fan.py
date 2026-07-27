@@ -253,17 +253,26 @@ class LocalThingsAirflowFan(LocalThingsEntity, FanEntity):
         return self.coordinator.resource(href) or {}
 
     def _power_payload(self, enabled: bool) -> tuple[str, bool, str]:
-        """Same power-href fallback as LocalThingsAirPurifierFan above."""
+        """Prefer /power/0 like LocalThingsRangeHoodFan above, NOT
+        LocalThingsAirPurifierFan's vs/0-first order -- that order is only
+        harmless for the TP1X board because it never reports /power/0 at
+        all. This family's dumps carry both hrefs, and common.POWER_GENERIC
+        (the power_switch entity) is unconditionally bound to /power/0
+        whenever it's present, so writing here to /power/vs/0 first would
+        leave power_switch and this fan reading/writing two different
+        resources -- disagreeing until the next poll refreshes the other
+        one (the same optimistic-apply lag coordinator.py's own comments
+        warn about)."""
         resources = self.coordinator.last_resources
-        target = POWER_VS_HREF if POWER_VS_HREF in resources else POWER_HREF
+        target = POWER_HREF if POWER_HREF in resources else POWER_VS_HREF
         return 'power', enabled, target
 
     @property
     def is_on(self) -> bool:
-        power = self._rep(POWER_VS_HREF).get('x.com.samsung.da.power')
-        if power is not None:
-            return str(power).lower() == 'on'
-        return bool(self._rep(POWER_HREF).get('value'))
+        power = self._rep(POWER_HREF)
+        if 'value' in power:
+            return bool(power.get('value'))
+        return str(self._rep(POWER_VS_HREF).get('x.com.samsung.da.power', '')).lower() == 'on'
 
     @property
     def speed_count(self) -> int:
