@@ -262,6 +262,26 @@ def test_registry_reproduces_golden_state_keys_for_range():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_range_no_info():
+    """NE63B8411SS (issue #74) -- reports no oneUiVersion *and* no
+    /information/vs/0 at all, so neither for_device nor
+    for_device_by_model has anything to key off; resolved via the 'Bake'-
+    in-supportedModes + /cooktopmonitoring/vs/0 signature in
+    for_device_by_resources. This board's local API has no per-burner
+    /cooktop/status/vs/0 array either -- only the coarse
+    /cooktopmonitoring/vs/0 monitoring resource covered by range.py's
+    COOKTOP_MONITORING."""
+    from tests.conftest import _load_device
+    resources = _load_device('range_no_info')
+    golden = json.loads((GOLDEN / 'range_no_info.json').read_text())
+    state_keys = _new_state_keys('range_no_info', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier():
     """ARTIK051_TVTL_18K (issue #56) -- reports no oneUiVersion; resolved via
     the '_TVTL_' modelNum token fallback in for_device_by_model."""

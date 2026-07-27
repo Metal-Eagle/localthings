@@ -456,6 +456,9 @@
           "poll": "Polling"
         }
       },
+      "cooktop_running_state": {
+        "name": "Cooktop running state"
+      },
       "cooktop_state": {
         "name": "Cooktop state"
       },
@@ -599,6 +602,9 @@
       },
       "super_fine_dust": {
         "name": "Super fine dust"
+      },
+      "warming_center_state": {
+        "name": "Warming center state"
       },
       "water_liters": {
         "name": "Water consumption"

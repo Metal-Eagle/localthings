@@ -170,4 +170,18 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
         and '/hood/lamp/vs/0' in resources
     ):
         return _REGISTRY_BY_KEY['range_hood']
+    # Oven/range-combo boards that report no /information/vs/0 at all
+    # (issue #74's NE63B8411SS -- the resource is simply absent from the
+    # dump, not just empty) can't be matched via for_device_by_model's
+    # modelNum tokens either. 'Bake' is oven/range cook-mode vocabulary that
+    # no other family's /mode/vs/0 uses (confirmed against the microwave,
+    # cooktop, and every laundry fixture), so its presence alongside the
+    # oven cavity resource is a safe signature. Distinguish range (has a
+    # cooktop half) from a plain wall oven by which cooktop-status resource,
+    # if any, is also present.
+    supported_modes = mode.get('x.com.samsung.da.supportedModes') or ()
+    if '/oven/vs/0' in resources and 'Bake' in supported_modes:
+        if '/cooktopmonitoring/vs/0' in resources or '/cooktop/status/vs/0' in resources:
+            return _REGISTRY_BY_KEY['range']
+        return _REGISTRY_BY_KEY['oven']
     return None
