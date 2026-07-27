@@ -314,6 +314,21 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_airconditioner_via_ara_ww_token(self):
+        """Issues #115/#116/#117/#120: ARA-WW-TP1-22-COMMON wall-mount RACs
+        (AR10/13/18BYEAAWKNME) report no oneUiVersion and no
+        '_RAC_'/'-RAC-'/'_PRAC_' token at all -- falls back to the
+        'ARA-WW-' token in modelNum, reusing the same airconditioner
+        registry as every other TP1X-class room AC rather than a new
+        device type."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'ARA-WW-TP1-22-COMMON|10229641|6001051A001511014600083200800000',
+            'ARA-WW-TP1-22-COMMON',
+        )
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model

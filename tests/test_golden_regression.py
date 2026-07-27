@@ -527,6 +527,24 @@ def test_registry_reproduces_golden_state_keys_for_range_ne8300d():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_ara_ww_tp1_22():
+    """ARA-WW-TP1-22-COMMON wall-mount RACs (model AR10/13/18BYEAAWKNME,
+    issues #115/#116/#117/#120) report no oneUiVersion and no
+    '_RAC_'/'-RAC-' token -- resolved via the 'ARA-WW-' modelNum fallback.
+    Same resource surface as the other TP1X-class room ACs; binds cleanly
+    against the existing airconditioner registry with zero unbound hrefs,
+    so no new device type was needed."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_ara_ww_tp1_22')
+    golden = json.loads((GOLDEN / 'airconditioner_ara_ww_tp1_22.json').read_text())
+    state_keys = _new_state_keys('airconditioner_ara_ww_tp1_22', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

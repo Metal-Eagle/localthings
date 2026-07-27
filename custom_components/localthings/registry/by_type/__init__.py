@@ -198,6 +198,16 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # here) -- no WAC-specific resources needed.
     if key is None and '_WAC_' in (model_num or ''):
         key = 'airconditioner'
+    # ARA-WW-class wall-mount RACs (e.g. ARA-WW-TP1-22-COMMON, issues #115/
+    # #116/#117/#120) report no oneUiVersion and no '_RAC_'/'-RAC-' token at
+    # all -- the board family is spelled 'ARA-WW-' instead. Same resource
+    # surface as the other TP1X-class room ACs above (mode/convenient/wind/
+    # temperature/power/filter/humidity all confirmed against these dumps
+    # binding cleanly against the existing airconditioner registry once
+    # routed here) -- no ARA-WW-specific resources needed, so this reuses
+    # the same registry rather than adding a new device type.
+    if key is None and 'ARA-WW-' in (model_num or '').upper():
+        key = 'airconditioner'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
     if key is None and '_TVTL_' in (model_num or ''):
