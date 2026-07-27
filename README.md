@@ -25,7 +25,7 @@ Your state stays on your LAN: HA talks to the appliance over a direct DTLS sessi
 | Air purifier | `by_type/air_purifier.py` |
 | Dryer | `by_type/dryer.py` |
 | Oven | `by_type/oven.py` |
-| Cooktop (read-only burner status) | `by_type/cooktop.py` |
+| Gas cooktop (read-only burner status) | `by_type/cooktop.py` |
 | Range hood | `by_type/range_hood.py` |
 | Range | `by_type/range.py` |
 | Dishwasher | `by_type/dishwasher.py` |

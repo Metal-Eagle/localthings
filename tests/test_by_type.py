@@ -42,9 +42,12 @@ class TestForDevice:
         assert registry.name == 'refrigerator'
 
     def test_for_device_returns_cooktop_registry(self):
+        """The registry's own .name is 'gas_cooktop' (disambiguated from
+        induction_cooktop), but the lookup key devices route through stays
+        'cooktop' -- oneUiVersion "Cooktop" still resolves here."""
         registry = for_device('7.0 Cooktop')
         assert registry is not None
-        assert registry.name == 'cooktop'
+        assert registry.name == 'gas_cooktop'
 
     def test_for_device_returns_range_hood_registry(self):
         registry = for_device('7.0 Range Hood')
@@ -258,7 +261,7 @@ class TestForDeviceByModel:
             'ARTIK051_GLOBAL_COOKTOP',
         )
         assert reg is not None
-        assert reg.name == 'cooktop'
+        assert reg.name == 'gas_cooktop'
 
     def test_range_hood_via_ahd_model(self):
         from custom_components.localthings.registry.by_type import for_device_by_model
@@ -319,7 +322,7 @@ class TestForDeviceByResources:
         reg = for_device_by_resources(_load_device('cooktop'))
 
         assert reg is not None
-        assert reg.name == 'cooktop'
+        assert reg.name == 'gas_cooktop'
 
     def test_unrelated_mode_options_are_not_cooktop(self):
         from custom_components.localthings.registry.by_type import for_device_by_resources
