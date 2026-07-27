@@ -25,6 +25,9 @@
       "current_limit_enabled": {
         "name": "Stroombegrenzing ingeschakeld"
       },
+      "overload_protection_active": {
+        "name": "Overbelastingsbeveiliging actief"
+      },
       "cycle_active": {
         "name": "Actief"
       },
@@ -514,6 +517,13 @@
       },
       "current_limit_level": {
         "name": "Niveau stroombegrenzing"
+      },
+      "overload_protection_mode": {
+        "name": "Modus overbelastingsbeveiliging",
+        "state": {
+          "alarm": "Alarm",
+          "powersaving": "Energiebesparing"
+        }
       },
       "current_temp_c": {
         "name": "Temperatuur"

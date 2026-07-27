@@ -545,6 +545,29 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_ara_ww_tp1_22(
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_windfree_oscillation():
+    """TP1X_DA-AC-RAC-01011_0000 Bespoke AI WindFree Deluxe (model
+    AR60H10D1JWNME, issue #126) -- the same board family as the
+    airconditioner_tp1x_da_ac_rac_01011 fixture, but a newer firmware
+    variant reporting no /wind/direction/vs/0 at all: swing lives on the
+    2-axis /wind/oscillation/vs/0 resource instead (airconditioner.
+    HREF_WIND_OSCILLATION, climate.py's oscillation fallback), and it adds
+    an /anomalyload/vs/0 overload-response resource (airconditioner.
+    ANOMALY_LOAD, read-only per the 'don't guess' rule). Binds cleanly
+    with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_windfree_oscillation')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_windfree_oscillation.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_windfree_oscillation', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

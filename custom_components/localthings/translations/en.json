@@ -25,6 +25,9 @@
       "current_limit_enabled": {
         "name": "Current limit enabled"
       },
+      "overload_protection_active": {
+        "name": "Overload protection active"
+      },
       "cycle_active": {
         "name": "Running"
       },
@@ -514,6 +517,13 @@
       },
       "current_limit_level": {
         "name": "Current limit level"
+      },
+      "overload_protection_mode": {
+        "name": "Overload protection mode",
+        "state": {
+          "alarm": "Alarm",
+          "powersaving": "Power saving"
+        }
       },
       "current_temp_c": {
         "name": "Temperature"

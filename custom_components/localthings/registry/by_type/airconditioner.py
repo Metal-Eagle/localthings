@@ -25,6 +25,7 @@ REGISTRY = DeviceRegistry(
         airconditioner.DISPLAY_LIGHT,
         airconditioner.MUTE_ONCE,
         airconditioner.CURRENT_LIMIT,
+        airconditioner.ANOMALY_LOAD,
         airconditioner.CURRENT_TEMPERATURE,
         airconditioner.CURRENT_TEMPERATURE_VS,
         airconditioner.HUMIDITY,
