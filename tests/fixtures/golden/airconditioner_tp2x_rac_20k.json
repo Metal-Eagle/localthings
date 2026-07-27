@@ -6,6 +6,7 @@
     "auto_clean",
     "climate",
     "current_temperature_c",
+    "display_light",
     "energy_kwh",
     "firmware_update",
     "humidity",

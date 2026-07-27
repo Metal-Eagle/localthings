@@ -381,6 +381,21 @@ def test_registry_reproduces_golden_state_keys_for_tp1x_rac():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_tp1x_rac_coolonly():
+    """TP1X_DA-AC-RAC-01001 cool-only global variant (issue #91) whose
+    /otninformation/vs/0 ships no swVersionInfo block -- resolves via the
+    hyphenated '-RAC-' modelNum fallback rather than for_device()."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_tp1x_rac_coolonly')
+    golden = json.loads((GOLDEN / 'airconditioner_tp1x_rac_coolonly.json').read_text())
+    state_keys = _new_state_keys('airconditioner_tp1x_rac_coolonly', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_airconditioner_windfree():
     """ARTIK051_PRAC_20K, WindFree-capable unit (issue #75) -- same modelNum
     family as the original issue #17 fixture, but its /mode/convenient/vs/0

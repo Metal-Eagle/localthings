@@ -11,10 +11,13 @@ from custom_components.localthings.climate import (
 )
 
 
-def test_auto_still_maps_to_heat_cool():
-    """'Auto' is unchanged -- AIComfort is handled separately, not folded
-    into this map."""
-    assert _DEVICE_TO_HVAC['Auto'] == HVACMode.HEAT_COOL
+def test_auto_maps_to_hvac_auto():
+    """The device's 'Auto' is a single-setpoint "device decides" mode -> HA
+    HVACMode.AUTO, not HEAT_COOL (issue #91 review): HEAT_COOL implies a
+    two-setpoint heat+cool range these single-setpoint units (including
+    cool-only models) don't have. AIComfort is handled separately, not
+    folded into this map."""
+    assert _DEVICE_TO_HVAC['Auto'] == HVACMode.AUTO
 
 
 def test_aicomfort_not_in_flat_hvac_map():
@@ -24,10 +27,13 @@ def test_aicomfort_not_in_flat_hvac_map():
     assert _AI_COMFORT_MODE not in _DEVICE_TO_HVAC
 
 
-def test_hvac_auto_not_writable_via_hvac_mode():
-    """HVACMode.AUTO has no _DEVICE_TO_HVAC entry, so it's unreachable via
-    async_set_hvac_mode -- entered/left only through the ai_comfort preset."""
-    assert HVACMode.AUTO not in _HVAC_TO_DEVICE
+def test_hvac_auto_writes_back_to_plain_auto_not_aicomfort():
+    """HVACMode.AUTO is reachable via async_set_hvac_mode -- it writes the
+    device's plain 'Auto' code. AIComfort stays reachable only through the
+    ai_comfort preset, since it isn't a flat _DEVICE_TO_HVAC entry (see
+    test_aicomfort_not_in_flat_hvac_map) and so can never win the reverse
+    {v: k} dict even though both map to HVACMode.AUTO conceptually."""
+    assert _HVAC_TO_DEVICE[HVACMode.AUTO] == 'Auto'
 
 
 def test_fan_only_still_reachable_via_wind():

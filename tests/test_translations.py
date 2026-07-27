@@ -168,4 +168,43 @@ def test_all_entity_state_translation_keys_are_lowercase():
         for translation in platform.values():
             for state_key in translation.get("state", {}):
                 assert state_key == state_key.lower()
-    
+
+
+def test_every_ac_convenient_mode_code_has_a_preset_label():
+    """issue #91 review feedback #3: AC preset resolution is fully dynamic
+    (climate._preset_to_ha), so every fixture's /mode/convenient/vs/0
+    supportedModes code surfaces as a preset -- an unlabelled one falls back
+    to its raw device code in the UI. Cheap guard against repeating that gap:
+    every non-'Off' code across every AC fixture must either resolve to one
+    of HA's own auto-localized standard presets or have an explicit label in
+    en.json.
+    """
+    from homeassistant.components.climate.const import (
+        PRESET_ACTIVITY, PRESET_AWAY, PRESET_BOOST, PRESET_COMFORT,
+        PRESET_ECO, PRESET_HOME, PRESET_SLEEP,
+    )
+    standard = {PRESET_ACTIVITY, PRESET_AWAY, PRESET_BOOST, PRESET_COMFORT,
+                PRESET_ECO, PRESET_HOME, PRESET_SLEEP}
+    preset_labels = set(
+        _load("en")["entity"]["climate"]["airconditioner"]["state_attributes"]
+        ["preset_mode"]["state"]
+    )
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    missing = []
+    for path in sorted(fixtures_dir.glob("airconditioner*_device.json")):
+        dump = json.loads(path.read_text())
+        conv = next(
+            (item for item in dump.get("device0", [])
+             if item.get("href") == "/mode/convenient/vs/0"), None,
+        )
+        if not conv:
+            continue
+        for code in conv["rep"].get("x.com.samsung.da.supportedModes", []):
+            if code == "Off":
+                continue
+            label = code.lower()
+            if label in standard or label in preset_labels:
+                continue
+            missing.append((path.name, code))
+    assert missing == []
+

@@ -59,6 +59,42 @@ class TestMergeOptionsField:
         assert common.merge_options_field(cached, ['nounderscore']) == ['Course_16']
 
 
+class TestMergeItemsField:
+    """merge_items_field() is the items[]-array counterpart of
+    merge_options_field above (issue #91 review feedback): a vendor
+    x.com.samsung.da.items[] write only needs to carry the item id plus the
+    field(s) being changed, so the coordinator uses this to keep its
+    optimistic cache entry complete (current/minimum/maximum/unit still
+    present) without waiting on a real poll."""
+
+    def test_merges_fields_into_matching_id(self):
+        cached = [{'x.com.samsung.da.id': '0', 'x.com.samsung.da.current': '20.0',
+                   'x.com.samsung.da.maximum': '30', 'x.com.samsung.da.minimum': '16'}]
+        merged = common.merge_items_field(
+            cached, [{'x.com.samsung.da.id': '0', 'x.com.samsung.da.desired': '22'}])
+        assert merged == [{'x.com.samsung.da.id': '0', 'x.com.samsung.da.current': '20.0',
+                            'x.com.samsung.da.maximum': '30', 'x.com.samsung.da.minimum': '16',
+                            'x.com.samsung.da.desired': '22'}]
+
+    def test_appends_when_id_absent(self):
+        cached = [{'x.com.samsung.da.id': '0', 'x.com.samsung.da.current': '20.0'}]
+        merged = common.merge_items_field(
+            cached, [{'x.com.samsung.da.id': '1', 'x.com.samsung.da.desired': '22'}])
+        assert merged == [
+            {'x.com.samsung.da.id': '0', 'x.com.samsung.da.current': '20.0'},
+            {'x.com.samsung.da.id': '1', 'x.com.samsung.da.desired': '22'},
+        ]
+
+    def test_handles_missing_cache(self):
+        assert common.merge_items_field(
+            None, [{'x.com.samsung.da.id': '0', 'x.com.samsung.da.desired': '22'}]
+        ) == [{'x.com.samsung.da.id': '0', 'x.com.samsung.da.desired': '22'}]
+
+    def test_ignores_malformed_new_items(self):
+        cached = [{'x.com.samsung.da.id': '0', 'x.com.samsung.da.current': '20.0'}]
+        assert common.merge_items_field(cached, ['not-a-dict']) == cached
+
+
 # ---------------------------------------------------------------------------
 # OCF-native / vendor '-vs' fallback pairs (power, kids-lock, remote control).
 # ---------------------------------------------------------------------------

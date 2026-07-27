@@ -116,7 +116,13 @@
               "ai_comfort": "AI Comfort",
               "quiet": "Quiet",
               "smart": "Smart",
-              "speed": "Speed"
+              "speed": "Speed",
+              "nano": "WindFree",
+              "nanosleep": "WindFree sleep",
+              "longwind": "Long wind",
+              "motionindirect": "Motion indirect",
+              "motiondirect": "Motion direct",
+              "drycomfort": "Dry comfort"
             }
           }
         }
