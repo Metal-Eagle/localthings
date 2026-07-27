@@ -95,6 +95,7 @@
           },
           "preset_mode": {
             "state": {
+              "ai_comfort": "AI Comfort",
               "quiet": "Quiet",
               "smart": "Smart",
               "speed": "Speed"
