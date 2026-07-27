@@ -26,7 +26,7 @@ Your state stays on your LAN: HA talks to the appliance over a direct DTLS sessi
 | Dehumidifier | `by_type/dehumidifier.py` |
 | Dryer | `by_type/dryer.py` |
 | Oven | `by_type/oven.py` |
-| Microwave (combi and plain) | `by_type/microwave.py` |
+| Microwave | `by_type/microwave.py` |
 | Gas cooktop (read-only burner status) | `by_type/cooktop.py` |
 | Range hood | `by_type/range_hood.py` |
 | Range | `by_type/range.py` |
