@@ -65,6 +65,11 @@ _DEVICE_TO_HVAC: dict[str, HVACMode] = {
     'Wind': HVACMode.FAN_ONLY,
     'Auto': HVACMode.HEAT_COOL,
     'Heat': HVACMode.HEAT,
+    # AI-driven auto-comfort mode (issue #93, A-CAWW-TP2-20-COMMON) -- a
+    # separate device code from 'Auto' above (both can appear in the same
+    # unit's supportedModes), so it needs its own entry rather than reusing
+    # 'Auto'. HVACMode.AUTO is otherwise unused by this map.
+    'AIComfort': HVACMode.AUTO,
 }
 _HVAC_TO_DEVICE = {v: k for k, v in _DEVICE_TO_HVAC.items()}
 
