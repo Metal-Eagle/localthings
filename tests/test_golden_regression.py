@@ -588,6 +588,27 @@ def test_registry_reproduces_golden_state_keys_for_oven_mw7300b():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_air_purifier_tp1x_da_ac_air():
+    """TP1X_DA-AC-AIR-01031_0000 (issue #130) self-reports oneUiVersion
+    '7.0 Air purifier' and resolves via for_device() onto the existing
+    air_purifier registry (shared with the older ARTIK051_TVTL family via
+    per-href match_fn discrimination -- see capabilities/air_purifier.py).
+    Its /mode/vs/0 reports modes/supportedModes directly (Smart/Max/Mid/
+    WindFree/Sleep) rather than the older family's packed options[] scheme,
+    which the new air_purifier.FAN capability now binds to a real `fan`
+    entity (PRESET_MODE, not an ordered speed -- see fan.py). Binds with
+    zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_purifier_tp1x_da_ac_air')
+    golden = json.loads((GOLDEN / 'air_purifier_tp1x_da_ac_air.json').read_text())
+    state_keys = _new_state_keys('air_purifier_tp1x_da_ac_air', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {
