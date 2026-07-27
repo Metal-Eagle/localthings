@@ -71,9 +71,13 @@ _DEVICE_TO_HVAC: dict[str, HVACMode] = {
     # 'Fan' on others (e.g. TP1X_DA-AC-RAC-01011); both map to FAN_ONLY. The
     # reverse write can't rely on this map alone (two codes, one HA value) --
     # _device_code_for_hvac() resolves the code from the unit's own
-    # supportedModes.
-    'Wind': HVACMode.FAN_ONLY,
+    # supportedModes, so this is only a fallback for a unit reporting no
+    # supportedModes at all. 'Fan' is listed first so the {v: k} reverse
+    # comprehension below has 'Wind' win that fallback (last-key-wins),
+    # preserving the original single-spelling behavior rather than silently
+    # flipping it when 'Fan' was added.
     'Fan': HVACMode.FAN_ONLY,
+    'Wind': HVACMode.FAN_ONLY,
     # The device's 'Auto' is a single-setpoint "device decides" mode -> HA
     # HVACMode.AUTO (renders "Auto"). Not HEAT_COOL: that renders "Heat/cool"
     # and implies a two-setpoint heat+cool range these single-setpoint units

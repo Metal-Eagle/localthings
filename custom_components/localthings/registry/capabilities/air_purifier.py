@@ -15,6 +15,13 @@ issue #56's follow-up (five diagnostics dumps captured with the physical unit
 set to Auto/Sleep/Low/Medium/High):
   Light_On / Light_Off  -- a plain on/off flag; MODE below models it as a
                             real switch, RMW-replacing just that one entry.
+                            NOT the same polarity as the AC family's own
+                            Light_On/Light_Off token on its own /mode/vs/0
+                            (airconditioner._display_light_on) -- that one is
+                            confirmed inverted (Light_Off means the panel is
+                            lit) on live hardware. Same token name, same
+                            resource name, different device type and
+                            opposite meaning -- don't unify them.
   Comode_Off            -- read 'Off' on *every* one of the five dumps,
                             including High/Low/Medium/Auto -- confirms this
                             is NOT the fan-speed selector (ruling out the

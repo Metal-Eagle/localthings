@@ -3,11 +3,12 @@
 test_climate_temperature_fallback.py).
 
 The preset side of issue #75 (WindFree/motion convenient modes not
-surfacing) is intentionally not addressed here: PR #91 replaces
-climate.py's static _DEVICE_TO_PRESET table with a generic resolver that
-reads any device preset code straight off the unit's own supportedModes,
-which covers WindFree/motion generically instead of a per-model dict --
-duplicating that here would just conflict with it.
+surfacing) is intentionally not addressed here: climate.py's
+_preset_to_ha() (issue #91) reads any device preset code straight off the
+unit's own supportedModes, replacing the old static _DEVICE_TO_PRESET
+table with a generic resolver that covers WindFree/motion generically
+instead of a per-model dict -- duplicating that here would just conflict
+with it.
 """
 from custom_components.localthings.climate import _DEVICE_TO_SWING, _SWING_TO_DEVICE
 

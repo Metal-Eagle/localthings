@@ -171,7 +171,7 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # /otninformation/vs/0 ships no swVersionInfo block at all, so
     # oneUiVersion is empty.
     if key is None and ('_RAC_' in (model_num or '')
-                         or '-RAC-' in (model_num or '').upper()):
+                        or '-RAC-' in (model_num or '').upper()):
         key = 'airconditioner'
     # System air conditioners (multi-indoor-unit commercial installs, e.g.
     # A-CAWW-TP2-20-COMMON, issue #52) report no oneUiVersion either and
