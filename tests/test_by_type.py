@@ -329,6 +329,20 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_oven_via_microwave_token(self):
+        """Issue #121: a combi microwave (MW7300B-/EU1) reports no
+        oneUiVersion and an unrecognized consumer token; falls back to the
+        '-MICROWAVE-' token in modelNum onto the *existing* oven registry
+        (same '/oven/vs/0' cavity + cook-mode shape), not a new device
+        type."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA-KS-MICROWAVE-01041|40475341|50040100021811000A00000000000000',
+            'MW7300B-/EU1',
+        )
+        assert reg is not None
+        assert reg.name == 'oven'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model

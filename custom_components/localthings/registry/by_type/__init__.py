@@ -231,6 +231,15 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # oneUiVersion and doesn't match the washer/dryer/dishwasher prefix map.
     if key is None and '-OVEN-' in (model_num or '').upper():
         key = 'oven'
+    # Combi microwaves (e.g. TP1X_DA-KS-MICROWAVE-01041, issue #121) -- same
+    # board family as the wall oven above (an '/oven/vs/0' cavity resource
+    # with Convection/AirFryer/Grill/MicroWave modes on /mode/vs/0), just a
+    # different cavity. Reports no oneUiVersion and doesn't match the
+    # washer/dryer/dishwasher prefix map either. Binds cleanly against the
+    # existing oven registry once routed here (confirmed against the issue
+    # #121 dump) -- no microwave-specific device type needed.
+    if key is None and '-MICROWAVE-' in (model_num or '').upper():
+        key = 'oven'
     # Standalone induction cooktops (e.g. TP1X_DA-KS-COOKTOP-01011, issue
     # #86) -- same board family and '/cooktop/status/vs/0' resource shape
     # as the range combo above, but no oven attached at all. Distinct from

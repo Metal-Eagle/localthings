@@ -568,6 +568,26 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_windfree_oscil
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_oven_mw7300b():
+    """TP1X_DA-KS-MICROWAVE-01041 combi microwave (model MW7300B, issue
+    #121) -- reports no oneUiVersion; resolved via the '-MICROWAVE-'
+    modelNum token fallback onto the *existing* oven registry rather than
+    a new device type, since it shares the same '/oven/vs/0' cavity and
+    '/mode/vs/0' cook-mode shape (Convection/AirFryer/Grill/MicroWave*).
+    The only href the oven registry didn't already cover was
+    /recipe/cook/vs/0 (oven.OVEN_RECIPE_COOK, an empty quick-recipe-display
+    blob with no entity)."""
+    from tests.conftest import _load_device
+    resources = _load_device('oven_mw7300b')
+    golden = json.loads((GOLDEN / 'oven_mw7300b.json').read_text())
+    state_keys = _new_state_keys('oven_mw7300b', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {
