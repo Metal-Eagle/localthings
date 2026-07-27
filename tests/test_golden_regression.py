@@ -73,6 +73,23 @@ def test_registry_reproduces_golden_state_keys_for_dryer():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_dryer_dve50a8600():
+    """DVE50A8600V/A3 (issue #79) -- description pairs two model numbers
+    ('..._DVE50A8800_8600/...'), so the true 'DV' consumer-model token sits
+    one segment before the actual last segment ('8600'). The old
+    last-segment-only check missed it and fell back to 'unknown'; resolved
+    via _consumer_model_key scanning segments from the end."""
+    from tests.conftest import _load_device
+    resources = _load_device('dryer_dve50a8600')
+    golden = json.loads((GOLDEN / 'dryer_dve50a8600.json').read_text())
+    state_keys = _new_state_keys('dryer_dve50a8600', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_airconditioner():
     from tests.conftest import _load_device
     resources = _load_device('airconditioner')
@@ -245,6 +262,23 @@ def test_registry_reproduces_golden_state_keys_for_tp1x_rac():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_windfree():
+    """ARTIK051_PRAC_20K, WindFree-capable unit (issue #75) -- same modelNum
+    family as the original issue #17 fixture, but its /mode/convenient/vs/0
+    additionally reports Nano/NanoSleep/MotionDirect/MotionIndirect, its
+    /wind/direction/vs/0 reports Left_And_Right, and /humidity/vs/0's
+    fivepercentHumidity is actually populated."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_windfree')
+    golden = json.loads((GOLDEN / 'airconditioner_windfree.json').read_text())
+    state_keys = _new_state_keys('airconditioner_windfree', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_range():
     """Range/cooktop-oven combo (model TP1X_DA-KS-RANGE-0102X, issue #44) --
     reports no oneUiVersion; resolved via the '-RANGE-' modelNum token
@@ -255,6 +289,26 @@ def test_registry_reproduces_golden_state_keys_for_range():
     resources = _load_device('range')
     golden = json.loads((GOLDEN / 'range.json').read_text())
     state_keys = _new_state_keys('range', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_range_no_info():
+    """NE63B8411SS (issue #74) -- reports no oneUiVersion *and* no
+    /information/vs/0 at all, so neither for_device nor
+    for_device_by_model has anything to key off; resolved via the 'Bake'-
+    in-supportedModes + /cooktopmonitoring/vs/0 signature in
+    for_device_by_resources. This board's local API has no per-burner
+    /cooktop/status/vs/0 array either -- only the coarse
+    /cooktopmonitoring/vs/0 monitoring resource covered by range.py's
+    COOKTOP_MONITORING."""
+    from tests.conftest import _load_device
+    resources = _load_device('range_no_info')
+    golden = json.loads((GOLDEN / 'range_no_info.json').read_text())
+    state_keys = _new_state_keys('range_no_info', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

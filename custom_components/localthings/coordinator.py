@@ -22,7 +22,11 @@ from smartthings_local.ocf.state_cache import StateCache
 
 from .registry.batch import parse_device0_batch
 from .registry.by_type import for_device, for_device_by_model, for_device_by_resources
-from .registry.capabilities.common import merge_options_field, remote_control_enabled
+from .registry.capabilities.common import (
+    merge_options_field,
+    remote_control_enabled,
+    remote_control_required_for_write,
+)
 from .registry.discovery import discover, BoundEntity
 from .registry import CAPABILITIES
 from .registry.adapter import flatten
@@ -531,7 +535,10 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         opted this device out of it via CONF_BYPASS_REMOTE_CONTROL (issue
         #54: some devices accept certain writes, e.g. a washer's default
         dosing levels, even while reporting remote control off, so the
-        block's assumption doesn't hold for every model)."""
+        block's assumption doesn't hold for every model), or the laundry
+        firmware flag isModelSettingWithoutSC declares settings writable
+        without Smart Control (cycle start/pause/stop on /operational/state
+        still require it)."""
         desc = bound_entity.desc
         write_fn = getattr(desc, 'write_fn', None)
         if write_fn is None:
@@ -540,7 +547,11 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         rep = self._cache.get(href or '') or {}
         resources = self._cache.snapshot()
         bypass_remote_control = self._entry.options.get(CONF_BYPASS_REMOTE_CONTROL, False)
-        if not bypass_remote_control and not remote_control_enabled(resources):
+        if (
+            not bypass_remote_control
+            and remote_control_required_for_write(resources, href or '')
+            and not remote_control_enabled(resources)
+        ):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="remote_control_disabled",
@@ -553,7 +564,10 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     translation_domain=DOMAIN,
                     translation_key=error,
                 )
-        result = write_fn(payload, rep, href)
+        try:
+            result = write_fn(payload, rep, href, resources)
+        except TypeError:
+            result = write_fn(payload, rep, href)
         if result is None:
             self._log.warning("write_fn rejected payload %r for %s", payload, href)
             return
