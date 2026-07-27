@@ -2,15 +2,17 @@
   "state_keys": [
     "air_filter_status",
     "air_filter_usage",
-    "air_purify",
     "alarm_code",
     "auto_clean",
     "climate",
-    "current_temperature_c",
-    "diagnosis_status",
+    "display_light",
     "energy_kwh",
     "energy_saved_kwh",
-    "humidity",
-    "power_watts"
+    "firmware_update",
+    "mute_once",
+    "power_watts",
+    "selfcheck_error",
+    "selfcheck_result",
+    "selfcheck_status"
   ]
 }

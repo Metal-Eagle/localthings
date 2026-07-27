@@ -111,6 +111,27 @@ class TestWasherRegistry:
             assert href in registry.capabilities, f"{href} missing from washer registry"
 
 
+class TestConsumerModelKey:
+    def test_finds_key_in_last_segment(self):
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key('DA_WM_TP1_21_COMMON_WW5000C') == 'washer'
+
+    def test_finds_key_before_a_trailing_unrecognized_segment(self):
+        """Issue #79: 'DVE50A8800_8600' pairs two model numbers -- the real
+        consumer token is the second-to-last segment, not the last."""
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key(
+            'DA_WM_TP1_21_COMMON_DVE50A8800_8600/DC92-02835A_0080') == 'dryer'
+
+    def test_ignores_everything_after_first_slash(self):
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key('DA_WM_TP1_21_COMMON_WW5000C/DW9000_board') == 'washer'
+
+    def test_none_when_no_segment_matches(self):
+        from custom_components.localthings.registry.by_type import _consumer_model_key
+        assert _consumer_model_key('ARTIK051_DONGLE_REF') is None
+
+
 class TestForDeviceByModel:
     """Fallback device-type detection for hardware without oneUiVersion."""
 
@@ -138,6 +159,20 @@ class TestForDeviceByModel:
         from custom_components.localthings.registry.by_type import for_device_by_model
         reg = for_device_by_model(
             'DA_WM_TP2_20_COMMON_DV5000T', 'DA_WM_TP2_20_COMMON_DV5000T',
+        )
+        assert reg is not None
+        assert reg.name == 'dryer'
+
+    def test_dryer_dve50a8600_paired_model_numbers_in_description(self):
+        """Issue #79: description pairs two model numbers
+        ('..._DVE50A8800_8600/DC92-...'), so the 'DV' consumer token is one
+        segment before the literal last segment ('8600', which has no
+        recognizable prefix on its own). The old last-segment-only check
+        fell through to 'unknown' here."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'DA_WM_TP1_21_COMMON|20286441|300000010015110002A3031700000000',
+            'DA_WM_TP1_21_COMMON_DVE50A8800_8600/DC92-02835A_0080',
         )
         assert reg is not None
         assert reg.name == 'dryer'
@@ -201,6 +236,19 @@ class TestForDeviceByModel:
         )
         assert reg is not None
         assert reg.name == 'water_purifier'
+    
+    def test_airconditioner_via_wac_token(self):
+        """Issue #87: a Bespoke Window AC (AW06C7155EWAZ) reports no
+        oneUiVersion and a modelNum carrying the '_WAC_' (Window Air
+        Conditioner) token instead of '_RAC_'/'_PRAC_'; falls back to the
+        '_WAC_' token in modelNum."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA_AC_WAC_01001_0000|40460041|50030018001611020A00000000000000',
+            'AW06C7155EWAZ',
+        )
+        assert reg is not None
+        assert reg.name == 'airconditioner'
 
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
@@ -296,3 +344,46 @@ class TestForDeviceByResources:
         reg = for_device_by_resources(resources)
         assert reg is not None
         assert reg.name == 'range_hood'
+
+    def test_ne63b8411ss_without_information_or_burner_status_is_range(self):
+        """Issue #74: no oneUiVersion, no /information/vs/0 at all, and no
+        /cooktop/status/vs/0 burner array -- only /cooktopmonitoring/vs/0.
+        'Bake' in supportedModes plus that monitoring resource must still
+        route this to the range registry, not plain oven or unknown."""
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['Bake', 'Broil', 'SelfClean'],
+                'x.com.samsung.da.options': ['DeviceType_NE8411B-/AC0'],
+            },
+            '/oven/vs/0': {'x.com.samsung.da.state': 'Ready'},
+            '/cooktopmonitoring/vs/0': {'x.com.samsung.da.cooktopRunningState': 'Ready'},
+        }
+        reg = for_device_by_resources(resources)
+        assert reg is not None
+        assert reg.name == 'range'
+
+    def test_bake_without_cooktop_resource_is_plain_oven(self):
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['Bake', 'Broil'],
+                'x.com.samsung.da.options': ['DeviceType_SOME_OVEN'],
+            },
+            '/oven/vs/0': {'x.com.samsung.da.state': 'Ready'},
+        }
+        reg = for_device_by_resources(resources)
+        assert reg is not None
+        assert reg.name == 'oven'
+
+    def test_bake_without_oven_cavity_resource_is_not_matched(self):
+        """'Bake' alone isn't enough -- the oven cavity resource must also
+        be present, or this falls through to None like any other unknown
+        shape."""
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['Bake', 'Broil'],
+            },
+        }
+        assert for_device_by_resources(resources) is None
