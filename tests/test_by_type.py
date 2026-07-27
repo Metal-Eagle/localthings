@@ -300,6 +300,20 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_wac_token_not_shadowed_by_wa_washer_prefix(self):
+        """Regression: adding the 'WA' consumer-model prefix (issue #106)
+        must not hijack devices whose description literally equals their
+        modelNum (e.g. the Window AC family, issue #87) and so contains a
+        'WAC' segment -- 'WAC'[:2] == 'WA' would otherwise match the washer
+        prefix before the more specific '_WAC_' modelNum check ever runs."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA_AC_WAC_01001_0000|40460041|50030018001611020A00000000000000',
+            'TP1X_DA_AC_WAC_01001_0000',
+        )
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model
@@ -335,6 +349,17 @@ class TestForDeviceByModel:
         reg = for_device_by_model(
             'DA_WM_A51_20_COMMON|20198042|20020001001111400203000000000000',
             'DA_WM_A51_20_COMMON_WV9600M/DC92-01980B_0014',
+        )
+        assert reg is not None
+        assert reg.name == 'washer'
+
+    def test_washer_wa_prefix(self):
+        """Top-load washers (e.g. WA8000T) use the WA consumer-model prefix
+        -- issue #106."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'DA_WM_TP2_20_COMMON|20233741|200000010014110002A3020200000000',
+            'DA_WM_TP2_20_COMMON_WA8000T/DC92-02810A_0002',
         )
         assert reg is not None
         assert reg.name == 'washer'
