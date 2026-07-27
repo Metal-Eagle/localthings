@@ -1,5 +1,6 @@
 {
   "state_keys": [
+    "airflow_fan",
     "alarm_code",
     "clean_level",
     "device_active",
@@ -11,7 +12,6 @@
     "energy_saved_kwh",
     "energy_this_month_kwh",
     "fan_direction",
-    "fan_speed_level",
     "filter_progress",
     "fine_dust",
     "odor",
