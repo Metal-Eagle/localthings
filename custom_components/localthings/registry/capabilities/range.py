@@ -133,3 +133,22 @@ COOKTOP_SAFETY = Capability(
                          value_fn=lambda v: (v or {}).get('state') == 'on'),
     ),
 )
+
+# Some range boards (issue #74's NE63B8411SS) report no /cooktop/status/vs/0
+# burner array at all -- their local API only exposes this coarse
+# monitoring resource for the cooktop half, with no per-burner detail.
+# Meaning of `cooktopMonitoring` (a bare "0" on the only dump seen) and
+# `warmingCenterState`'s full value set aren't confirmed, so both are
+# exposed as plain sensors rather than guessed at as a switch/select --
+# `supportedHoodLampStateList` has no corresponding live-state field on
+# this resource, so nothing to bind it to yet.
+COOKTOP_MONITORING = Capability(
+    href='/cooktopmonitoring/vs/0',
+    poll_tier='warm',
+    entities=(
+        SensorDesc(key='cooktop_running_state', field='x.com.samsung.da.cooktopRunningState',
+                   icon='mdi:pot-steam-outline'),
+        SensorDesc(key='warming_center_state', field='x.com.samsung.da.warmingCenterState',
+                   icon='mdi:heat-wave', entity_category='diagnostic'),
+    ),
+)

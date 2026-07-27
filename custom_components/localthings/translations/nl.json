@@ -448,6 +448,9 @@
           "poll": "Polling"
         }
       },
+      "cooktop_running_state": {
+        "name": "Loopstatus kookplaat"
+      },
       "cooktop_state": {
         "name": "Status kookplaat"
       },
@@ -591,6 +594,9 @@
       },
       "super_fine_dust": {
         "name": "Ultrafijnstof"
+      },
+      "warming_center_state": {
+        "name": "Status warmhoudzone"
       },
       "water_liters": {
         "name": "Waterverbruik"
