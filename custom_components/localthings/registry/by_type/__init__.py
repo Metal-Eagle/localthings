@@ -122,6 +122,15 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # resource (see airconditioner.py's _AC_IGNORED).
     if key is None and '-CAWW-' in (model_num or '').upper():
         key = 'airconditioner'
+    # Window air conditioners (e.g. TP1X_DA_AC_WAC_01001_0000, issue #87)
+    # report no oneUiVersion and carry the '_WAC_' (Window Air Conditioner)
+    # token instead of '_RAC_'/'_PRAC_'. Same TP1X-class resource surface
+    # as the room-AC models above (mode/convenient/wind/temperature/power/
+    # filter/humidity all confirmed against the issue #87 dump binding
+    # cleanly against the existing airconditioner registry once routed
+    # here) -- no WAC-specific resources needed.
+    if key is None and '_WAC_' in (model_num or ''):
+        key = 'airconditioner'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
     if key is None and '_TVTL_' in (model_num or ''):

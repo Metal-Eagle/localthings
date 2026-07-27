@@ -190,6 +190,19 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_airconditioner_via_wac_token(self):
+        """Issue #87: a Bespoke Window AC (AW06C7155EWAZ) reports no
+        oneUiVersion and a modelNum carrying the '_WAC_' (Window Air
+        Conditioner) token instead of '_RAC_'/'_PRAC_'; falls back to the
+        '_WAC_' token in modelNum."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA_AC_WAC_01001_0000|40460041|50030018001611020A00000000000000',
+            'AW06C7155EWAZ',
+        )
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""
         from custom_components.localthings.registry.by_type import for_device_by_model
