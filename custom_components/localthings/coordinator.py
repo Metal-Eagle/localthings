@@ -90,11 +90,18 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # drops the DTLS session briefly every now and then, and the
     # coordinator recovering from that on its own isn't something a user
     # needs to see at WARNING. Only escalate once reconnects pile up
-    # within a short window, matching the README's own "more than a
-    # handful per minute" definition of an actually-broken connection
-    # (issue #119).
-    _RECONNECT_WARN_WINDOW_S: float = 60.0
-    _RECONNECT_WARN_THRESHOLD: int = 5
+    # within a trailing window (issue #119).
+    #
+    # The window can't be a literal 60s: consecutive reconnect attempts are
+    # never closer together than one summary poll interval (SUMMARY_INTERVAL_S,
+    # 30s) plus _RECONNECT_PAUSE_S, so at most ~2 can ever land inside a 60s
+    # window regardless of how unhealthy the connection is -- a threshold of
+    # 5 there could never fire, silently downgrading every reconnect
+    # (including a persistently broken one) to INFO forever. 300s/3 instead:
+    # reachable under normal polling, and 3 reconnects inside 5 minutes is
+    # still a reasonable proxy for the README's "actually broken" case.
+    _RECONNECT_WARN_WINDOW_S: float = 300.0
+    _RECONNECT_WARN_THRESHOLD: int = 3
 
     # A block-level ACK timeout on the summary GET doesn't prove the
     # session is dead (see _poll_once) — require this many in a row
