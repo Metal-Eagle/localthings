@@ -104,6 +104,34 @@ def merge_options_field(cached, new_tokens):
     return merged
 
 
+def merge_items_field(cached, new_items):
+    """Merge a partial x.com.samsung.da.items[]-style write (matched by
+    x.com.samsung.da.id) into a cached items array -- the read-side
+    counterpart of merge_options_field above, for the items[] shape instead
+    of the packed options[] shape.
+
+    Confirmed on hardware that a write only needs to carry the array item
+    with the changed id plus the field(s) being changed; the device merges
+    the rest itself (same fact as the options[] case, different array --
+    see airconditioner._climate_write's vendor temperature write). Fields
+    within the matched item are merged, not replaced outright, so a
+    setpoint-only write doesn't wipe current/minimum/maximum/unit from the
+    optimistic cache entry for the settle window. An id with no match in
+    `cached` is appended."""
+    merged = [dict(i) if isinstance(i, dict) else i for i in (cached or [])]
+    for new_item in new_items or ():
+        if not isinstance(new_item, dict):
+            continue
+        item_id = new_item.get('x.com.samsung.da.id')
+        for i, existing in enumerate(merged):
+            if isinstance(existing, dict) and existing.get('x.com.samsung.da.id') == item_id:
+                merged[i] = {**existing, **new_item}
+                break
+        else:
+            merged.append(new_item)
+    return merged
+
+
 # /wm/setinfo/vs/0 -- laundry-family firmware capability flags. Present on
 # washers, dryers, and dishwashers; absent on fridge/oven/AC. Static for the
 # life of a given board, so reading them from the /device/0 seed (no dedicated

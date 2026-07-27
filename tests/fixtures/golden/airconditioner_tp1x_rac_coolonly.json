@@ -6,7 +6,6 @@
     "auto_clean",
     "climate",
     "current_temperature_c",
-    "diagnosis_status",
     "display_light",
     "energy_kwh",
     "energy_saved_kwh",

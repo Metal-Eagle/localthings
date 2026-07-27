@@ -8,6 +8,7 @@
     "climate",
     "current_temperature_c",
     "diagnosis_status",
+    "display_light",
     "energy_kwh",
     "humidity",
     "power_watts"

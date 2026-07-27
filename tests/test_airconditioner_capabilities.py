@@ -93,15 +93,30 @@ def test_air_filter_usage_is_percentage_of_capacity():
 
 
 def test_climate_write_targets():
-    """The CLIMATE write_fn maps each (kind, value) command to the right OCF
-    POST target and body. `value` is already the raw device code."""
+    """The CLIMATE write_fn maps each (kind, value) command to the right vendor
+    POST target and body. `value` is already the raw device code. Power and
+    temperature target the vendor /power/vs/0 and /temperatures/vs/0 (the OCF
+    /power/0 is absent on most boards and a non-authoritative mirror where
+    present; /temperature/desired/0 is only written via the temperature_ocf
+    kind, on boards that have the OCF pair)."""
     write = airconditioner.CLIMATE.entities[0].write_fn
-    assert write(('power', True), {}) == (['power', '0'], {'value': True})
-    assert write(('power', False), {}) == (['power', '0'], {'value': False})
+    assert write(('power', True), {}) == (
+        ['power', 'vs', '0'], {'x.com.samsung.da.power': 'On'})
+    assert write(('power', False), {}) == (
+        ['power', 'vs', '0'], {'x.com.samsung.da.power': 'Off'})
     assert write(('mode', 'Heat'), {}) == (
         ['mode', 'vs', '0'], {'x.com.samsung.da.modes': ['Heat']})
-    assert write(('temperature', 23.6), {}) == (
+    # OCF-pair boards: temperature_ocf -> /temperature/desired/0.
+    assert write(('temperature_ocf', 23.6), {}) == (
         ['temperature', 'desired', '0'], {'temperature': 24})
+    # Vendor boards: temperature -> /temperatures/vs/0, carrying only the id
+    # and the changed field -- the device merges current/min/max/unit itself
+    # (see common.merge_items_field, wired into async_send_command, for the
+    # read-side half that keeps the optimistic cache complete).
+    assert write(('temperature', 22), {}) == (
+        ['temperatures', 'vs', '0'],
+        {'x.com.samsung.da.items': [
+            {'x.com.samsung.da.id': '0', 'x.com.samsung.da.desired': '22'}]})
     assert write(('fan', '2'), {}) == (
         ['wind', 'strength', 'vs', '0'], {'x.com.samsung.da.modes': '2'})
     assert write(('swing', 'All'), {}) == (
@@ -259,6 +274,90 @@ def test_current_limit_is_read_only():
     than a guessed writable control."""
     for desc in airconditioner.CURRENT_LIMIT.entities:
         assert getattr(desc, 'write_fn', None) is None
+
+
+# ---------------------------------------------------------------------------
+# TP1X_DA-AC-RAC-01001 cool-only global variant (issue #91). Same modelNum as
+# the issue #38 board above, but its /otninformation/vs/0 ships no
+# swVersionInfo block, so oneUiVersion is empty and detection must fall back
+# to the hyphenated '-RAC-' modelNum token (the older '_RAC_' underscore match
+# doesn't fire on this DA-AC-RAC spelling). Adds /stepcontrol/vs/0 and
+# /remotedeviceinfo/vs/0 (both ignored) and exposes the WindFree preset via
+# the Nano/NanoSleep convenient-mode codes. Its panel light is carried inside
+# /mode/vs/0's options blob instead of a dedicated /light/vs/0 switch.
+# ---------------------------------------------------------------------------
+
+def test_tp1x_rac_coolonly_resolves_via_hyphenated_model_fallback():
+    """Empty oneUiVersion -> resolved by the '-RAC-' modelNum token, not
+    for_device(). Guards the regression where this unit loaded as 'unknown'."""
+    resources = _load_device('airconditioner_tp1x_rac_coolonly')
+    otn = resources.get('/otninformation/vs/0', {})
+    assert otn.get('swVersionInfo', {}).get('oneUiVersion', '') == ''
+    reg, _ = _resolve('airconditioner_tp1x_rac_coolonly')
+    assert reg is not None and reg.name == 'airconditioner'
+
+
+def test_tp1x_rac_coolonly_no_unbound_hrefs():
+    """Every resource binds or is ignored -- including the two hrefs unique
+    to this dump (/stepcontrol/vs/0, /remotedeviceinfo/vs/0). Clears the gap
+    repair."""
+    reg, resources = _resolve('airconditioner_tp1x_rac_coolonly')
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
+def test_tp1x_rac_coolonly_stray_hrefs_ignored():
+    ignored_hrefs = {cap.href for cap in airconditioner.COVERAGE}
+    assert '/stepcontrol/vs/0' in ignored_hrefs
+    assert '/remotedeviceinfo/vs/0' in ignored_hrefs
+
+
+def test_tp1x_rac_coolonly_climate_bound():
+    reg, resources = _resolve('airconditioner_tp1x_rac_coolonly')
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    climate = [b for b in bound if isinstance(b.desc, ClimateDesc)]
+    assert len(climate) == 1 and climate[0].href == '/mode/vs/0'
+
+
+def test_tp1x_rac_coolonly_display_light_from_mode_options():
+    """This board has no /light/vs/0 switch; the panel light lives in
+    /mode/vs/0's options and surfaces as a display_light switch. The token is
+    inverted vs its name (confirmed by a live toggle test): with the panel
+    lit the option reads `Light_Off`, and with it dark it reads `Light_On`."""
+    reg, resources = _resolve('airconditioner_tp1x_rac_coolonly')
+    state = flatten(discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state.get('display_light') is True
+
+
+def test_display_light_option_parsing_and_gating():
+    # Inverted token: Light_Off -> panel lit (on), Light_On -> panel dark (off).
+    lit = {'x.com.samsung.da.options': ['CoolCapa_35', 'Light_Off', 'Volume_Mute']}
+    dark = {'x.com.samsung.da.options': ['Light_On']}
+    absent = {'x.com.samsung.da.options': ['Volume_Mute']}
+    assert airconditioner._display_light_on(lit) is True
+    assert airconditioner._display_light_on(dark) is False
+    assert airconditioner._display_light_on(absent) is None
+    assert airconditioner._has_display_light_option(lit, {}) is True
+    assert airconditioner._has_display_light_option(absent, {}) is False
+
+
+def test_mode_options_display_light_write_is_inverted_single_token():
+    """Turning the lamp ON writes the inverted 'Light_Off' token as a
+    single-element options list (single-token merge); OFF writes 'Light_On'."""
+    sw = next(e for e in airconditioner.CLIMATE.entities if e.key == 'display_light')
+    assert sw.write_fn('On', {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Light_Off']})
+    assert sw.write_fn('Off', {}) == (
+        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Light_On']})
+
+
+def test_light_switch_board_gates_out_mode_options_light():
+    """Boards with a real /light/vs/0 switch carry no Light_* option, so the
+    mode-options display-light entity doesn't double up (mutually exclusive
+    encodings)."""
+    reg, resources = _resolve('airconditioner_tp1x_rac')
+    assert airconditioner._has_display_light_option(resources['/mode/vs/0'], resources) is False
 
 
 # ---------------------------------------------------------------------------
