@@ -136,6 +136,29 @@ def test_run_discovery_detects_washer_via_model_fallback(
     assert coordinator.device_type_name == 'washer'
 
 
+def test_run_discovery_falls_back_to_host_for_placeholder_serial(
+    hass: HomeAssistant, mock_entry
+) -> None:
+    """Issue #83: the ARTIK051_DONGLE_REF firmware family reports the
+    literal string 'Nothing(SVC)' as serialNum on every unit. Left as-is,
+    two such units get the same device_serial (which feeds both the HA
+    device-registry identifier and every entity's unique_id), so the
+    second one's entities silently collide and get dropped. It must be
+    treated the same as an empty serial and fall back to the host."""
+    resources = {
+        '/information/vs/0': {
+            'x.com.samsung.da.modelNum':
+                'ARTIK051_DONGLE_REF|00127641|00080020001430300100000000000000',
+            'x.com.samsung.da.description': 'ARTIK_REF_17K',
+            'x.com.samsung.da.serialNum': 'Nothing(SVC)',
+        },
+        '/otninformation/vs/0': {},
+    }
+    coordinator = LocalThingsCoordinator(hass, mock_entry)
+    coordinator._run_discovery(resources)
+    assert coordinator.device_serial == mock_entry.data[CONF_HOST]
+
+
 def test_run_discovery_detects_cooktop_via_resource_signature(
     hass: HomeAssistant, mock_entry
 ) -> None:
