@@ -62,7 +62,38 @@ TEMP_CURRENT_GENERIC = Capability(
     ),
 )
 
-TEMP_SETPOINT_GENERIC = Capability(
+def _temp_setpoint_write(p, rep, href=None, resources=None):
+    """Write temperature — prefer vendor /temperatures/vs/0 when available,
+    fall back to direct OCF /temperature/desired/ write otherwise.
+
+    Samsung fridges expose both OCF-standard /temperature/desired/* and vendor
+    /temperatures/vs/0. On some models only the vendor path commits the change;
+    on others both work. Using the vendor path when present is always correct.
+    Item IDs follow the Samsung convention: "0" = Freezer, "1" = Fridge/Cooler.
+    """
+    if not href:
+        return None
+    if resources and '/temperatures/vs/0' in resources:
+        if '/cooler/' in href:
+            item_id = '1'
+        elif '/freezer/' in href:
+            item_id = '0'
+        else:
+            return None
+        return (
+            ['temperatures', 'vs', '0'],
+            {'x.com.samsung.da.items': [
+                {'x.com.samsung.da.id': item_id,
+                 'x.com.samsung.da.desired': str(int(round(float(p))))}
+            ]}
+        )
+    return (
+        [s for s in href.strip('/').split('/') if s],
+        {'temperature': int(round(float(p)))}
+    )
+
+
+TEMP_SETPOINT = Capability(
     href=None,
     href_prefix='/temperature/desired/',
     strip_prefix_in_key=True,
@@ -73,10 +104,7 @@ TEMP_SETPOINT_GENERIC = Capability(
                    use_instance_name=True, device_class='temperature', unit_fn=_temp_unit,
                    native_min=-20.0, native_max=50.0,
                    range_field='range', entity_category='config',
-                   write_fn=lambda p, rep, href=None: (
-                       [s for s in href.strip('/').split('/') if s],
-                       {'temperature': int(round(float(p)))}
-                   ) if href else None),
+                   write_fn=_temp_setpoint_write),
     ),
 )
 

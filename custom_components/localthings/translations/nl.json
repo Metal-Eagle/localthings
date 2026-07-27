@@ -64,6 +64,9 @@
       "probe_connected": {
         "name": "Sonde verbonden"
       },
+      "power_switch": {
+        "name": "Voeding"
+      },
       "rapid_freezing": {
         "name": "Snelvriezen"
       },
@@ -104,6 +107,7 @@
           },
           "preset_mode": {
             "state": {
+              "ai_comfort": "AI-comfort",
               "quiet": "Stil",
               "smart": "Slim",
               "speed": "Snel"
@@ -210,6 +214,8 @@
       "dryer_cycle_table_03": {
         "name": "Programma",
         "state": {
+          "01": "Normaal",
+          "06": "Tijdprogramma",
           "16": "Katoen",
           "18": "Synthetisch",
           "19": "Fijne was",
@@ -388,30 +394,37 @@
           "27": "Spoelen+centrifugeren",
           "28": "Afpompen/centrifugeren",
           "29": "Drum Clean+",
+          "2a": "Spijkerbroek",
+          "2b": "AI Wash",
           "2d": "Stille was",
           "2e": "Babyverzorging",
           "2f": "Sportkleding",
           "30": "Bewolkte dag",
           "32": "Overhemden",
           "33": "Beddengoed",
+          "34": "Gemengd",
           "36": "Wassen+drogen",
           "37": "Air Wash",
           "38": "Katoen drogen",
           "39": "Synthetisch drogen",
+          "3a": "Trommel reinigen",
+          "52": "Eco koud",
           "53": "Intensief",
+          "54": "Handdoeken",
           "55": "Sportkleding",
           "57": "Fijn",
           "5e": "Spoelen+centrifugeren",
+          "60": "Zelfreinigend+",
           "65": "Bonte was",
           "66": "Spijkergoed",
           "7c": "Witte was",
           "7d": "Beddengoed/Waterdicht",
           "7e": "Zelfreinigend",
+          "7f": "Wol/Fijn",
           "86": "Diep wassen",
+          "87": "Downloaden",
           "8f": "Intensief koud",
-          "96": "Minder microvezels",
-          "2b": "AI Wash",
-          "2a": "Spijkerbroek"
+          "96": "Minder microvezels"
         }
       },
       "washer_dry_level": {
@@ -457,6 +470,9 @@
           "poll": "Polling"
         }
       },
+      "cooktop_running_state": {
+        "name": "Loopstatus kookplaat"
+      },
       "cooktop_state": {
         "name": "Status kookplaat"
       },
@@ -464,6 +480,9 @@
         "name": "Niveau stroombegrenzing"
       },
       "current_temp_c": {
+        "name": "Temperatuur"
+      },
+      "current_temperature_c": {
         "name": "Temperatuur"
       },
       "diagnosis": {
@@ -534,6 +553,9 @@
       },
       "hood_filter_usage": {
         "name": "Filterverbruik"
+      },
+      "humidity": {
+        "name": "Luchtvochtigheid"
       },
       "instance_temperature": {
         "name": "Temperatuur {instance_name}"
@@ -609,6 +631,9 @@
       },
       "super_fine_dust": {
         "name": "Ultrafijnstof"
+      },
+      "warming_center_state": {
+        "name": "Status warmhoudzone"
       },
       "water_liters": {
         "name": "Waterverbruik"

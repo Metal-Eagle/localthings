@@ -64,6 +64,9 @@
       "probe_connected": {
         "name": "Probe connected"
       },
+      "power_switch": {
+        "name": "Power"
+      },
       "rapid_freezing": {
         "name": "Rapid freezing"
       },
@@ -104,6 +107,7 @@
           },
           "preset_mode": {
             "state": {
+              "ai_comfort": "AI Comfort",
               "quiet": "Quiet",
               "smart": "Smart",
               "speed": "Speed"
@@ -210,6 +214,8 @@
       "dryer_cycle_table_03": {
         "name": "Cycle",
         "state": {
+          "01": "Normal",
+          "06": "Time dry",
           "16": "Cotton",
           "18": "Synthetics",
           "19": "Delicates",
@@ -388,30 +394,37 @@
           "27": "Rinse+Spin",
           "28": "Drain/Spin",
           "29": "Drum Clean+",
+          "2a": "Jeans",
+          "2b": "AI Wash",
           "2d": "Silent Wash",
           "2e": "Baby Care",
           "2f": "Activewear",
           "30": "Cloudy Day",
           "32": "Shirts",
           "33": "Bedding",
+          "34": "Mixed",
           "36": "Wash+Dry",
           "37": "Air Wash",
           "38": "Cotton Dry",
           "39": "Synthetics Dry",
+          "3a": "Drum Clean",
+          "52": "Eco Cold",
           "53": "Heavy Duty",
+          "54": "Towels",
           "55": "Activewear",
           "57": "Delicate",
           "5e": "Rinse+Spin",
+          "60": "Self Clean+",
           "65": "Colors",
           "66": "Denim",
           "7c": "Whites",
           "7d": "Bedding/Waterproof",
           "7e": "Self-Clean",
+          "7f": "Wool/Delicate",
           "86": "Deep Wash",
+          "87": "Download",
           "8f": "Intense Cold",
-          "96": "Less Microfiber",
-          "2b": "AI Wash",
-          "2a": "Jeans"
+          "96": "Less Microfiber"
         }
       },
       "washer_dry_level": {
@@ -457,6 +470,9 @@
           "poll": "Polling"
         }
       },
+      "cooktop_running_state": {
+        "name": "Cooktop running state"
+      },
       "cooktop_state": {
         "name": "Cooktop state"
       },
@@ -464,6 +480,9 @@
         "name": "Current limit level"
       },
       "current_temp_c": {
+        "name": "Temperature"
+      },
+      "current_temperature_c": {
         "name": "Temperature"
       },
       "diagnosis": {
@@ -534,6 +553,9 @@
       },
       "hood_filter_usage": {
         "name": "Filter usage"
+      },
+      "humidity": {
+        "name": "Humidity"
       },
       "instance_temperature": {
         "name": "{instance_name} temperature"
@@ -609,6 +631,9 @@
       },
       "super_fine_dust": {
         "name": "Super fine dust"
+      },
+      "warming_center_state": {
+        "name": "Warming center state"
       },
       "water_liters": {
         "name": "Water consumption"

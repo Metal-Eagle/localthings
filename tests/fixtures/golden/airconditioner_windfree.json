@@ -9,7 +9,6 @@
     "current_temperature_c",
     "diagnosis_status",
     "energy_kwh",
-    "energy_saved_kwh",
     "humidity",
     "power_watts"
   ]

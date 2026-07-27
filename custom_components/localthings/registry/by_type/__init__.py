@@ -88,6 +88,26 @@ _CONSUMER_PREFIX_TO_KEY: dict[str, str] = {
 }
 
 
+def _consumer_model_key(description: str) -> Optional[str]:
+    """Registry key from the consumer-model token in `description`, or None.
+
+    Usually that token is the last '_'-delimited segment before any
+    '/board-info' suffix (e.g. '..._WW90DG6U25LEU4' -> 'WW90DG6U25LEU4').
+    But issue #79's dryer pairs two model numbers in one description --
+    '..._DVE50A8800_8600/DC92-...' -- so the true consumer token
+    ('DVE50A8800') sits one segment *before* the actual last segment
+    ('8600', a bare second model number with no recognizable prefix). Scan
+    segments from the end and take the first one that resolves, rather
+    than assuming the last segment is always it.
+    """
+    segments = (description or '').split('/', 1)[0].split('_')
+    for segment in reversed(segments):
+        key = _CONSUMER_PREFIX_TO_KEY.get(segment[:2].upper())
+        if key is not None:
+            return key
+    return None
+
+
 def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegistry]:
     """Fallback device-type detection for hardware that never reports
     oneUiVersion (confirmed for washers -- their /otninformation/vs/0 has
@@ -101,8 +121,7 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
         DeviceRegistry if the consumer-model code or modelNum resolves to a
         known type, None otherwise.
     """
-    token = (description or '').split('/', 1)[0].rsplit('_', 1)[-1]
-    key = _CONSUMER_PREFIX_TO_KEY.get(token[:2].upper())
+    key = _consumer_model_key(description)
     if key is None and '_REF_' in (model_num or ''):
         key = 'refrigerator'
     # Room air conditioners (e.g. ARTIK051_PRAC_20K) report no oneUiVersion and
@@ -181,4 +200,18 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
         and '/hood/lamp/vs/0' in resources
     ):
         return _REGISTRY_BY_KEY['range_hood']
+    # Oven/range-combo boards that report no /information/vs/0 at all
+    # (issue #74's NE63B8411SS -- the resource is simply absent from the
+    # dump, not just empty) can't be matched via for_device_by_model's
+    # modelNum tokens either. 'Bake' is oven/range cook-mode vocabulary that
+    # no other family's /mode/vs/0 uses (confirmed against the microwave,
+    # cooktop, and every laundry fixture), so its presence alongside the
+    # oven cavity resource is a safe signature. Distinguish range (has a
+    # cooktop half) from a plain wall oven by which cooktop-status resource,
+    # if any, is also present.
+    supported_modes = mode.get('x.com.samsung.da.supportedModes') or ()
+    if '/oven/vs/0' in resources and 'Bake' in supported_modes:
+        if '/cooktopmonitoring/vs/0' in resources or '/cooktop/status/vs/0' in resources:
+            return _REGISTRY_BY_KEY['range']
+        return _REGISTRY_BY_KEY['oven']
     return None
