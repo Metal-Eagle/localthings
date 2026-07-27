@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import threading
 import time
+import zlib
 from datetime import timedelta
 from typing import Any
 
@@ -37,6 +39,7 @@ from .observe import ObserveManager, MODE_OBSERVE, MODE_POLL, GRACE_PERIOD_S
 from .const import (
     DOMAIN, CONF_HOST, CONF_PORT, CONF_LEAF_CERT_PEM, CONF_LEAF_KEY_PEM,
     CONF_BYPASS_REMOTE_CONTROL, DEVICE_SUPPORT_ISSUE_URL, SUMMARY_INTERVAL_S,
+    DTLS_LOCAL_PORT_BASE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,6 +55,29 @@ class _NoOpDescriptor:
 
 
 _RECOVERY_RETRY_S = 600.0  # re-attempt observe mode this often while polling
+
+
+def _local_source_port(host: str) -> int:
+    """Deterministic UDP source port for this device's DTLS socket.
+
+    Binding the same source port on every (re)connect keeps the client on one
+    5-tuple, so the appliance evicts an orphaned session left by a previous run
+    (unclean shutdown -> no DTLS close_notify) at handshake time per RFC 6347
+    §4.2.8, instead of holding it for 5-15 min while the new session's reads
+    hang. See DTLS_LOCAL_PORT_BASE in const.py. Requires smartthings-local
+    >= 0.1.1 (the version that added DtlsCoapSession(local_port=...)).
+
+    The port must be stable across restarts and unique per device on this HA
+    host: the library's socket is unconnected (recvfrom), so two devices
+    sharing a source port would mis-demux each other's datagrams. For the usual
+    dotted-IPv4 host we use the last octet as the offset (unique on a /24);
+    anything else folds a stable CRC32 into the same 256-wide window.
+    """
+    try:
+        offset = int(ipaddress.IPv4Address(host)) & 0xFF
+    except (ipaddress.AddressValueError, ValueError):
+        offset = zlib.crc32(host.encode()) & 0xFF
+    return DTLS_LOCAL_PORT_BASE + offset
 
 
 def _is_placeholder_serial(serial: str) -> bool:
@@ -182,7 +208,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         key_pem  = self._entry.data[CONF_LEAF_KEY_PEM]
 
         sess = DtlsCoapSession(host, port, cert_pem=cert_pem, key_pem=key_pem,
-                               on_notification=self._observe.on_notification)
+                               on_notification=self._observe.on_notification,
+                               local_port=_local_source_port(host))
         sess.connect()
         sess.start_reader()
         self._session = sess

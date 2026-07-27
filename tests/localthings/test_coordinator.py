@@ -11,9 +11,12 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 
 from custom_components.localthings.const import (
-    CONF_BYPASS_REMOTE_CONTROL, CONF_HOST, DOMAIN, SUMMARY_INTERVAL_S,
+    CONF_BYPASS_REMOTE_CONTROL, CONF_HOST, DOMAIN, DTLS_LOCAL_PORT_BASE,
+    SUMMARY_INTERVAL_S,
 )
-from custom_components.localthings.coordinator import LocalThingsCoordinator
+from custom_components.localthings.coordinator import (
+    LocalThingsCoordinator, _local_source_port,
+)
 from custom_components.localthings.registry.capabilities.common import (
     remote_control_enabled,
     remote_control_required_for_write,
@@ -1174,3 +1177,32 @@ async def test_send_command_operational_still_blocked_when_without_sc(
     assert exc_info.value.translation_domain == DOMAIN
     assert exc_info.value.translation_key == 'remote_control_disabled'
     assert posted is False
+
+
+def test_local_source_port_stable_and_in_range() -> None:
+    """Same host always maps to the same port (stability is the whole point:
+    a reconnect must reuse the 5-tuple), and it stays in the documented window."""
+    for host in ('192.168.1.217', '10.0.0.42', 'fridge.local'):
+        port = _local_source_port(host)
+        assert port == _local_source_port(host)
+        assert DTLS_LOCAL_PORT_BASE <= port <= DTLS_LOCAL_PORT_BASE + 0xFF
+
+
+def test_local_source_port_unique_per_host_on_a_24() -> None:
+    """Distinct last octets -> distinct ports, so two devices on the same HA
+    host never share a source port (the lib's socket is unconnected, so a
+    shared port would cross-deliver datagrams)."""
+    ports = {_local_source_port(f'192.168.1.{n}') for n in range(1, 255)}
+    assert len(ports) == 254
+
+
+def test_local_source_port_ipv4_uses_last_octet() -> None:
+    """The IPv4 fast path is the last octet, not a hash."""
+    assert _local_source_port('192.168.1.217') == DTLS_LOCAL_PORT_BASE + 217
+
+
+def test_local_source_port_non_ipv4_falls_back_to_hash() -> None:
+    """A non-IPv4 host still yields a deterministic in-range port."""
+    port = _local_source_port('some-hostname')
+    assert port == _local_source_port('some-hostname')
+    assert DTLS_LOCAL_PORT_BASE <= port <= DTLS_LOCAL_PORT_BASE + 0xFF

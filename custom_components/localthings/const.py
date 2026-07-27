@@ -42,6 +42,13 @@ LIVENESS_PROBE_TIMEOUT_S = 1.5
 # without stalling setup; it matches the per-resource read timeout elsewhere.
 PROBE_GET_TIMEOUT_S = 10.0
 
+# Base for the local (client-side) DTLS source port, distinct from the
+# destination probe ports above. See coordinator._local_source_port for why a
+# fixed per-device source port matters and how the per-device offset is
+# derived. Base mirrors the upstream smartthings-local reference bridge.
+# Requires smartthings-local >= 0.1.1.
+DTLS_LOCAL_PORT_BASE = 49700
+
 SUMMARY_INTERVAL_S = 30.0
 
 DEVICE_SUPPORT_ISSUE_URL = (
