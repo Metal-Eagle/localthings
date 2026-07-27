@@ -16,7 +16,7 @@ by_type registry.
 """
 from ..capability import Capability
 from ..entities import BinarySensorDesc, ClimateDesc, SensorDesc, SwitchDesc
-from .common import normalize_temp_unit
+from .common import filter_usage_percent, normalize_temp_unit
 from .laundry import option_write
 
 # ---------------------------------------------------------------------------
@@ -75,18 +75,6 @@ def _temps_vs_current(rep):
 
 def _temps_vs_unit(rep):
     return normalize_temp_unit(_temps_vs_item(rep).get('x.com.samsung.da.unit'), '°C')
-
-
-def _filter_usage_percent(rep):
-    """Filter usage as a percentage of rated capacity. The device reports
-    `filterUsage` as a raw count in `filterCapacityUnit` (Hours here, e.g.
-    100 of a 500 capacity), so a plain value with a '%' unit would be wrong --
-    normalize to used/capacity. Returns None when capacity is missing/zero."""
-    used = _num(rep.get('x.com.samsung.da.filterUsage'))
-    cap = _num(rep.get('x.com.samsung.da.filterCapacity'))
-    if used is None or not cap:
-        return None
-    return round(used / cap * 100)
 
 
 def _first_mode(rep):
@@ -251,7 +239,7 @@ AIR_FILTER = Capability(
     href='/filter/airdustfilter/vs/0',
     poll_tier='cold',
     entities=(
-        SensorDesc(key='air_filter_usage', rep_fn=_filter_usage_percent,
+        SensorDesc(key='air_filter_usage', rep_fn=filter_usage_percent,
                    unit='%', state_class='measurement',
                    icon='mdi:air-filter', entity_category='diagnostic'),
         SensorDesc(key='air_filter_status', field='x.com.samsung.da.filterStatus',

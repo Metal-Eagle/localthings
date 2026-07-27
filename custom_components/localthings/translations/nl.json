@@ -413,6 +413,13 @@
           "mute": "Dempen"
         }
       },
+      "air_purifier_sound_mode": {
+        "name": "Geluidsmodus",
+        "state": {
+          "mute": "Dempen",
+          "buzzer": "Zoemer"
+        }
+      },
       "spin_speed": {
         "name": "Centrifugesnelheid",
         "state": {

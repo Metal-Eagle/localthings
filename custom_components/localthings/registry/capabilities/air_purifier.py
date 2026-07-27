@@ -52,7 +52,7 @@ from ..capability import Capability
 from ..entities import (
     BinarySensorDesc, FanDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
 )
-from .common import int_or_none, sensor_item_value
+from .common import filter_usage_percent, int_or_none, sensor_item_value
 from .laundry import bool_option_exists, bool_option_value, option_value, option_write
 
 # Newer TP1X_DA-AC-AIR-class boards (e.g. TP1X_DA-AC-AIR-01031_0000, issue
@@ -190,8 +190,15 @@ MODE = Capability(
 
 
 def _fan_write(payload, rep, href=None):
-    kind, value = payload
+    kind, value, *args = payload
     if kind == 'power':
+        # Targets whichever power href fan.py's _power_payload picked (the
+        # board may only report /power/0) -- a hardcoded vendor href here
+        # would silently no-op on such a board even though the entity's
+        # own is_on already falls back to reading it correctly.
+        power_href = args[0] if args else '/power/vs/0'
+        if power_href == '/power/0':
+            return ['power', '0'], {'value': bool(value)}
         return (['power', 'vs', '0'],
                 {'x.com.samsung.da.power': 'On' if value else 'Off'})
     if kind == 'mode':
@@ -255,13 +262,8 @@ HEPA_FILTER = Capability(
     href='/filter/hepafilter/vs/0',
     poll_tier='cold',
     entities=(
-        SensorDesc(key='hepa_filter_usage', rep_fn=lambda rep: (
-            round(int_or_none(rep.get('x.com.samsung.da.filterUsage')) /
-                  int_or_none(rep.get('x.com.samsung.da.filterCapacity')) * 100)
-            if int_or_none(rep.get('x.com.samsung.da.filterUsage')) is not None
-            and int_or_none(rep.get('x.com.samsung.da.filterCapacity'))
-            else None
-        ), unit='%', state_class='measurement',
+        SensorDesc(key='hepa_filter_usage', rep_fn=filter_usage_percent,
+                   unit='%', state_class='measurement',
                    icon='mdi:air-filter', entity_category='diagnostic'),
         SensorDesc(key='hepa_filter_status', field='x.com.samsung.da.filterStatus',
                    device_class='enum',
@@ -312,7 +314,13 @@ SOUND_MODE = Capability(
     href='/settings/sound/mode/vs/0',
     poll_tier='cold',
     entities=(
-        SelectDesc(key='sound_mode', field='mode',
+        # Distinct translation_key from laundry.SOUND_MODE's shared
+        # 'sound_mode' catalog entry -- that one's state table is
+        # {voice, tone, mute}, but this board's supportedModes is
+        # {mute, buzzer}. Sharing the key would leave 'buzzer' unlabelled
+        # (falls through to the raw code) since the catalogs don't overlap.
+        SelectDesc(key='sound_mode', translation_key='air_purifier_sound_mode',
+                   field='mode',
                    icon='mdi:volume-high',
                    entity_category='config',
                    options_field='supportedModes',

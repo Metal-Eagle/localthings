@@ -40,6 +40,19 @@ def wh_to_kwh(v):
     return round(n / 1000.0, 2) if n is not None else None
 
 
+def filter_usage_percent(rep):
+    """Filter usage as a percentage of rated capacity. Several families
+    (AC, air purifier) report `filterUsage` as a raw count in
+    `filterCapacityUnit` (Hours, e.g. 100 of a 500 capacity), so a plain
+    value with a '%' unit would be wrong -- normalize to used/capacity.
+    Returns None when capacity is missing/zero."""
+    used = _num(rep.get('x.com.samsung.da.filterUsage'))
+    cap = _num(rep.get('x.com.samsung.da.filterCapacity'))
+    if used is None or not cap:
+        return None
+    return round(used / cap * 100)
+
+
 def normalize_temp_unit(raw, default='°F'):
     """'C'/'Celsius' -> '°C', 'F'/'Fahrenheit' -> '°F'. Falls back to
     `default` for any other/missing value. Shared by fridge.py and oven.py,

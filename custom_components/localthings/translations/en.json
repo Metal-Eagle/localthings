@@ -413,6 +413,13 @@
           "mute": "Mute"
         }
       },
+      "air_purifier_sound_mode": {
+        "name": "Sound mode",
+        "state": {
+          "mute": "Mute",
+          "buzzer": "Buzzer"
+        }
+      },
       "spin_speed": {
         "name": "Spin speed",
         "state": {

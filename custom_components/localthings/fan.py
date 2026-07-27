@@ -8,6 +8,8 @@ issue #130) are named behaviors with no linear order (PRESET_MODE)."""
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -23,6 +25,7 @@ from .entity import LocalThingsEntity, _is_included
 from .registry.capabilities.air_purifier import HREF_MODE as AIR_PURIFIER_FAN_HREF
 from .registry.entities import FanDesc
 
+_LOGGER = logging.getLogger(__name__)
 
 POWER_HREF = '/power/0'
 POWER_VS_HREF = '/power/vs/0'
@@ -158,6 +161,16 @@ class LocalThingsAirPurifierFan(LocalThingsEntity, FanEntity):
     def _mode_rep(self) -> dict:
         return self._rep(self._bound.href)
 
+    def _power_payload(self, enabled: bool) -> tuple[str, bool, str]:
+        """Target whichever power resource this unit actually exposes --
+        same pattern as LocalThingsRangeHoodFan._power_payload above.
+        Writing a hardcoded href here would silently no-op on a board that
+        only reports the other one, even though is_on already falls back
+        correctly."""
+        resources = self.coordinator.last_resources
+        target = POWER_VS_HREF if POWER_VS_HREF in resources else POWER_HREF
+        return 'power', enabled, target
+
     @property
     def is_on(self) -> bool:
         power = self._rep(POWER_VS_HREF).get('x.com.samsung.da.power')
@@ -182,12 +195,12 @@ class LocalThingsAirPurifierFan(LocalThingsEntity, FanEntity):
         self, percentage: int | None = None, preset_mode: str | None = None,
         **kwargs,
     ) -> None:
-        await self.coordinator.async_send_command(self._bound, ('power', True))
+        await self.coordinator.async_send_command(self._bound, self._power_payload(True))
         if preset_mode is not None:
             await self.async_set_preset_mode(preset_mode)
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self.coordinator.async_send_command(self._bound, ('power', False))
+        await self.coordinator.async_send_command(self._bound, self._power_payload(False))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         # Reverse-resolve against the unit's own supportedModes -- the
@@ -197,3 +210,7 @@ class LocalThingsAirPurifierFan(LocalThingsEntity, FanEntity):
             if str(code).lower() == preset_mode:
                 await self.coordinator.async_send_command(self._bound, ('mode', code))
                 return
+        _LOGGER.warning(
+            "%s: %r is not a valid preset mode (supported: %s)",
+            self.entity_id, preset_mode, self.preset_modes,
+        )
