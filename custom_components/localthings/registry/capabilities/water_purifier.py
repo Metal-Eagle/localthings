@@ -116,6 +116,50 @@ FAVORITE_CAPACITY = Capability(
     ),
 )
 
+# Coffee-capable variant (issue #107) -- same "favorite" enable-toggle +
+# supported-list select shape as FAVORITE_CAPACITY above, but for the hot
+# water dispensed alongside brewing rather than the pour capacity.
+FAVORITE_HOTWATER = Capability(
+    href='/favorite/hotwater/vs/0',
+    poll_tier='cold',
+    entities=(
+        SwitchDesc(key='favorite_hotwater_enabled', field='x.com.samsung.da.switchHotwater',
+                   icon='mdi:star-outline',
+                   entity_category='config',
+                   value_fn=lambda v: v != 'Locked',
+                   write_fn=lambda p, rep, href=None: (
+                       ['favorite', 'hotwater', 'vs', '0'],
+                       {'x.com.samsung.da.switchHotwater': 'Unlocked' if p == 'On' else 'Locked'})),
+        SelectDesc(key='favorite_hotwater_temperature',
+                   field='x.com.samsung.da.favorite.defaultTemperature',
+                   icon='mdi:thermometer',
+                   entity_category='config',
+                   options_field='x.com.samsung.da.favorite.supportedList',
+                   write_fn=lambda p, rep, href=None: (
+                       ['favorite', 'hotwater', 'vs', '0'],
+                       {'x.com.samsung.da.favorite.defaultTemperature': p})),
+    ),
+)
+
+# Coffee-capable variant (issue #107). No 'x.com.samsung.da.' field prefix
+# on this resource, unlike the rest of the water-purifier surface.
+COFFEE = Capability(
+    href='/favorite/coffee/vs/0',
+    poll_tier='warm',
+    entities=(
+        SwitchDesc(key='favorite_coffee_enabled', field='favorite.activate',
+                   icon='mdi:coffee-outline',
+                   entity_category='config',
+                   value_fn=lambda v: v == 'On',
+                   write_fn=lambda p, rep, href=None: (
+                       ['favorite', 'coffee', 'vs', '0'],
+                       {'favorite.activate': 'On' if p == 'On' else 'Off'})),
+        SensorDesc(key='coffee_brew_status', field='brew.status',
+                   icon='mdi:coffee-outline',
+                   entity_category='diagnostic'),
+    ),
+)
+
 LOCK = Capability(
     href='/status/lock/vs/0',
     poll_tier='warm',
@@ -160,6 +204,14 @@ _WP_IGNORED = [
     # Static support-flags blob (automation.supported.modes/options) -- no
     # live "current automation setting" field to expose.
     '/automation/waterpurifier/vs/0',
+    # Coffee-capable variant (issue #107). All four are static
+    # capability-advertisement blobs or empty -- no live "current recipe" /
+    # "current custom slot" field to expose, unlike /favorite/coffee/vs/0
+    # (COFFEE above), which does carry live brew status.
+    '/brand/recipe/info/vs/0',        # revision + max-brand-count metadata
+    '/coffee/custom/recipe/vs/0',     # publisher.support: allowed custom-recipe slot IDs
+    '/recipe/coffee/vs/0',            # same publisher.support shape, no per-recipe content
+    '/recipe/coffee/deletion/vs/0',   # empty {} on this dump
 ]
 
 COVERAGE = [Capability(href=h) for h in _WP_IGNORED]

@@ -135,6 +135,21 @@ def test_registry_reproduces_golden_state_keys_for_water_purifier():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_water_purifier_coffee():
+    """TP2X_WATERPURIFIER_20K coffee-capable variant (issue #107) adds
+    /favorite/coffee/vs/0, /favorite/hotwater/vs/0, and three static
+    coffee-recipe resources not present in issue #90's original dump."""
+    from tests.conftest import _load_device
+    resources = _load_device('water_purifier_coffee')
+    golden = json.loads((GOLDEN / 'water_purifier_coffee.json').read_text())
+    state_keys = _new_state_keys('water_purifier_coffee', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_cooktop():
     from tests.conftest import _load_device
     resources = _load_device('cooktop')

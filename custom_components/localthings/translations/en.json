@@ -250,6 +250,9 @@
       "favorite_capacity": {
         "name": "Favorite capacity"
       },
+      "favorite_hotwater_temperature": {
+        "name": "Favorite hot water temperature"
+      },
       "finish_sound": {
         "name": "Finish sound",
         "state": {
@@ -486,6 +489,9 @@
       },
       "clean_level": {
         "name": "Clean level"
+      },
+      "coffee_brew_status": {
+        "name": "Coffee brew status"
       },
       "connection_mode": {
         "name": "Connection mode",
@@ -758,6 +764,12 @@
       },
       "favorite_capacity_enabled": {
         "name": "Favorite capacity"
+      },
+      "favorite_coffee_enabled": {
+        "name": "Favorite coffee"
+      },
+      "favorite_hotwater_enabled": {
+        "name": "Favorite hot water"
       },
       "fridge_sound": {
         "name": "Sound"
