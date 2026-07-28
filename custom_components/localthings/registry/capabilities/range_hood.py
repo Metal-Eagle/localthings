@@ -99,6 +99,11 @@ HOOD_FAN = Capability(
             field='x.com.samsung.da.hood.autoOperation',
             icon='mdi:fan-auto',
             entity_category='diagnostic',
+            # Absent on the microwave family's built-in vent fan (issue
+            # #137) -- this board has no auto-ventilation mode, unlike the
+            # standalone range hood this capability was written for.
+            exists_fn=lambda rep, resources: (
+                not rep or 'x.com.samsung.da.hood.autoOperation' in rep),
             value_fn=lambda value: str(value).lower() == 'on',
         ),
     ),

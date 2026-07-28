@@ -589,6 +589,30 @@ def test_registry_reproduces_golden_state_keys_for_microwave_mw7300b():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_microwave_me7500d():
+    """TP1X_DA-KS-MICROWAVE-01051 plain microwave (model ME7500D, issues
+    #137/#142) -- the same microwave registry as MW7300B above, but this
+    board also reports the built-in vent fan's `/hood/fanspeed/vs/0`
+    resource, previously unbound. Bound via range_hood.HOOD_FAN (reused
+    directly, same resource shape a standalone range hood reports); unlike
+    a standalone hood this board has no sibling `/power/0` or
+    `/power/vs/0` resource, so fan.py's LocalThingsRangeHoodFan treats
+    fan speed 0 as the off state instead of writing a separate power
+    resource -- see its `_has_separate_power` check. This board also has
+    no `/temperatures/vs/0` or `x.com.samsung.da.hood.autoOperation`
+    field, unlike MW7300B, so `setpoint`/`current_temp_c` and
+    `automatic_operation` are correctly absent here."""
+    from tests.conftest import _load_device
+    resources = _load_device('microwave_me7500d')
+    golden = json.loads((GOLDEN / 'microwave_me7500d.json').read_text())
+    state_keys = _new_state_keys('microwave_me7500d', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier_tp1x_da_ac_air():
     """TP1X_DA-AC-AIR-01031_0000 (issue #130) self-reports oneUiVersion
     '7.0 Air purifier' and resolves via for_device() onto the existing

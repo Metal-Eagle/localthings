@@ -62,7 +62,16 @@ async def async_setup_entry(
 
 
 class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
-    """A hood fan combining sibling power and fan-speed resources."""
+    """A hood fan combining sibling power and fan-speed resources.
+
+    Some boards that reuse this capability (built-in microwave vent fans,
+    issues #137/#142) report no sibling `/power/0` or `/power/vs/0` resource
+    at all -- fan speed 0 is itself the off state there, with no separate
+    power toggle to write. `_has_separate_power` detects that shape and
+    switches every method below to drive off/on purely through the
+    fanSpeed field, including '0' in the ordered speed codes as the off
+    step instead of assuming every advertised code is an active speed.
+    """
 
     _enable_turn_on_off_backwards_compatibility = False
     _attr_supported_features = (
@@ -78,15 +87,24 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
     def _rep(self, href: str) -> dict:
         return self.coordinator.resource(href) or {}
 
+    def _has_separate_power(self) -> bool:
+        resources = self.coordinator.last_resources
+        return POWER_HREF in resources or POWER_VS_HREF in resources
+
     def _all_speed_codes(self) -> list[str]:
         rep = self._rep(self._bound.href)
         return [str(value) for value in rep.get(_SUPPORTED_FAN_SPEED_FIELD, ())]
 
     def _active_speed_codes(self) -> list[str]:
-        # Power is carried by the separate /power resource.  fanSpeed retains
-        # the selected setting while power is off (as the lamp's `current`
-        # field does), so every advertised code is an active ordered speed.
-        return self._all_speed_codes()
+        codes = self._all_speed_codes()
+        if self._has_separate_power():
+            # Power is carried by the separate /power resource.  fanSpeed
+            # retains the selected setting while power is off (as the
+            # lamp's `current` field does), so every advertised code is an
+            # active ordered speed.
+            return codes
+        # No separate power resource: '0' is the off step, not a speed.
+        return [code for code in codes if code != '0']
 
     def _power_payload(self, enabled: bool) -> tuple[str, bool, str]:
         """Target whichever power resource this hood actually exposes."""
@@ -96,6 +114,9 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
 
     @property
     def is_on(self) -> bool:
+        if not self._has_separate_power():
+            current = str(self._rep(self._bound.href).get(_FAN_SPEED_FIELD, '0'))
+            return current not in ('', '0')
         rep = self._rep(POWER_HREF)
         if 'value' in rep:
             return bool(rep.get('value'))
@@ -121,6 +142,14 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
         self, percentage: int | None = None, preset_mode: str | None = None,
         **kwargs,
     ) -> None:
+        if not self._has_separate_power():
+            if percentage is not None:
+                await self.async_set_percentage(percentage)
+                return
+            codes = self._active_speed_codes()
+            if codes:
+                await self.coordinator.async_send_command(self._bound, ('speed', codes[0]))
+            return
         await self.coordinator.async_send_command(
             self._bound, self._power_payload(True),
         )
@@ -128,6 +157,9 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
             await self.async_set_percentage(percentage)
 
     async def async_turn_off(self, **kwargs) -> None:
+        if not self._has_separate_power():
+            await self.coordinator.async_send_command(self._bound, ('speed', '0'))
+            return
         await self.coordinator.async_send_command(
             self._bound, self._power_payload(False),
         )
@@ -139,7 +171,7 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
         codes = self._active_speed_codes()
         if not codes:
             return
-        if not self.is_on:
+        if self._has_separate_power() and not self.is_on:
             await self.coordinator.async_send_command(
                 self._bound, self._power_payload(True),
             )
