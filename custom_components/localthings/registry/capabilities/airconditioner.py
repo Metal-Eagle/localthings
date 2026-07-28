@@ -128,7 +128,27 @@ def _sensor_item_value(items, type_):
 
 
 def _has_sensor_type(type_):
+    """Item-type presence AND a corroborating top-level
+    x.com.samsung.da.cleanLevel scalar on the same /sensors/vs/0 rep.
+
+    Item-type presence alone isn't a real capability signal: issue #166
+    (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K) lists all five item types with
+    permanent zero values on both its units, the same shape as this repo's
+    other ARTIK051_PRAC_20K dumps (the original issue #17 dump and the
+    windfree fixture -- verified against the *same* board revision, per its
+    /information/vs/0) -- yet the #166 reporter confirmed none of these
+    sensors are physically present. The top-level cleanLevel scalar (separate
+    from the CleanLevel item inside items[]) is only ever present alongside
+    genuinely populated readings in every dump on record: present on
+    tp1x_da_ac_rac_01011 (real AC, clean_level=1) and the tp1x_da_ac_air air
+    purifier fixture (all five types real/nonzero), absent on every
+    ARTIK051_PRAC_20K dump (all zero, including both #166 units). A small
+    sample, but a consistent one and the only signal found that actually
+    explains the #166 report -- gate on it rather than leaving the always-
+    present item type to imply a capability that may not exist."""
     def fn(rep, resources):
+        if 'x.com.samsung.da.cleanLevel' not in rep:
+            return False
         return any(isinstance(i, dict) and i.get('x.com.samsung.da.type') == type_
                    for i in (rep.get('x.com.samsung.da.items') or []))
     return fn
@@ -441,12 +461,26 @@ CLIMATE = Capability(
         # Single-token option_write. Cloud: custom.airConditionerTropicalNightMode.
         # Gated off the legacy board for the same reason as beep above -- its
         # Sleep_ token is already the good_sleep Number below.
+        #
+        # exists_fn only proves the Sleep_ token slot is present, not that
+        # tropical night mode is a real feature of the unit: issue #166
+        # (ARxxTXFCAWKNEU) reports Sleep_0 in every dump -- the exact same
+        # always-there-at-zero shape as the issue #17 dump #164 was verified
+        # against -- yet the reporter confirmed their remote/app has no
+        # tropical night mode control at all. Samsung's OCF options[] blob
+        # carries this scaffolding token regardless of physical capability,
+        # so there's no reliable signal here to gate on (same 'don't guess'
+        # rule as elsewhere in this file, just with no signal to guess from).
+        # Registered but disabled by default, same precedent as
+        # fridge.rack_count / cooktop.paired_hood_* -- units that do have the
+        # feature can enable it themselves.
         NumberDesc(key='tropical_night_mode', rep_fn=_tropical_night_value,
                    exists_fn=lambda rep, resources: (
                        not is_legacy_board(resources)
                        and _option_token(rep, 'Sleep') is not None),
                    write_fn=_tropical_night_write,
                    native_min=0, native_max=16, step=1,
+                   enabled_default=False,
                    icon='mdi:weather-night', entity_category='config'),
         # Settings that this board generation keeps as options[] tokens.
         SwitchDesc(key='spi', rep_fn=_option_token_on('Spi'),
@@ -702,6 +736,21 @@ HUMIDITY = Capability(
 # are 1- or 2-element arrays with no corroborating scalar, so they stay string
 # diagnostics (see _sensor_item_value for the 2-element ambiguity and why only
 # v[0] is taken). No unit is advertised on the resource, so no device_class.
+#
+# _has_sensor_type requires that same top-level cleanLevel scalar, not just
+# item-type presence: issue #166 (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K)
+# reports all five item types on both its units, values permanently
+# '0'/['0','0'] -- the exact same shape as the issue #17 dump AIR_QUALITY was
+# first verified against and the WindFree fixture (see
+# test_air_quality_sensors_from_sensors_vs_items) -- both the *same board
+# revision* per /information/vs/0, so that "verification" never actually
+# proved a real sensor either. Item-type presence alone is Samsung's OCF
+# scaffolding listing every known sensor type regardless of physical
+# capability, not a capability signal. The top-level scalar is: it's present,
+# with genuinely populated readings, on every dump with a confirmed-real
+# sensor (tp1x_da_ac_rac_01011, and the tp1x_da_ac_air air purifier fixture),
+# and absent on every all-zero ARTIK051_PRAC_20K dump on record, including
+# both #166 units. Gate on it.
 AIR_QUALITY = Capability(
     href='/sensors/vs/0',
     poll_tier='cold',
