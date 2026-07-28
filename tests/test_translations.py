@@ -210,3 +210,27 @@ def test_every_ac_convenient_mode_code_has_a_preset_label():
             missing.append((path.name, code))
     assert missing == []
 
+
+def test_every_kimchi_zone_supportmode_code_has_a_state_label():
+    """Same guard as the AC preset one above, for KIMCHI_ZONE's
+    kimchi_zone_mode select (fridge.py, issue #26): the write path resolved
+    from options_field is fully dynamic too, so an unlabelled supportMode
+    code across any /status/kimchi/<slot>/vs/0 resource would silently
+    render as its raw device token instead of the translated state.
+    """
+    state_labels = set(
+        _load("en")["entity"]["select"]["kimchi_zone_mode"]["state"]
+    )
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    missing = []
+    for path in sorted(fixtures_dir.glob("*_device.json")):
+        dump = json.loads(path.read_text())
+        for item in dump.get("device0", []):
+            href = item.get("href", "")
+            if not (href.startswith("/status/kimchi/") and href.endswith("/vs/0")):
+                continue
+            for code in item["rep"].get("x.com.samsung.da.supportMode", []):
+                if code.lower() not in state_labels:
+                    missing.append((path.name, href, code))
+    assert missing == []
+

@@ -675,7 +675,7 @@ DOOR_GENERIC = Capability(
 # ---------------------------------------------------------------------------
 
 def _kimchi_mode_write(p, rep, href=None):
-    if not href:
+    if not href or p not in (rep.get('x.com.samsung.da.supportMode') or ()):
         return None
     return [s for s in href.strip('/').split('/') if s], {
         'x.com.samsung.da.currentMode': p,
@@ -697,8 +697,7 @@ KIMCHI_ZONE = Capability(
         SensorDesc(key='ripening_status', field='x.com.samsung.da.ripeStatus',
                    use_instance_name=True, icon='mdi:progress-clock',
                    translation_key='kimchi_ripening_status',
-                   entity_category='diagnostic',
-                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
+                   entity_category='diagnostic'),
         SensorDesc(key='ripening_remaining', field='x.com.samsung.da.ripeRemaintime',
                    use_instance_name=True, icon='mdi:timer-sand',
                    translation_key='kimchi_ripening_remaining',
@@ -721,6 +720,13 @@ KIMCHI_DOOR_GENERIC = Capability(
     strip_prefix_in_key=True,
     poll_tier='hot',
     entities=(
+        # Not deduped against DOORS_FALLBACK below: on the one reporter
+        # (refrigerator_tp2x_ref_20k_kimchi) this binds alongside, the
+        # /doors/vs/0 aggregate carries a single generic item (id "4", no
+        # /door/<instance> siblings for DOORS_FALLBACK's match_fn to see)
+        # that doesn't share this compartment's "top" instance numbering --
+        # a distinct main-cabinet door, not this kimchi drawer's own contact
+        # switch reported twice.
         BinarySensorDesc(key='open', rep_fn=_door_open_state,
                          translation_key='instance_open',
                          use_instance_name=True, device_class='door'),

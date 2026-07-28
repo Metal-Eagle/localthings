@@ -241,24 +241,84 @@ class TestKimchiZone:
 
     def test_write_derives_path_from_href(self):
         desc = fridge.KIMCHI_ZONE.entities[0]
+        rep = {'x.com.samsung.da.supportMode': ['KIMCHI_STORAGE_COLD']}
         path, body = desc.write_fn(
-            'KIMCHI_STORAGE_COLD', {}, href='/status/kimchi/middle/vs/0')
+            'KIMCHI_STORAGE_COLD', rep, href='/status/kimchi/middle/vs/0')
         assert path == ['status', 'kimchi', 'middle', 'vs', '0']
         assert body == {'x.com.samsung.da.currentMode': 'KIMCHI_STORAGE_COLD'}
 
     def test_write_without_href_is_rejected(self):
         desc = fridge.KIMCHI_ZONE.entities[0]
-        assert desc.write_fn('KIMCHI_STORAGE_COLD', {}) is None
+        rep = {'x.com.samsung.da.supportMode': ['KIMCHI_STORAGE_COLD']}
+        assert desc.write_fn('KIMCHI_STORAGE_COLD', rep) is None
 
-    def test_ripening_status_is_lowercased(self):
+    def test_write_rejects_value_outside_supportmode(self):
+        """A value the compartment never advertised is rejected rather than
+        written blind -- this write path is unconfirmed against real
+        hardware (module docstring above KIMCHI_ZONE), so a bad value here
+        is a food-safety-adjacent outcome, not just a cosmetic one."""
+        desc = fridge.KIMCHI_ZONE.entities[0]
+        rep = {'x.com.samsung.da.supportMode': ['KIMCHI_STORAGE_COLD']}
+        assert desc.write_fn(
+            'KIMCHI_STORAGE_WARM', rep, href='/status/kimchi/middle/vs/0',
+        ) is None
+
+    def test_ripening_status_passes_through_device_value(self):
+        """No device_class='enum' catalog entry exists for this sensor, so
+        lowercasing it would only make the raw device token un-translatable
+        by HA -- pass the device's own casing straight through instead."""
         desc = next(e for e in fridge.KIMCHI_ZONE.entities if e.key == 'ripening_status')
-        assert desc.value_fn('Off') == 'off'
-        assert desc.value_fn(None) is None
+        assert desc.value_fn('Off') == 'Off'
 
     def test_door_reuses_open_state_helper(self):
         desc = fridge.KIMCHI_DOOR_GENERIC.entities[0]
         assert desc.rep_fn({'x.com.samsung.da.openState': 'Open'}) is True
         assert desc.rep_fn({'x.com.samsung.da.openState': 'Close'}) is False
+
+    async def test_zone_mode_select_round_trips_through_display_casing(self):
+        """kimchi_zone_mode's displayed value (lowercase, catalog-translated)
+        and the raw device code it writes back can silently drift apart --
+        this is the one place that casing conversion could break. Runs
+        through the real discovery/select pipeline against the tp2x_ref_20k
+        kimchi fixture rather than a hand-built descriptor, so it also
+        catches use_instance_name key derivation going wrong."""
+        from custom_components.localthings.registry.adapter import flatten
+        from custom_components.localthings.registry.by_type import refrigerator
+        from custom_components.localthings.registry.discovery import discover
+        from custom_components.localthings.registry.entities import SelectDesc
+        from custom_components.localthings.select import LocalThingsSelect
+        from tests.conftest import _load_device
+
+        resources = _load_device('refrigerator_tp2x_ref_20k_kimchi')
+        bound = discover(
+            resources, refrigerator.REGISTRY.capabilities,
+            refrigerator.REGISTRY.pattern_capabilities,
+        )
+        mode_bound = next(
+            b for b in bound
+            if isinstance(b.desc, SelectDesc) and b.href == '/status/kimchi/middle/vs/0'
+        )
+
+        class _FakeCoordinator:
+            device_serial = 'TEST-SERIAL'
+
+            def __init__(self, resources, data):
+                self.last_resources = resources
+                self.data = data
+                self.commands = []
+
+            async def async_send_command(self, bound, value):
+                self.commands.append(value)
+
+        coordinator = _FakeCoordinator(resources, flatten(bound, resources))
+        entity = LocalThingsSelect(coordinator, mode_bound)
+
+        assert entity.current_option == 'kimchi_storage_normal'
+        assert 'kimchi_storage_cold' in entity.options
+
+        await entity.async_select_option('kimchi_storage_cold')
+
+        assert coordinator.commands == ['KIMCHI_STORAGE_COLD']
 
 
 class TestArtik051AndTp2xFixturesHaveCompleteCoverage:

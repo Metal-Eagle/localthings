@@ -615,7 +615,7 @@ def test_registry_reproduces_golden_state_keys_for_microwave_me7500d():
     a standalone hood this board has no sibling `/power/0` or
     `/power/vs/0` resource, so fan.py's LocalThingsRangeHoodFan treats
     fan speed 0 as the off state instead of writing a separate power
-    resource -- see its `_has_separate_power` check. This board also has
+    resource -- see its `_speed_zero_is_off` check. This board also has
     no `/temperatures/vs/0` or `x.com.samsung.da.hood.autoOperation`
     field, unlike MW7300B, so `setpoint`/`current_temp_c` and
     `automatic_operation` are correctly absent here."""

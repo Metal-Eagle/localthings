@@ -98,12 +98,43 @@ async def test_power_write_falls_back_to_vendor_resource():
 # itself the off state.
 # ---------------------------------------------------------------------------
 
+def test_standalone_hood_has_separate_power():
+    """Explicit converse of the microwave case below: guards the
+    discriminator itself, not just its downstream effects, so a future
+    change to it fails loudly here instead of only via behavioral drift."""
+    entity = _entity(_load_device('range_hood'))
+    assert entity._has_separate_power() is True
+    assert entity._speed_zero_is_off() is False
+
+
 def test_microwave_vent_fan_has_no_separate_power_resource():
     resources = _load_device('microwave_me7500d')
     assert '/power/0' not in resources
     assert '/power/vs/0' not in resources
     entity = _microwave_entity(resources)
     assert entity._has_separate_power() is False
+    assert entity._speed_zero_is_off() is True
+
+
+async def test_combi_microwave_with_cavity_power_still_treats_zero_speed_as_fan_off():
+    """A combi over-the-range microwave can report a /power/0 resource for
+    the cavity while the vent fan still has no power resource of its own
+    (settableMinFanSpeed '0' -- same board shape as microwave_me7500d).
+    _speed_zero_is_off must key off the hood resource itself, not merely
+    "some power resource exists on this device", so turning the fan off
+    writes fan speed rather than the shared cavity power resource."""
+    resources = _load_device('microwave_me7500d')
+    resources['/power/0'] = {'value': True}
+    resources['/hood/fanspeed/vs/0']['x.com.samsung.da.hood.fanSpeed'] = '2'
+    coordinator = _FakeCoordinator(resources)
+    entity = _microwave_entity(resources, coordinator)
+
+    assert entity._has_separate_power() is True
+    assert entity._speed_zero_is_off() is True
+
+    await entity.async_turn_off()
+
+    assert coordinator.commands[-1][1] == ('speed', '0')
 
 
 def test_microwave_vent_fan_off_state_excludes_zero_from_speed_codes():
@@ -153,3 +184,37 @@ async def test_microwave_vent_fan_set_percentage_writes_speed_only():
     await entity.async_set_percentage(100)
 
     assert coordinator.commands == [(entity._bound, ('speed', '4'))]
+
+
+async def test_microwave_vent_fan_turn_on_with_percentage_writes_speed_directly():
+    resources = _load_device('microwave_me7500d')
+    coordinator = _FakeCoordinator(resources)
+    entity = _microwave_entity(resources, coordinator)
+
+    await entity.async_turn_on(percentage=75)
+
+    assert coordinator.commands == [(entity._bound, ('speed', '3'))]
+
+
+async def test_microwave_vent_fan_turn_on_without_percentage_when_already_on_is_a_noop():
+    """A scene or automation calling fan.turn_on on an already-running vent
+    fan must not reset it to the lowest speed."""
+    resources = _load_device('microwave_me7500d')
+    resources['/hood/fanspeed/vs/0']['x.com.samsung.da.hood.fanSpeed'] = '3'
+    coordinator = _FakeCoordinator(resources)
+    entity = _microwave_entity(resources, coordinator)
+
+    await entity.async_turn_on()
+
+    assert coordinator.commands == []
+
+
+async def test_microwave_vent_fan_set_percentage_zero_turns_off():
+    resources = _load_device('microwave_me7500d')
+    resources['/hood/fanspeed/vs/0']['x.com.samsung.da.hood.fanSpeed'] = '2'
+    coordinator = _FakeCoordinator(resources)
+    entity = _microwave_entity(resources, coordinator)
+
+    await entity.async_set_percentage(0)
+
+    assert coordinator.commands[-1][1] == ('speed', '0')
