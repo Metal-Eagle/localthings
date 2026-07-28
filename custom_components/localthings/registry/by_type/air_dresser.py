@@ -16,6 +16,7 @@ REGISTRY = DeviceRegistry(
         *common.POWER,
         air_dresser.AIR_DRESSER_SETTINGS,
         air_dresser.AIR_DRESSER_COURSE,
+        air_dresser.AIR_DRESSER_SANITIZE,
         laundry.JOB_BEGINNING_STATUS,
         operational.OPERATIONAL_STATE,
         dishwasher.DIAGNOSIS,

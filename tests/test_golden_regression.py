@@ -747,6 +747,27 @@ def test_registry_reproduces_golden_state_keys_for_air_dresser():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_air_dresser_tp2_20():
+    """DA_DF_TP2_20_COMMON AirDresser (model DF9500A, issue #157) -- a
+    different board generation than issue #162's DA_DF_A51_20_COMMON, also
+    routed via the '_DF_' modelNum fallback into the same air_dresser
+    registry. Unlike #162's board, this one populates /wm/editcourse/vs/0's
+    editCourseList directly (no supportedOptions fallback needed) and
+    reports two AirDresser-specific resources #162 doesn't have:
+    /st/airdressercourse/vs/0 (course table id, ignored.py) and
+    /airdresseroption/sanitize/vs/0 (air_dresser.AIR_DRESSER_SANITIZE).
+    Binds cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_dresser_tp2_20')
+    golden = json.loads((GOLDEN / 'air_dresser_tp2_20.json').read_text())
+    state_keys = _new_state_keys('air_dresser_tp2_20', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

@@ -107,6 +107,11 @@ IGNORED: list[Capability] = [
     # exposed by dryer.DRYER_COURSE at /course/vs/0
     # (x.com.samsung.da.st.dryerMode is "Table_03_Course_<same hex code>").
     Capability(href='/st/dryercourse/vs/0'),
+    # AirDresser counterpart of the above (issue #157): read only for its
+    # courseTable id (air_dresser.AIR_DRESSER_COURSE's table_href), no
+    # entity of its own -- same "no entity, just the table id" role as
+    # /st/washercourse/vs/0 and /st/dryercourse/vs/0.
+    Capability(href='/st/airdressercourse/vs/0'),
     # Empty on every washer dump seen so far.
     Capability(href='/wm/welcomemsg/vs/0'),
     # User-saved custom course slots (F1-FA). No controllable/observable
