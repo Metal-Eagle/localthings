@@ -15,7 +15,7 @@
               "quiet": "mdi:volume-off",
               "smart": "mdi:brain",
               "speed": "mdi:speedometer",
-              "nano": "mdi:weather-windy-variant",
+              "nano": "mdi:weather-dust",
               "nanosleep": "mdi:sleep",
               "longwind": "mdi:weather-windy",
               "motiondirect": "mdi:account-arrow-right",
@@ -35,7 +35,7 @@
               "smart": "mdi:brain",
               "max": "mdi:speedometer",
               "mid": "mdi:speedometer-medium",
-              "windfree": "mdi:weather-windy-variant",
+              "windfree": "mdi:weather-dust",
               "sleep": "mdi:sleep"
             }
           }
