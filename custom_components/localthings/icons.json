@@ -1,0 +1,61 @@
+{
+  "entity": {
+    "climate": {
+      "airconditioner": {
+        "state_attributes": {
+          "fan_mode": {
+            "state": {
+              "turbo": "mdi:speedometer",
+              "max": "mdi:speedometer"
+            }
+          },
+          "preset_mode": {
+            "state": {
+              "ai_comfort": "mdi:creation",
+              "quiet": "mdi:volume-off",
+              "smart": "mdi:brain",
+              "speed": "mdi:speedometer",
+              "nano": "mdi:weather-dust",
+              "nanosleep": "mdi:sleep",
+              "longwind": "mdi:weather-windy",
+              "motiondirect": "mdi:account-arrow-right",
+              "motionindirect": "mdi:account-arrow-left",
+              "drycomfort": "mdi:water-percent",
+              "2step": "mdi:stairs"
+            }
+          }
+        }
+      }
+    },
+    "fan": {
+      "air_purifier_fan": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "smart": "mdi:brain",
+              "max": "mdi:speedometer",
+              "mid": "mdi:speedometer-medium",
+              "windfree": "mdi:weather-dust",
+              "sleep": "mdi:sleep"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "machine_state": {
+        "state": {
+          "idle": "mdi:power-standby",
+          "active": "mdi:play",
+          "pause": "mdi:pause"
+        }
+      },
+      "connection_mode": {
+        "state": {
+          "observe": "mdi:broadcast",
+          "poll": "mdi:sync"
+        }
+      }
+    }
+  }
+}

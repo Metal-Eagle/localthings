@@ -7,18 +7,13 @@
     "alarm_code",
     "auto_clean",
     "beep",
-    "clean_level",
     "climate",
     "current_temperature_c",
     "diagnosis_status",
     "display_light",
-    "dust",
     "energy_kwh",
-    "fine_dust",
     "humidity",
-    "odor",
     "power_watts",
-    "super_fine_dust",
     "tropical_night_mode"
   ]
 }
