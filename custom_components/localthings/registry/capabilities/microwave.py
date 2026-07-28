@@ -112,8 +112,21 @@ def _power_level_watts(v):
     return int_or_none(s)
 
 
+def _cooking_mode_options(resources):
+    """Live mode list from the device's own /mode/vs/0 supportedModes when
+    it reports one (both known dumps do); the union-of-all-dumps
+    _MICROWAVE_MODES guess otherwise. Same live-first, static-fallback
+    pattern as oven._oven_mode_options -- a fixed list here would offer
+    users modes their own unit doesn't have (issue #152's ME7500D reports
+    only 4 of _MICROWAVE_MODES' 11)."""
+    rep = resources.get('/mode/vs/0') or {}
+    live = rep.get('x.com.samsung.da.supportedModes')
+    return list(live) if live else list(_MICROWAVE_MODES)
+
+
 def _mode_write(p, rep, href=None):
-    if p not in _MICROWAVE_MODES:
+    valid = rep.get('x.com.samsung.da.supportedModes') or _MICROWAVE_MODES
+    if p not in valid:
         return None
     return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [p]}
 
@@ -187,7 +200,7 @@ MICROWAVE_MODE = Capability(
         # SelectDesc first — test_microwave_mode_options_nonempty uses entities[0]
         SelectDesc(key='cooking_mode', field='x.com.samsung.da.modes',
                    icon='mdi:tune',
-                   options=_MICROWAVE_MODES,
+                   options=_cooking_mode_options,
                    value_fn=lambda v: v[0] if v else None,
                    write_fn=_mode_write),
         SwitchDesc(key='sound', field='x.com.samsung.da.options',

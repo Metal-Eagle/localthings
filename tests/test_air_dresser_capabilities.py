@@ -1,6 +1,6 @@
 """Tests for the AirDresser device type (DA_DF_A51_20_COMMON, issue #162)."""
 from custom_components.localthings.registry.adapter import flatten
-from custom_components.localthings.registry.by_type import air_dresser, for_device_by_model
+from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.discovery import discover
 
 from tests.conftest import _load_device

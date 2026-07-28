@@ -9,7 +9,7 @@ already. LocalThingsAirPurifierFan._label_for_code resolves both shapes
 without a per-model map.
 """
 from custom_components.localthings.fan import LocalThingsAirPurifierFan
-from custom_components.localthings.registry.by_type import air_purifier, for_device_by_model
+from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.capabilities.air_purifier import HREF_WIND_STRENGTH
 from custom_components.localthings.registry.discovery import discover
 from custom_components.localthings.registry.entities import FanDesc
@@ -89,3 +89,40 @@ async def test_set_preset_mode_writes_back_the_raw_code():
 def test_is_on_reads_vendor_power():
     entity = _entity(_resources())
     assert entity.is_on is False
+
+
+def test_wind_strength_fan_key_does_not_collide_with_mode_fan():
+    """WIND_STRENGTH_FAN and FAN both live in this registry and both are
+    FanDesc-typed; BoundEntity's unique_id is built from key alone (entity.py's
+    _key), not href, so a shared key would silently shadow one entity if a
+    board ever bound both (see AIRFLOW_GENERIC's own comment on this exact
+    hazard). No real dump reports both hrefs today, but the keys must stay
+    distinct regardless."""
+    from custom_components.localthings.registry.capabilities import air_purifier
+
+    fan_keys = {
+        entity.key
+        for cap in (air_purifier.FAN, air_purifier.WIND_STRENGTH_FAN)
+        for entity in cap.entities
+    }
+    assert fan_keys == {'fan', 'wind_strength_fan'}
+
+
+def test_both_fan_hrefs_bound_simultaneously_produce_distinct_entities():
+    """Synthetic combination (no real dump reports both hrefs) proving the
+    two FanDescs don't shadow each other in flatten()'s key-based state dict
+    even if a future board did report both."""
+    from custom_components.localthings.registry.adapter import flatten
+
+    resources = _resources()
+    resources['/mode/vs/0'] = {
+        'x.com.samsung.da.modes': ['Smart'],
+        'x.com.samsung.da.supportedModes': ['Smart', 'Max', 'Mid', 'WindFree', 'Sleep'],
+    }
+    reg = _reg(resources)
+    unbound = []
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+    state = flatten(bound, resources)
+    assert state['fan'] == 'Smart'
+    assert state['wind_strength_fan'] == '87'

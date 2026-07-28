@@ -120,9 +120,23 @@ def test_power_level_handles_missing_value():
 
 def test_microwave_mode_options_nonempty():
     desc = microwave.MICROWAVE_MODE.entities[0]
-    assert len(desc.options) > 0
-    assert 'MicroWave' in desc.options
-    assert 'AirFryer' in desc.options   # distinct spelling from oven.py's 'AirFry'
+    assert callable(desc.options)
+    options = desc.options({})
+    assert len(options) > 0
+    assert 'MicroWave' in options
+    assert 'AirFryer' in options   # distinct spelling from oven.py's 'AirFry'
+
+
+def test_microwave_mode_options_reads_live_supported_modes():
+    """issue #152's ME7500D reports only 4 of the 11 union-of-all-dumps
+    _MICROWAVE_MODES -- the live supportedModes list is used verbatim when
+    present, same live-first pattern as oven._oven_mode_options, instead of
+    offering users modes their own unit doesn't have."""
+    desc = microwave.MICROWAVE_MODE.entities[0]
+    resources = {'/mode/vs/0': {
+        'x.com.samsung.da.supportedModes': ['NoOperation', 'MicroWave', 'Autocook', 'KeepWarm'],
+    }}
+    assert desc.options(resources) == ['NoOperation', 'MicroWave', 'Autocook', 'KeepWarm']
 
 
 def test_microwave_mode_write_round_trips():
@@ -135,6 +149,19 @@ def test_microwave_mode_write_round_trips():
 def test_microwave_mode_rejects_unknown():
     desc = microwave.MICROWAVE_MODE.entities[0]
     assert desc.write_fn('SpaghettiMode', {}) is None
+
+
+def test_microwave_mode_write_validates_against_live_supported_modes():
+    """A device reporting its own supportedModes is validated against that
+    list, not the static union-of-all-dumps fallback -- 'AirFryer' is a
+    valid _MICROWAVE_MODES entry but must still be rejected for a unit
+    whose own supportedModes doesn't include it."""
+    desc = microwave.MICROWAVE_MODE.entities[0]
+    rep = {'x.com.samsung.da.supportedModes': ['NoOperation', 'MicroWave', 'Autocook', 'KeepWarm']}
+    path, body = desc.write_fn('MicroWave', rep)
+    assert path == ['mode', 'vs', '0']
+    assert body['x.com.samsung.da.modes'] == ['MicroWave']
+    assert desc.write_fn('AirFryer', rep) is None
 
 
 # ---------------------------------------------------------------------------

@@ -103,3 +103,32 @@ async def test_set_fan_mode_still_resolves_standard_scale_labels():
     await entity.async_set_fan_mode('auto')
 
     assert coordinator.commands[-1][1] == ('fan', '0')
+
+
+async def test_set_fan_mode_does_not_misroute_when_static_map_and_live_codes_collide():
+    """A board can use non-standard codes ('31'-'33') while modesName still
+    spells a standard-looking label ('Low'/'High') that _FAN_TO_DEVICE's
+    static reverse map also happens to have an entry for ('1'/'3') -- but
+    that entry is for a *different* code this unit never advertises at all.
+    Resolving the static hit without checking it against this unit's own
+    supportedModes would silently write a code the device doesn't have.
+    """
+    resources = _load_device(FIXTURE)
+    resources['/wind/strength/vs/0'] = {
+        'x.com.samsung.da.modes': '0',
+        'x.com.samsung.da.supportedModes': ['0', '31', '32', '33'],
+        'x.com.samsung.da.modesName': ['Auto', 'Low', 'High', 'Turbo'],
+    }
+    coordinator = _FakeCoordinator(resources)
+    entity = _climate(resources, coordinator)
+
+    assert entity.fan_modes == ['auto', 'low', 'high', 'turbo']
+
+    await entity.async_set_fan_mode('high')
+    assert coordinator.commands[-1][1] == ('fan', '32')
+
+    await entity.async_set_fan_mode('low')
+    assert coordinator.commands[-1][1] == ('fan', '31')
+
+    await entity.async_set_fan_mode('turbo')
+    assert coordinator.commands[-1][1] == ('fan', '33')

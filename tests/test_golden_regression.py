@@ -478,6 +478,12 @@ def test_registry_reproduces_golden_state_keys_for_induction_cooktop():
     resources = _load_device('induction_cooktop')
     golden = json.loads((GOLDEN / 'induction_cooktop.json').read_text())
     state_keys = _new_state_keys('induction_cooktop', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
 
 def test_registry_reproduces_golden_state_keys_for_range_no_info():
     """NE63B8411SS (issue #74) -- reports no oneUiVersion *and* no
@@ -661,6 +667,22 @@ def test_registry_reproduces_golden_state_keys_for_microwave_me7500d():
     resources = _load_device('microwave_me7500d')
     golden = json.loads((GOLDEN / 'microwave_me7500d.json').read_text())
     state_keys = _new_state_keys('microwave_me7500d', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_microwave_me7500d_lamp_high():
+    """Same TP1X_DA-KS-MICROWAVE-01051/ME7500D board as microwave_me7500d
+    above, but this live capture (issue #152) is the first to report a
+    non-Off Lamp token ('Lamp_High'). Locks in that the lamp switch reads
+    it as on rather than the previously-hardcoded 'On'-only comparison."""
+    from tests.conftest import _load_device
+    resources = _load_device('microwave_me7500d_lamp_high')
+    golden = json.loads((GOLDEN / 'microwave_me7500d_lamp_high.json').read_text())
+    state_keys = _new_state_keys('microwave_me7500d_lamp_high', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

@@ -268,19 +268,18 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
         Delegates the board-generation test to is_legacy_board (the same
         test capabilities/airconditioner.py's token entities are gated on)
-        instead of re-implementing it, via a minimal presence dict built
-        from the two hrefs it actually inspects -- cheaper than
-        last_resources' full snapshot copy, since is_legacy_board only
-        checks key membership.
+        instead of re-implementing it. Uses last_resources rather than a
+        two-key presence dict built from coordinator.resource()'s truthiness
+        -- resource() collapses "href absent" and "href present with an
+        empty {} rep" to the same falsy value, while is_legacy_board (and
+        discover()'s own binding) test key membership, not truthiness. A
+        presence dict built from truthiness alone would disagree with the
+        token entities on a board reporting a genuinely empty /airflow/vs/0,
+        silently reintroducing the drift this delegation exists to prevent.
         """
-        airflow = self.coordinator.resource(AIRFLOW_HREF)
-        wind_strength = self.coordinator.resource(WIND_STRENGTH_HREF)
-        presence = {}
-        if airflow:
-            presence[AIRFLOW_HREF] = airflow
-        if wind_strength:
-            presence[WIND_STRENGTH_HREF] = wind_strength
-        return airflow if is_legacy_board(presence) else {}
+        if not is_legacy_board(self.coordinator.last_resources):
+            return {}
+        return self.coordinator.resource(AIRFLOW_HREF) or {}
 
     def _legacy_preset(self) -> bool:
         """Whether presets come from the Comode_* token rather than a resource.
@@ -563,14 +562,19 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
                 await self.coordinator.async_send_command(
                     self._bound, ('fan_legacy', level))
             return
+        supported = self._supported(WIND_STRENGTH_HREF)
         device = _FAN_TO_DEVICE.get(fan_mode)
-        if device is None:
-            # fan_mode came from _wind_strength_label's dynamic path (issue
-            # #155) -- resolve back to the device's own code the same way
-            # async_set_preset_mode does for its dynamic codes.
+        # A static hit is only trustworthy if this unit's own supportedModes
+        # actually includes that code -- a board can use non-standard codes
+        # (issue #155's "31"-"35") while still spelling a standard label
+        # ("Low"/"High") in modesName, in which case _FAN_TO_DEVICE.get would
+        # return a plausible-looking code ('1'/'3') the device never
+        # advertised at all. Fall through to the live scan whenever the
+        # static guess isn't actually one of this unit's own codes.
+        if device is None or (supported and device not in supported):
             rep = self._rep(WIND_STRENGTH_HREF)
-            for code in self._supported(WIND_STRENGTH_HREF):
-                if code not in _DEVICE_TO_FAN and _wind_strength_label(code, rep) == fan_mode:
+            for code in supported:
+                if _wind_strength_label(code, rep) == fan_mode:
                     device = code
                     break
         if device is not None:
