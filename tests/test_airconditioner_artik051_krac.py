@@ -194,15 +194,19 @@ def test_preset_comes_from_the_comode_token():
     entity = _climate(resources)
     assert entity.preset_mode == 'none'       # Comode_Off in the fixture
     # Codes learned by driving this unit through its cloud integration and
-    # reading the token back: Nano is what the app calls WindFree.
-    assert 'windfree' in entity.preset_modes
+    # reading the token back. They go through the same dynamic resolver as a
+    # real convenient resource's supportedModes, so 'Nano' resolves to the
+    # existing 'nano' preset -- already labelled WindFree in the catalog.
+    assert entity.preset_modes == [
+        'none', 'nano', 'quiet', 'comfort', '2step', 'speed',
+    ]
 
     options = resources['/mode/vs/0']['x.com.samsung.da.options']
     resources['/mode/vs/0']['x.com.samsung.da.options'] = [
         'Comode_Nano' if option.startswith('Comode_') else option
         for option in options
     ]
-    assert _climate(resources).preset_mode == 'windfree'
+    assert _climate(resources).preset_mode == 'nano'
 
 
 async def test_preset_write_uses_the_token_path():
@@ -210,7 +214,7 @@ async def test_preset_write_uses_the_token_path():
     coordinator = _FakeCoordinator(resources)
     entity = _climate(resources, coordinator)
 
-    await entity.async_set_preset_mode('windfree')
+    await entity.async_set_preset_mode('nano')
 
     assert coordinator.commands[-1][1] == ('preset_legacy', 'Nano')
 
@@ -224,7 +228,7 @@ async def test_newer_boards_keep_the_resource_paths():
 
     await entity.async_set_fan_mode('high')
     await entity.async_set_swing_mode('off')
-    await entity.async_set_preset_mode('windfree')
+    await entity.async_set_preset_mode('quiet')   # from its own supportedModes
 
     kinds = [payload[0] for _, payload in coordinator.commands]
     assert kinds == ['fan', 'swing', 'preset']
