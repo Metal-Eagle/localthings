@@ -193,6 +193,9 @@
       "ai_energy_level": {
         "name": "Niveau AI Energy Mode"
       },
+      "air_dresser_cycle": {
+        "name": "Cyclus"
+      },
       "beverage_zone_mode": {
         "name": "Modus drankenzone",
         "state": {

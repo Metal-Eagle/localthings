@@ -730,6 +730,23 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_rac_01001
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_air_dresser():
+    """DA_DF_A51_20_COMMON AirDresser (model DF8600T, issue #162) -- reports
+    no oneUiVersion; resolved via the '_DF_' modelNum token fallback. Has no
+    /wm/editcourse/vs/0 at all, so the course select's option list comes
+    entirely from laundry.cycle_options' supportedOptions fallback. Binds
+    cleanly against the new air_dresser registry with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_dresser')
+    golden = json.loads((GOLDEN / 'air_dresser.json').read_text())
+    state_keys = _new_state_keys('air_dresser', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

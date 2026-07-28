@@ -3,9 +3,9 @@ from typing import Optional
 
 from ._base import DeviceRegistry
 from . import (
-    air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
-    induction_cooktop, microwave, oven, range as _range, range_hood,
-    refrigerator, vacuum_station, washer, water_purifier,
+    air_dresser, air_purifier, airconditioner, cooktop, dehumidifier,
+    dishwasher, dryer, induction_cooktop, microwave, oven, range as _range,
+    range_hood, refrigerator, vacuum_station, washer, water_purifier,
 )
 
 __all__ = [
@@ -15,6 +15,7 @@ __all__ = [
 
 
 _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
+    'air_dresser': air_dresser.REGISTRY,
     'air_purifier': air_purifier.REGISTRY,
     'airpurifier': air_purifier.REGISTRY,
     'airconditioner': airconditioner.REGISTRY,
@@ -270,6 +271,14 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # station state) shares no hrefs with anything else already modeled.
     if key is None and '-VSKR-' in (model_num or '').upper():
         key = 'vacuum_station'
+    # AirDresser (e.g. DA_DF_A51_20_COMMON, issue #162) -- reports no
+    # oneUiVersion and carries the '_DF_' (Dresser Function) board-family
+    # token. Every resource it exposes (course select, wrinkle-prevent
+    # setting, diagnosis) is already handled by the shared laundry
+    # machinery; it needs its own device type only because none of the
+    # washer/dryer/dishwasher consumer-model prefixes below match it.
+    if key is None and '_DF_' in (model_num or ''):
+        key = 'air_dresser'
     # Consumer-model prefix from `description` (washer/dryer/dishwasher) --
     # last, since it's the fuzziest match (a bare 2-letter prefix) and would
     # otherwise shadow the more specific board-family tokens above.
