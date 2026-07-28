@@ -674,56 +674,42 @@ def test_air_quality_sensors_from_sensors_vs_items():
     by a top-level cleanLevel scalar, so it's an int measurement; the others
     are string diagnostics. Dust/FineDust/SuperFineDust carry a 2-element
     array whose second element is unconfirmed -- v[0] is taken as the reading
-    (see _sensor_item_value). Exercised on tp1x_da_ac_rac_01011, the fixture
-    proven real by the corroborating scalar (see
-    test_air_quality_present_with_corroborating_clean_level_scalar) --
-    windfree no longer applies here post-#166 fix, since it lacks that
-    scalar and binds no air-quality entities at all."""
-    reg, resources = _ac_tp1x()
-    state = flatten(
-        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
-    assert state['clean_level'] == 1           # numeric (int), corroborated
-    for key in ('dust', 'fine_dust', 'super_fine_dust'):
-        assert state[key] == '0'               # string diagnostic
-
-
-def test_air_quality_absent_without_corroborating_clean_level_scalar():
-    """Issue #166 (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K): /sensors/vs/0
-    lists all five item types, values permanently '0'/['0', '0'] -- the exact
-    same shape as the WindFree fixture, which is the *same board revision*
-    (see /information/vs/0: both report modelNum
-    'ARTIK051_PRAC_20K|10217841|...') that this capability was originally
-    verified against. The reporter confirmed none of these sensors are
-    physically present on their unit, which means that original
-    "verification" never actually proved a real sensor either -- item-type
-    presence is Samsung's OCF scaffolding, not a capability signal (see
-    _has_sensor_type). The tell that's actually reliable: a top-level
-    x.com.samsung.da.cleanLevel scalar (separate from the CleanLevel item),
-    present only alongside genuinely populated readings on every dump on
-    record. WindFree lacks it -- so post-fix, none of the five entities
-    should bind there at all, matching the #166 report."""
+    (see _sensor_item_value)."""
     reg, resources = _ac_windfree()
     state = flatten(
         discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
-    assert 'x.com.samsung.da.cleanLevel' not in resources['/sensors/vs/0']
+    assert state['clean_level'] == 0           # numeric (int), corroborated
+    for key in ('odor', 'dust', 'fine_dust', 'super_fine_dust'):
+        assert state[key] == '0'               # string diagnostic
+    # tp1x_da_ac_rac_01011 is the only fixture with a non-zero air-quality
+    # reading -- the one that catches a value_fn regression.
+    reg2, resources2 = _ac_tp1x()
+    state2 = flatten(
+        discover(resources2, reg2.capabilities, reg2.pattern_capabilities), resources2)
+    assert state2['clean_level'] == 1
+
+
+def test_air_quality_disabled_by_default():
+    """Issue #166 (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K): /sensors/vs/0
+    lists all five item types with permanent zero values on both its units --
+    the exact same shape as the WindFree/issue #17 dumps this capability was
+    first verified against -- yet the reporter confirmed none of these
+    sensors are physically present on their model.
+
+    A tighter exists_fn (requiring a corroborating top-level
+    x.com.samsung.da.cleanLevel scalar) was tried and reverted: it looked
+    like a real signal against this repo's AC fixtures, but
+    air_purifier_device.json, air_purifier_vtww_device.json, and
+    range_hood_device.json all carry genuinely populated Dust/FineDust/
+    SuperFineDust readings with no such scalar, so requiring it would
+    silently drop real readings on hardware this repo hasn't seen yet on an
+    AC. These stay bound whenever the item type is listed (see
+    _has_sensor_type) and disabled by default instead, same precedent as
+    fridge.rack_count / cooktop.paired_hood_model / tropical_night_mode --
+    units that do have the sensor can enable it themselves."""
     for key in ('clean_level', 'odor', 'dust', 'fine_dust', 'super_fine_dust'):
-        assert key not in state, key
-
-
-def test_air_quality_present_with_corroborating_clean_level_scalar():
-    """tp1x_da_ac_rac_01011 carries the top-level cleanLevel scalar alongside
-    a genuinely populated CleanLevel reading -- the one fixture in this repo
-    proven real rather than placeholder, so its air-quality entities must
-    still bind post-fix. It has no Odor item at all (unrelated to the scalar
-    gate -- item-type absence, not zero-value ambiguity)."""
-    reg, resources = _ac_tp1x()
-    assert resources['/sensors/vs/0']['x.com.samsung.da.cleanLevel'] == '1'
-    state = flatten(
-        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
-    assert state['clean_level'] == 1
-    for key in ('dust', 'fine_dust', 'super_fine_dust'):
-        assert key in state
-    assert 'odor' not in state
+        desc = next(e for e in airconditioner.AIR_QUALITY.entities if e.key == key)
+        assert desc.enabled_default is False, key
 
 
 def test_air_quality_absent_when_no_sensor_items():

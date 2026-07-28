@@ -5,8 +5,13 @@
         "state_attributes": {
           "fan_mode": {
             "state": {
-              "turbo": "mdi:speedometer",
-              "max": "mdi:speedometer"
+              "1": "mdi:fan-speed-1",
+              "2": "mdi:fan-speed-1",
+              "3": "mdi:fan-speed-2",
+              "4": "mdi:fan-speed-3",
+              "5": "mdi:fan-speed-3",
+              "turbo": "mdi:fan-speed-3",
+              "max": "mdi:fan-speed-3"
             }
           },
           "preset_mode": {
@@ -18,8 +23,8 @@
               "nano": "mdi:weather-dust",
               "nanosleep": "mdi:sleep",
               "longwind": "mdi:weather-windy",
-              "motiondirect": "mdi:account-arrow-right",
-              "motionindirect": "mdi:account-arrow-left",
+              "motiondirect": "mdi:account-arrow-left",
+              "motionindirect": "mdi:account-arrow-right",
               "drycomfort": "mdi:water-percent",
               "2step": "mdi:stairs"
             }
@@ -33,8 +38,8 @@
           "preset_mode": {
             "state": {
               "smart": "mdi:brain",
-              "max": "mdi:speedometer",
-              "mid": "mdi:speedometer-medium",
+              "max": "mdi:fan-speed-3",
+              "mid": "mdi:fan-speed-2",
               "windfree": "mdi:weather-dust",
               "sleep": "mdi:sleep"
             }

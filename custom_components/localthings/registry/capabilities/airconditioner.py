@@ -128,27 +128,25 @@ def _sensor_item_value(items, type_):
 
 
 def _has_sensor_type(type_):
-    """Item-type presence AND a corroborating top-level
-    x.com.samsung.da.cleanLevel scalar on the same /sensors/vs/0 rep.
+    """True when the /sensors/vs/0 items[] array lists an item of this type.
 
-    Item-type presence alone isn't a real capability signal: issue #166
-    (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K) lists all five item types with
-    permanent zero values on both its units, the same shape as this repo's
-    other ARTIK051_PRAC_20K dumps (the original issue #17 dump and the
-    windfree fixture -- verified against the *same* board revision, per its
-    /information/vs/0) -- yet the #166 reporter confirmed none of these
-    sensors are physically present. The top-level cleanLevel scalar (separate
-    from the CleanLevel item inside items[]) is only ever present alongside
-    genuinely populated readings in every dump on record: present on
-    tp1x_da_ac_rac_01011 (real AC, clean_level=1) and the tp1x_da_ac_air air
-    purifier fixture (all five types real/nonzero), absent on every
-    ARTIK051_PRAC_20K dump (all zero, including both #166 units). A small
-    sample, but a consistent one and the only signal found that actually
-    explains the #166 report -- gate on it rather than leaving the always-
-    present item type to imply a capability that may not exist."""
+    This proves the type is *listed*, not that the reading is real: issue
+    #166 (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K) lists all five item types
+    with permanent zero values on both its units, and the reporter confirmed
+    none of these sensors are physically present. A top-level
+    x.com.samsung.da.cleanLevel scalar (separate from the CleanLevel item)
+    looked like a corroborating "this reading is real" signal at first --
+    present alongside genuinely populated readings on tp1x_da_ac_rac_01011
+    and the tp1x_da_ac_air air purifier fixture, absent on every all-zero
+    ARTIK051_PRAC_20K dump including both #166 units -- but it doesn't hold
+    up as a general rule: air_purifier_device.json (ARTIK051_TVTL_18K),
+    air_purifier_vtww_device.json, and range_hood_device.json all carry
+    genuinely populated, non-AC-family Dust/FineDust/SuperFineDust readings
+    with no such scalar. So this stays item-type presence only -- the
+    entities are disabled by default instead (see AIR_QUALITY below) rather
+    than existence-gated on a signal that would silently drop real readings
+    on hardware this repo hasn't seen yet."""
     def fn(rep, resources):
-        if 'x.com.samsung.da.cleanLevel' not in rep:
-            return False
         return any(isinstance(i, dict) and i.get('x.com.samsung.da.type') == type_
                    for i in (rep.get('x.com.samsung.da.items') or []))
     return fn
@@ -737,20 +735,18 @@ HUMIDITY = Capability(
 # diagnostics (see _sensor_item_value for the 2-element ambiguity and why only
 # v[0] is taken). No unit is advertised on the resource, so no device_class.
 #
-# _has_sensor_type requires that same top-level cleanLevel scalar, not just
-# item-type presence: issue #166 (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K)
-# reports all five item types on both its units, values permanently
-# '0'/['0','0'] -- the exact same shape as the issue #17 dump AIR_QUALITY was
-# first verified against and the WindFree fixture (see
-# test_air_quality_sensors_from_sensors_vs_items) -- both the *same board
-# revision* per /information/vs/0, so that "verification" never actually
-# proved a real sensor either. Item-type presence alone is Samsung's OCF
-# scaffolding listing every known sensor type regardless of physical
-# capability, not a capability signal. The top-level scalar is: it's present,
-# with genuinely populated readings, on every dump with a confirmed-real
-# sensor (tp1x_da_ac_rac_01011, and the tp1x_da_ac_air air purifier fixture),
-# and absent on every all-zero ARTIK051_PRAC_20K dump on record, including
-# both #166 units. Gate on it.
+# exists_fn (_has_sensor_type) only proves the item *type* is listed, not
+# that the unit actually carries that sensor: issue #166 (ARxxTXFCAWKNEU,
+# board ARTIK051_PRAC_20K) reports all five item types on both its units,
+# values permanently '0'/['0','0'] -- yet the reporter confirmed none apply
+# to their model. A tighter existence gate was tried (requiring the
+# corroborating cleanLevel scalar above) but doesn't hold up as a general
+# rule -- see _has_sensor_type's docstring -- and risks silently dropping
+# real readings on hardware that reports them without that scalar. So these
+# stay bound whenever the type is listed, same as before #166, and disabled
+# by default instead (same precedent as fridge.rack_count /
+# cooktop.paired_hood_model / this file's own tropical_night_mode): units
+# that do have the sensor can enable it themselves.
 AIR_QUALITY = Capability(
     href='/sensors/vs/0',
     poll_tier='cold',
@@ -759,11 +755,13 @@ AIR_QUALITY = Capability(
                    icon='mdi:broom', entity_category='diagnostic',
                    state_class='measurement',
                    exists_fn=_has_sensor_type('CleanLevel'),
+                   enabled_default=False,
                    value_fn=lambda items: _int(_sensor_item_value(items, 'CleanLevel'))),
         *tuple(
             SensorDesc(key=key, field='x.com.samsung.da.items',
                        icon=icon, entity_category='diagnostic',
                        exists_fn=_has_sensor_type(type_),
+                       enabled_default=False,
                        value_fn=lambda items, t=type_: _sensor_item_value(items, t))
             for key, icon, type_ in (
                 ('odor', 'mdi:weather-windy', 'Odor'),
