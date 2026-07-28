@@ -52,14 +52,13 @@ SETPOINT_STEP_F = 5
 # from Samsung documentation and firmware observations. The firmware will
 # reject unknown modes; missing entries here are a coverage gap, not a bug.
 #
+# This is a fallback only, used when a device's own /mode/vs/0 doesn't report
+# x.com.samsung.da.supportedModes at all -- see _oven_mode_options/
+# _oven_mode_write below. issue #138's range dump (NE63A6511SS/AA) reports
 # ConvectionRoast/KeepWarm/BreadProof/AirFryer/Dehydrate/SelfClean/SteamClean
-# are confirmed against issue #138's range dump (NE63A6511SS/AA) -- its
-# /mode/vs/0 supportedModes lists all of them, and the range family shares
-# this select via range.py reusing oven.OVEN_MODE wholesale. 'AirFryer' is
-# kept alongside 'AirFry' rather than replacing it -- the NV7000BS-class
-# dump this list was originally inferred from spells it without the
-# trailing 'er', and neither model's actual token is independently
-# confirmed, so both are treated as real device-reported spellings.
+# in its own supportedModes; those are read live rather than added here, per
+# the adding-device-support skill's preference for device-reported option
+# lists over hardcoded ones.
 _OVEN_MODES = (
     'NoOperation',
     'Bake',
@@ -67,17 +66,10 @@ _OVEN_MODES = (
     'Convection',
     'ConvectionBake',
     'ConvectionBroil',
-    'ConvectionRoast',
     'FrozenPizzaPlus',
     'SlowCook',
     'PlateWarm',
     'AirFry',
-    'AirFryer',
-    'KeepWarm',
-    'BreadProof',
-    'Dehydrate',
-    'SelfClean',
-    'SteamClean',
 )
 
 _SAMSUNG_STATE_TO_OCF = {
@@ -189,8 +181,20 @@ def _cook_time_write(p, rep, href=None):
     }
 
 
+def _oven_mode_options(resources):
+    """Live mode list from the device's own /mode/vs/0 supportedModes when
+    it reports one; the NV7000BS-era _OVEN_MODES guess otherwise. Mirrors
+    laundry.py's options_field pattern (buzzer_sound/finish_sound), but
+    needs the callable form rather than options_field because a static
+    fallback has to kick in when the device's own field is absent."""
+    rep = resources.get('/mode/vs/0') or {}
+    live = rep.get('x.com.samsung.da.supportedModes')
+    return list(live) if live else list(_OVEN_MODES)
+
+
 def _oven_mode_write(p, rep, href=None):
-    if p not in _OVEN_MODES:
+    valid = rep.get('x.com.samsung.da.supportedModes') or _OVEN_MODES
+    if p not in valid:
         return None
     return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [p]}
 
@@ -367,7 +371,7 @@ OVEN_MODE = Capability(
         # SelectDesc first — test_oven_mode_options_nonempty uses entities[0]
         SelectDesc(key='oven_mode', field='x.com.samsung.da.modes',
                    icon='mdi:tune',
-                   options=_OVEN_MODES,
+                   options=_oven_mode_options,
                    value_fn=lambda v: v[0] if v else None,
                    write_fn=_oven_mode_write),
         SwitchDesc(key='lamp', field='x.com.samsung.da.options',

@@ -1,8 +1,9 @@
 """Tests for the NE63A6511SS/AA range (issue #138) -- same no-/information/vs/0,
 no-burner-status shape as issue #74's NE63B8411SS, confirming the existing
 range_no_info detection path still resolves this model with zero unbound
-hrefs, plus the ConvectionRoast/KeepWarm/BreadProof/AirFryer/Dehydrate/
-SelfClean/SteamClean modes this dump's supportedModes adds to oven.OVEN_MODE."""
+hrefs, plus oven.OVEN_MODE reading this dump's ConvectionRoast/KeepWarm/
+BreadProof/AirFryer/Dehydrate/SelfClean/SteamClean modes live from its own
+/mode/vs/0 supportedModes rather than needing them hardcoded."""
 from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import for_device_by_resources
 from custom_components.localthings.registry.capabilities import oven
@@ -48,14 +49,20 @@ def test_expected_entities_present():
 def test_oven_mode_accepts_this_devices_supported_modes():
     """This dump's /mode/vs/0 supportedModes reports ConvectionRoast,
     KeepWarm, BreadProof, AirFryer, Dehydrate, SelfClean, and SteamClean --
-    none of which were in oven._OVEN_MODES before issue #138, so writes to
-    them were silently rejected even though the device advertises them."""
+    none of which were in the static oven._OVEN_MODES fallback, so a
+    hardcoded write-validation list would've silently rejected them even
+    though the device itself advertises them. write_fn reads supportedModes
+    off the live rep (the same one it's called with in production -- see
+    coordinator.py's async_send_command), so this passes without needing
+    those modes added to any Python list."""
+    _, resources = _range()
+    live_rep = resources['/mode/vs/0']
     desc = oven.OVEN_MODE.entities[0]
-    rep = {'x.com.samsung.da.modes': ['NoOperation']}
+    assert desc.options(resources) == live_rep['x.com.samsung.da.supportedModes']
     for mode in (
         'ConvectionRoast', 'KeepWarm', 'BreadProof', 'AirFryer',
         'Dehydrate', 'SelfClean', 'SteamClean',
     ):
-        path, body = desc.write_fn(mode, rep)
+        path, body = desc.write_fn(mode, live_rep)
         assert path == ['mode', 'vs', '0']
         assert body['x.com.samsung.da.modes'] == [mode]
