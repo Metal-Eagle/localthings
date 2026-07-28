@@ -26,6 +26,36 @@
           }
         }
       }
+    },
+    "fan": {
+      "air_purifier_fan": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "smart": "mdi:brain",
+              "max": "mdi:speedometer",
+              "mid": "mdi:speedometer-medium",
+              "windfree": "mdi:weather-windy-variant",
+              "sleep": "mdi:sleep"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "machine_state": {
+        "state": {
+          "idle": "mdi:power-standby",
+          "active": "mdi:play",
+          "pause": "mdi:pause"
+        }
+      },
+      "connection_mode": {
+        "state": {
+          "observe": "mdi:broadcast",
+          "poll": "mdi:sync"
+        }
+      }
     }
   }
 }
