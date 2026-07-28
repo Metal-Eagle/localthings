@@ -191,6 +191,27 @@ def test_registry_reproduces_golden_state_keys_for_tp1x_ref_21k_us():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_tp1x_ref_21k_eu():
+    """TP1X_REF_21K, EU region variant (issue #165) -- self-reports
+    oneUiVersion "7.0 Refrigerator" like the US variant, but additionally
+    carries /rm/control/vs/0 (a bare resource-monitoring poll-interval
+    config, added to the global ignore list) that the US dump doesn't
+    report at all. Door sensors (the reporter's actual ask) were already
+    covered by fridge.DOOR_GENERIC/DOORS_FALLBACK -- this href was the only
+    gap keeping the coverage repair open."""
+    from tests.conftest import _load_device
+    resources = _load_device('refrigerator_tp1x_ref_21k_eu')
+    golden = json.loads(
+        (GOLDEN / 'refrigerator_tp1x_ref_21k_eu.json').read_text()
+    )
+    state_keys = _new_state_keys('refrigerator_tp1x_ref_21k_eu', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_range_hood():
     from tests.conftest import _load_device
     resources = _load_device('range_hood')

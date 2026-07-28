@@ -53,6 +53,10 @@ IGNORED: list[Capability] = [
     Capability(href='/setting/vs/0'),          # supported/selected UI language
     Capability(href='/timezone/vs/0'),         # redundant with HA's own timezone
     Capability(href='/wm/setinfo/vs/0'),       # model/manufacturing metadata
+    # Resource-monitoring poll-interval config (a bare minPeriod in
+    # milliseconds, issue #165's TP1X_REF_21K fridge) -- internal transport
+    # plumbing, not appliance state.
+    Capability(href='/rm/control/vs/0'),
 
     # Demand Response Load Control — utility-company grid signals; requires
     # cloud registration with a utility program we don't support locally.

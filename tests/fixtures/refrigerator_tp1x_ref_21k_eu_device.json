@@ -1,0 +1,470 @@
+{
+  "device0": [
+    {
+      "rt": [
+        "x.com.samsung.devcol",
+        "oic.wk.col"
+      ],
+      "if": [
+        "oic.if.baseline",
+        "oic.if.ll",
+        "oic.if.b"
+      ]
+    },
+    {
+      "href": "/alarms/vs/0",
+      "rep": {
+        "rt": [
+          "x.com.samsung.da.alarms"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/cabinet/light/enhanced/vs/0",
+      "rep": {
+        "light.control.status": "Off",
+        "level.brightness.daytime": "100",
+        "level.brightness.nighttime": "100",
+        "night.starttime": "2025-08-08T19:00:00",
+        "night.duration.minute": "540",
+        "timezone.offset": "+02:00",
+        "rt": [
+          "x.com.samsung.da.light.enhanced"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/cabinet/light/total/vs/0",
+      "rep": {
+        "x.com.samsung.da.lightLevel": "100",
+        "x.com.samsung.da.lightResolution": "3",
+        "x.com.samsung.da.lightControl.off.include": "Off",
+        "x.com.samsung.da.lightControl": "Off",
+        "x.com.samsung.da.lightControl.hide": "true",
+        "light.dimming.status": "On",
+        "rt": [
+          "x.com.samsung.da.cabinetlight"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/configuration/vs/0",
+      "rep": {
+        "x.com.samsung.da.region": "",
+        "x.com.samsung.da.countryCode": ""
+      }
+    },
+    {
+      "href": "/connectionconfig/vs/0",
+      "rep": {
+        "autoReconnectionMinVersion": "1.0",
+        "autoReconnection": "true",
+        "autoReconnectionProtocolType": [
+          "helper_hotspot",
+          "ble_ocf"
+        ],
+        "supportedWiFiAuthType": [
+          "OPEN",
+          "WEP",
+          "WPA-PSK",
+          "WPA2-PSK",
+          "SAE"
+        ],
+        "supportedWiFiCryptoType": [
+          "TKIP",
+          "AES",
+          "WEP-64",
+          "WEP-128"
+        ],
+        "supportedWiFiFreq": [
+          "2.4G"
+        ],
+        "calmConnectionCare": {
+          "version": "1.0",
+          "role": [
+            "things"
+          ]
+        }
+      }
+    },
+    {
+      "href": "/dginformation/vs/0",
+      "rep": {
+        "enrolmentstatus": "Unknown",
+        "devicestate": "Unknown",
+        "lockstatus": "Unknown",
+        "nextduedate": "",
+        "workingminutes": 0,
+        "paymentinfo": {
+          "emiplan": "Unknown",
+          "currency": "Unknown",
+          "totalemi": 0,
+          "totalemipaid": 0
+        }
+      }
+    },
+    {
+      "href": "/door/cooler/0",
+      "rep": {
+        "openState": "Close",
+        "rt": [
+          "oic.r.door"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.s"
+        ]
+      }
+    },
+    {
+      "href": "/door/freezer/0",
+      "rep": {
+        "openState": "Close",
+        "rt": [
+          "oic.r.door"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.s"
+        ]
+      }
+    },
+    {
+      "href": "/doors/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.openState": "Close",
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Door"
+          },
+          {
+            "x.com.samsung.da.openState": "Close",
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Door"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/drlc/vs/0",
+      "rep": {
+        "x.com.samsung.da.drlcLevel": "0",
+        "x.com.samsung.da.override": "Not_Supported",
+        "x.com.samsung.da.durationminutes": "0",
+        "x.com.samsung.da.realSaving": "Off"
+      }
+    },
+    {
+      "href": "/energy/ailevel/vs/0",
+      "rep": {
+        "aiLevel": "1",
+        "supportedAiLevel": [
+          "1",
+          "2"
+        ]
+      }
+    },
+    {
+      "href": "/energy/consumption/vs/0",
+      "rep": {
+        "x.com.samsung.da.cumulativeConsumption": "281",
+        "x.com.samsung.da.instantaneousPower": "48",
+        "x.com.samsung.da.cumulativePower": "216620",
+        "x.com.samsung.da.cumulativeSavedPower": "0",
+        "x.com.samsung.da.cumulativeUnit": "Wh",
+        "x.com.samsung.da.instantaneousPowerUnit": "W"
+      }
+    },
+    {
+      "href": "/file/information/vs/0",
+      "rep": {
+        "x.com.samsung.timeoffset": "+01:00",
+        "x.com.samsung.supprtedtype": 1
+      }
+    },
+    {
+      "href": "/information/vs/0",
+      "rep": {
+        "x.com.samsung.da.modelNum": "TP1X_REF_21K|00175941|00050126001811344100000020090000",
+        "x.com.samsung.da.description": "TP1X_REF_21K",
+        "x.com.samsung.da.serialNum": "REDACTED",
+        "x.com.samsung.da.otnDUID": "REDACTED",
+        "x.com.samsung.da.diagDumpType": "file",
+        "x.com.samsung.da.diagEndPoint": "SSM",
+        "x.com.samsung.da.diagLogType": [
+          "errCode",
+          "dump"
+        ],
+        "x.com.samsung.da.diagMnid": "0AJT",
+        "x.com.samsung.da.diagSetupid": "RB2",
+        "x.com.samsung.da.diagProtocolType": "BLE_OCF",
+        "x.com.samsung.da.diagMinVersion": "3.0",
+        "x.com.samsung.da.diagTsId": "DA01",
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "WiFi Module",
+            "x.com.samsung.da.type": "Software",
+            "x.com.samsung.da.number": "260617",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Micom",
+            "x.com.samsung.da.type": "Firmware",
+            "x.com.samsung.da.number": "24070109, FFFFFFFF, 24062000, FFFFFFFF",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/mode/vs/0",
+      "rep": {
+        "x.com.samsung.da.modes": [
+          "RVACATION_OFF",
+          "FCONVERT_FREEZER"
+        ],
+        "x.com.samsung.da.supportedModes": [
+          "HOMECARE_WIZARD_V2",
+          "ENERGY_REPORT_MODEL",
+          "18K_REF_OUTDOOR_CONTROL_V2"
+        ],
+        "rt": [
+          "x.com.samsung.da.mode"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/otninformation/vs/0",
+      "rep": {
+        "x.com.samsung.da.target": "",
+        "x.com.samsung.da.newVersionAvailable": "false",
+        "otnStatus": "None",
+        "flashingProgress": "0",
+        "otnCompleteDate": "noHistory",
+        "scheduledTime": "None",
+        "swVersionInfo": {
+          "platform": "Tizen Lite",
+          "oneUiVersion": "7.0 Refrigerator",
+          "osVersion": "4.0"
+        },
+        "otnList": []
+      }
+    },
+    {
+      "href": "/quickcontrol/info/vs/0",
+      "rep": {
+        "supportedVersion": "1.0"
+      }
+    },
+    {
+      "href": "/realtimenotiforclient/vs/0",
+      "rep": {
+        "x.com.samsung.da.timeforshortnoti": "0",
+        "x.com.samsung.da.periodicnotisubscription": "true"
+      }
+    },
+    {
+      "href": "/refrigeration/vs/0",
+      "rep": {
+        "x.com.samsung.da.rapidFridge": "Off",
+        "x.com.samsung.da.rapidFreezing": "Off",
+        "rt": [
+          "x.com.samsung.da.fridge"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/rm/control/vs/0",
+      "rep": {
+        "minPeriod": "9000"
+      }
+    },
+    {
+      "href": "/runningmode/vs/0",
+      "rep": {
+        "x.com.samsung.da.runningMode": 0
+      }
+    },
+    {
+      "href": "/selfcheck/vs/0",
+      "rep": {
+        "x.com.samsung.da.supportedActions": [
+          "Start"
+        ],
+        "x.com.samsung.da.status": "Ready",
+        "x.com.samsung.da.result": "Success",
+        "x.com.samsung.da.error": [
+          "ErrorCode_None"
+        ]
+      }
+    },
+    {
+      "href": "/settings/sound/alert/door/vs/0",
+      "rep": {
+        "alert.door": "1",
+        "supportedAlert.door": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "rt": [
+          "x.com.samsung.alert.door"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/status/lock/vs/0",
+      "rep": {
+        "x.com.samsung.da.device.sound": "Off",
+        "rt": [
+          "x.com.samsung.da.lockstatus"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/temperature/current/cooler/0",
+      "rep": {
+        "temperature": 6.0,
+        "range": [
+          1.0,
+          7.0
+        ],
+        "units": "C",
+        "rt": [
+          "oic.r.temperature"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/temperature/current/freezer/0",
+      "rep": {
+        "temperature": -17.0,
+        "range": [
+          -23.0,
+          -15.0
+        ],
+        "units": "C",
+        "rt": [
+          "oic.r.temperature"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/temperature/desired/cooler/0",
+      "rep": {
+        "temperature": 6.0,
+        "range": [
+          1.0,
+          7.0
+        ],
+        "units": "C",
+        "rt": [
+          "oic.r.temperature"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/temperature/desired/freezer/0",
+      "rep": {
+        "temperature": -17.0,
+        "range": [
+          -23.0,
+          -15.0
+        ],
+        "units": "C",
+        "rt": [
+          "oic.r.temperature"
+        ],
+        "if": [
+          "oic.if.baseline",
+          "oic.if.a"
+        ]
+      }
+    },
+    {
+      "href": "/temperatures/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Freezer",
+            "x.com.samsung.da.desired": "-17",
+            "x.com.samsung.da.current": "-17",
+            "x.com.samsung.da.maximum": "-15",
+            "x.com.samsung.da.minimum": "-23",
+            "x.com.samsung.da.unit": "Celsius"
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Fridge",
+            "x.com.samsung.da.desired": "6",
+            "x.com.samsung.da.current": "6",
+            "x.com.samsung.da.maximum": "7",
+            "x.com.samsung.da.minimum": "1",
+            "x.com.samsung.da.unit": "Celsius"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/timezone/vs/0",
+      "rep": {
+        "timezoneid": "Europe/Rome",
+        "offset": "+02:00",
+        "DST": "ON"
+      }
+    },
+    {
+      "href": "/wirelessinfo/vs/0",
+      "rep": {
+        "macaddressWiFi": "REDACTED",
+        "macaddressBLE": "REDACTED",
+        "connectedApSsid": "SPRDFL24"
+      }
+    }
+  ]
+}
