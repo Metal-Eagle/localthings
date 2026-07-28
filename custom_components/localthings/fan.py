@@ -37,6 +37,8 @@ POWER_HREF = '/power/0'
 POWER_VS_HREF = '/power/vs/0'
 _FAN_SPEED_FIELD = 'x.com.samsung.da.hood.fanSpeed'
 _SUPPORTED_FAN_SPEED_FIELD = 'x.com.samsung.da.hood.supportedFanSpeed'
+_MIN_FAN_SPEED_FIELD = 'x.com.samsung.da.hood.settableMinFanSpeed'
+_OFF_SPEED_CODE = '0'
 
 _MODES_FIELD = 'x.com.samsung.da.modes'
 _SUPPORTED_MODES_FIELD = 'x.com.samsung.da.supportedModes'
@@ -62,7 +64,24 @@ async def async_setup_entry(
 
 
 class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
-    """A hood fan combining sibling power and fan-speed resources."""
+    """A hood fan combining sibling power and fan-speed resources.
+
+    Some boards that reuse this capability (built-in microwave vent fans,
+    issues #137/#142) report no sibling `/power/0` or `/power/vs/0`
+    resource at all -- fan speed 0 is itself the off state there, with no
+    separate power toggle to write. `_speed_zero_is_off` detects that
+    shape from the hood resource's own settableMinFanSpeed/
+    supportedFanSpeed fields and switches every method below to drive
+    off/on purely through the fanSpeed field, including '0' in the
+    ordered speed codes as the off step instead of assuming every
+    advertised code is an active speed.
+
+    This is deliberately not the same question as `_has_separate_power`,
+    which only proves *some* power resource exists on the device --  on a
+    combi appliance (e.g. an over-the-range microwave) that resource can
+    belong to the cavity, not the vent fan, and toggling it from here
+    would turn off the whole appliance instead of just the fan.
+    """
 
     _enable_turn_on_off_backwards_compatibility = False
     _attr_supported_features = (
@@ -78,15 +97,35 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
     def _rep(self, href: str) -> dict:
         return self.coordinator.resource(href) or {}
 
+    def _has_separate_power(self) -> bool:
+        return bool(self._rep(POWER_HREF)) or bool(self._rep(POWER_VS_HREF))
+
+    def _speed_zero_is_off(self) -> bool:
+        """Whether fan speed '0' is itself this hood's off step, with no
+        separate power resource to toggle. The board says so directly:
+        settableMinFanSpeed '0', or '0' inside supportedFanSpeed. The
+        standalone hood's codes start at 14 and it carries a real /power
+        resource instead, so this is False there."""
+        rep = self._rep(self._bound.href)
+        return (
+            str(rep.get(_MIN_FAN_SPEED_FIELD, '')) == _OFF_SPEED_CODE
+            or _OFF_SPEED_CODE in self._all_speed_codes()
+        )
+
     def _all_speed_codes(self) -> list[str]:
         rep = self._rep(self._bound.href)
         return [str(value) for value in rep.get(_SUPPORTED_FAN_SPEED_FIELD, ())]
 
     def _active_speed_codes(self) -> list[str]:
-        # Power is carried by the separate /power resource.  fanSpeed retains
-        # the selected setting while power is off (as the lamp's `current`
-        # field does), so every advertised code is an active ordered speed.
-        return self._all_speed_codes()
+        codes = self._all_speed_codes()
+        if self._speed_zero_is_off():
+            # No separate power resource: '0' is the off step, not a speed.
+            return [code for code in codes if code != _OFF_SPEED_CODE]
+        # Power is carried by the separate /power resource.  fanSpeed
+        # retains the selected setting while power is off (as the
+        # lamp's `current` field does), so every advertised code is an
+        # active ordered speed.
+        return codes
 
     def _power_payload(self, enabled: bool) -> tuple[str, bool, str]:
         """Target whichever power resource this hood actually exposes."""
@@ -96,6 +135,9 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
 
     @property
     def is_on(self) -> bool:
+        if self._speed_zero_is_off():
+            current = str(self._rep(self._bound.href).get(_FAN_SPEED_FIELD, '0'))
+            return current not in ('', _OFF_SPEED_CODE)
         rep = self._rep(POWER_HREF)
         if 'value' in rep:
             return bool(rep.get('value'))
@@ -121,6 +163,18 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
         self, percentage: int | None = None, preset_mode: str | None = None,
         **kwargs,
     ) -> None:
+        if self._speed_zero_is_off():
+            if percentage is not None:
+                await self.async_set_percentage(percentage)
+                return
+            if self.is_on:
+                # Already running: no percentage given means "just turn on",
+                # not "reset to the lowest speed".
+                return
+            codes = self._active_speed_codes()
+            if codes:
+                await self.coordinator.async_send_command(self._bound, ('speed', codes[0]))
+            return
         await self.coordinator.async_send_command(
             self._bound, self._power_payload(True),
         )
@@ -128,6 +182,9 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
             await self.async_set_percentage(percentage)
 
     async def async_turn_off(self, **kwargs) -> None:
+        if self._speed_zero_is_off():
+            await self.coordinator.async_send_command(self._bound, ('speed', _OFF_SPEED_CODE))
+            return
         await self.coordinator.async_send_command(
             self._bound, self._power_payload(False),
         )
@@ -139,7 +196,7 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
         codes = self._active_speed_codes()
         if not codes:
             return
-        if not self.is_on:
+        if not self._speed_zero_is_off() and not self.is_on:
             await self.coordinator.async_send_command(
                 self._bound, self._power_payload(True),
             )

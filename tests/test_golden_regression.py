@@ -300,6 +300,23 @@ def test_registry_reproduces_golden_state_keys_for_tp2x_ref_20k():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_tp2x_ref_20k_kimchi():
+    """A different physical unit reporting the same "TP2X_REF_20K" modelNum
+    string as the fixture above (issue #26's second reporter) -- a
+    3-compartment kimchi refrigerator with no flex zone, doors/icemaker, or
+    freezer/cooler split, but its own /status/kimchi/<slot>/vs/0 and
+    /kimchidoors/top/vs/0 resources (fridge.KIMCHI_ZONE/KIMCHI_DOOR_GENERIC)."""
+    from tests.conftest import _load_device
+    resources = _load_device('refrigerator_tp2x_ref_20k_kimchi')
+    golden = json.loads((GOLDEN / 'refrigerator_tp2x_ref_20k_kimchi.json').read_text())
+    state_keys = _new_state_keys('refrigerator_tp2x_ref_20k_kimchi', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_ac_tp1x_da_ac_rac_01011():
     """Newer AC firmware (Tizen Lite, oneUiVersion "7.0 Air conditioner"; model
     TP1X_DA-AC-RAC-01011) reports temperature via the vendor /temperatures/vs/0
@@ -582,6 +599,30 @@ def test_registry_reproduces_golden_state_keys_for_microwave_mw7300b():
     resources = _load_device('microwave_mw7300b')
     golden = json.loads((GOLDEN / 'microwave_mw7300b.json').read_text())
     state_keys = _new_state_keys('microwave_mw7300b', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_microwave_me7500d():
+    """TP1X_DA-KS-MICROWAVE-01051 plain microwave (model ME7500D, issues
+    #137/#142) -- the same microwave registry as MW7300B above, but this
+    board also reports the built-in vent fan's `/hood/fanspeed/vs/0`
+    resource, previously unbound. Bound via range_hood.HOOD_FAN (reused
+    directly, same resource shape a standalone range hood reports); unlike
+    a standalone hood this board has no sibling `/power/0` or
+    `/power/vs/0` resource, so fan.py's LocalThingsRangeHoodFan treats
+    fan speed 0 as the off state instead of writing a separate power
+    resource -- see its `_speed_zero_is_off` check. This board also has
+    no `/temperatures/vs/0` or `x.com.samsung.da.hood.autoOperation`
+    field, unlike MW7300B, so `setpoint`/`current_temp_c` and
+    `automatic_operation` are correctly absent here."""
+    from tests.conftest import _load_device
+    resources = _load_device('microwave_me7500d')
+    golden = json.loads((GOLDEN / 'microwave_me7500d.json').read_text())
+    state_keys = _new_state_keys('microwave_me7500d', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

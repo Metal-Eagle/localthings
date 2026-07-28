@@ -23,6 +23,22 @@ def test_microwave_fixture_resolves_and_has_no_unbound_hrefs():
     assert unbound == []
 
 
+def test_microwave_hood_fan_fixture_resolves_and_has_no_unbound_hrefs():
+    """Issues #137/#142: `/hood/fanspeed/vs/0` (the combi unit's built-in
+    vent fan) was previously unbound on this family."""
+    from tests.conftest import _load_device
+    resources = _load_device('microwave_me7500d')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+    assert reg is not None
+    assert reg.name == 'microwave'
+
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
 # ---------------------------------------------------------------------------
 # MICROWAVE_SETPOINT — NumberDesc with RMW write semantics
 # ---------------------------------------------------------------------------

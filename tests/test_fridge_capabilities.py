@@ -163,6 +163,26 @@ class TestFlexZone:
         assert 'CV_FDR_MEAT' not in modes
         assert 'CVN_CONVERTIBLE_ZONE' in modes and 'WATERFILTER_ENABLE' in modes
 
+    def test_exists_only_when_a_current_value_resolves(self):
+        """Issue #26's kimchi-refrigerator family also populates /mode/vs/0's
+        modes/supportedOptions, but its supportedOptions tokens carry a
+        "_[n]:[n]" suffix modes never repeats, so no item ever overlaps --
+        the entity used to bind anyway (supportedOptions is nonempty) and
+        get stuck on "unknown" forever."""
+        no_overlap_rep = {
+            'x.com.samsung.da.modes': ['KIMCHIT_STORAGE_FREEZER_NORMAL'],
+            'x.com.samsung.da.supportedOptions': [
+                'KIMCHIT_STORAGE_FREEZER_NORMAL_[0]:[0]'],
+        }
+        desc = fridge.FLEX_ZONE.entities[0]
+        assert desc.exists_fn(no_overlap_rep, {}) is False
+
+        overlap_rep = {
+            'x.com.samsung.da.modes': ['CV_FDR_MEAT'],
+            'x.com.samsung.da.supportedOptions': ['CV_FDR_WINE', 'CV_FDR_MEAT'],
+        }
+        assert desc.exists_fn(overlap_rep, {}) is True
+
 
 class TestTp1xNativeDuplicateResources:
     """The US TP1X_REF_21K publishes two native mirrors in addition to the
@@ -210,6 +230,97 @@ class TestPantryZone:
         assert body == {'x.com.samsung.da.mode': 'FDR_WINE'}
 
 
+class TestKimchiZone:
+    """Kimchi-refrigerator compartments (TP2X_REF_20K-class, issue #26) --
+    top/middle/bottom each report an identically-shaped currentMode/
+    supportMode resource under /status/kimchi/<slot>/vs/0."""
+
+    def test_href_prefix(self):
+        assert fridge.KIMCHI_ZONE.href_prefix == '/status/kimchi/'
+        assert fridge.KIMCHI_DOOR_GENERIC.href_prefix == '/kimchidoors/'
+
+    def test_write_derives_path_from_href(self):
+        desc = fridge.KIMCHI_ZONE.entities[0]
+        rep = {'x.com.samsung.da.supportMode': ['KIMCHI_STORAGE_COLD']}
+        path, body = desc.write_fn(
+            'KIMCHI_STORAGE_COLD', rep, href='/status/kimchi/middle/vs/0')
+        assert path == ['status', 'kimchi', 'middle', 'vs', '0']
+        assert body == {'x.com.samsung.da.currentMode': 'KIMCHI_STORAGE_COLD'}
+
+    def test_write_without_href_is_rejected(self):
+        desc = fridge.KIMCHI_ZONE.entities[0]
+        rep = {'x.com.samsung.da.supportMode': ['KIMCHI_STORAGE_COLD']}
+        assert desc.write_fn('KIMCHI_STORAGE_COLD', rep) is None
+
+    def test_write_rejects_value_outside_supportmode(self):
+        """A value the compartment never advertised is rejected rather than
+        written blind -- this write path is unconfirmed against real
+        hardware (module docstring above KIMCHI_ZONE), so a bad value here
+        is a food-safety-adjacent outcome, not just a cosmetic one."""
+        desc = fridge.KIMCHI_ZONE.entities[0]
+        rep = {'x.com.samsung.da.supportMode': ['KIMCHI_STORAGE_COLD']}
+        assert desc.write_fn(
+            'KIMCHI_STORAGE_WARM', rep, href='/status/kimchi/middle/vs/0',
+        ) is None
+
+    def test_ripening_status_passes_through_device_value(self):
+        """No device_class='enum' catalog entry exists for this sensor, so
+        lowercasing it would only make the raw device token un-translatable
+        by HA -- pass the device's own casing straight through instead."""
+        desc = next(e for e in fridge.KIMCHI_ZONE.entities if e.key == 'ripening_status')
+        assert desc.value_fn('Off') == 'Off'
+
+    def test_door_reuses_open_state_helper(self):
+        desc = fridge.KIMCHI_DOOR_GENERIC.entities[0]
+        assert desc.rep_fn({'x.com.samsung.da.openState': 'Open'}) is True
+        assert desc.rep_fn({'x.com.samsung.da.openState': 'Close'}) is False
+
+    async def test_zone_mode_select_round_trips_through_display_casing(self):
+        """kimchi_zone_mode's displayed value (lowercase, catalog-translated)
+        and the raw device code it writes back can silently drift apart --
+        this is the one place that casing conversion could break. Runs
+        through the real discovery/select pipeline against the tp2x_ref_20k
+        kimchi fixture rather than a hand-built descriptor, so it also
+        catches use_instance_name key derivation going wrong."""
+        from custom_components.localthings.registry.adapter import flatten
+        from custom_components.localthings.registry.by_type import refrigerator
+        from custom_components.localthings.registry.discovery import discover
+        from custom_components.localthings.registry.entities import SelectDesc
+        from custom_components.localthings.select import LocalThingsSelect
+        from tests.conftest import _load_device
+
+        resources = _load_device('refrigerator_tp2x_ref_20k_kimchi')
+        bound = discover(
+            resources, refrigerator.REGISTRY.capabilities,
+            refrigerator.REGISTRY.pattern_capabilities,
+        )
+        mode_bound = next(
+            b for b in bound
+            if isinstance(b.desc, SelectDesc) and b.href == '/status/kimchi/middle/vs/0'
+        )
+
+        class _FakeCoordinator:
+            device_serial = 'TEST-SERIAL'
+
+            def __init__(self, resources, data):
+                self.last_resources = resources
+                self.data = data
+                self.commands = []
+
+            async def async_send_command(self, bound, value):
+                self.commands.append(value)
+
+        coordinator = _FakeCoordinator(resources, flatten(bound, resources))
+        entity = LocalThingsSelect(coordinator, mode_bound)
+
+        assert entity.current_option == 'kimchi_storage_normal'
+        assert 'kimchi_storage_cold' in entity.options
+
+        await entity.async_select_option('kimchi_storage_cold')
+
+        assert coordinator.commands == ['KIMCHI_STORAGE_COLD']
+
+
 class TestArtik051AndTp2xFixturesHaveCompleteCoverage:
     """issue #20 (ARTIK051_REF_17K) and #26 (TP2X_REF_20K) both triggered
     the incomplete-capability-coverage repair; both must resolve to zero
@@ -252,6 +363,33 @@ class TestArtik051AndTp2xFixturesHaveCompleteCoverage:
         assert unbound == []
         state = flatten(bound, resources)
         assert state['flex_zone_mode'] == 'CV_FDR_BEVERAGE'
+
+    def test_tp2x_ref_20k_kimchi(self):
+        """A different physical unit sharing the same modelNum string (issue
+        #26, second reporter) -- a 3-compartment kimchi refrigerator instead
+        of the flex-zone fridge above. /kimchidoors/top/vs/0 and
+        /status/kimchi/{top,middle,bottom}/vs/0 were previously unbound."""
+        from custom_components.localthings.registry.adapter import flatten
+        from custom_components.localthings.registry.by_type import refrigerator
+        from custom_components.localthings.registry.discovery import discover
+        from tests.conftest import _load_device
+
+        resources = _load_device('refrigerator_tp2x_ref_20k_kimchi')
+        unbound = []
+        bound = discover(
+            resources,
+            refrigerator.REGISTRY.capabilities,
+            refrigerator.REGISTRY.pattern_capabilities,
+            log=unbound.append,
+        )
+        assert unbound == []
+        state = flatten(bound, resources)
+        assert state['top_mode'] == 'STORAGE_FREEZER_NORMAL'
+        assert state['middle_mode'] == 'KIMCHI_STORAGE_NORMAL'
+        assert state['bottom_mode'] == 'KIMCHI_STORAGE_NORMAL'
+        assert state['top_open'] is False
+        assert 'middle_open' not in state  # no /kimchidoors/middle/vs/0 reported
+        assert 'flex_zone_mode' not in state  # no resolvable overlap on this family
 
 
 class TestArtik051DongleRefFixtureCoverage:
