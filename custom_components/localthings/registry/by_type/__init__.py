@@ -212,6 +212,14 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
         key = 'airconditioner'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
+    # Room air conditioners on the ARTIK051 board (e.g. ARTIK051_KRAC_18K,
+    # issue #136) report no oneUiVersion and carry a '_KRAC_' token. The '_RAC_'
+    # check above cannot see it -- the 'K' sits between the underscore and 'RAC' --
+    # and the consumer-prefix fallback only covers washers/dryers/dishwashers, so
+    # these units fell back to 'unknown' and exposed nothing but power. Same
+    # ARTIK051 board family as the '_TVTL_' air purifier below.
+    if key is None and '_KRAC_' in (model_num or ''):
+        key = 'airconditioner'
     if key is None and '_TVTL_' in (model_num or ''):
         key = 'air_purifier'
     model_identity = f'{model_num} {description}'.upper()
