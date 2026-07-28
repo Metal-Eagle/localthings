@@ -590,8 +590,17 @@ FLEX_ZONE = Capability(
                    translation_key='flex_zone_mode',
                    entity_category='config',
                    options_field='x.com.samsung.da.supportedOptions',
-                   exists_fn=lambda rep, resources: bool(
-                       rep.get('x.com.samsung.da.supportedOptions')),
+                   # A nonempty supportedOptions alone isn't sufficient: the
+                   # kimchi-refrigerator family (issue #26) also populates
+                   # /mode/vs/0's modes/supportedOptions with real data, but
+                   # its tokens carry a "_[n]:[n]" parameter suffix on
+                   # supportedOptions that modes never repeats, so no item
+                   # ever overlaps -- the RF9000/Bespoke-class overlap this
+                   # capability was built for never happens there. Require an
+                   # actual resolvable value instead of just a populated
+                   # list, so this stays absent on that family rather than
+                   # showing a select permanently stuck on "unknown".
+                   exists_fn=lambda rep, resources: _flex_zone_current(rep) is not None,
                    rep_fn=_flex_zone_current,
                    write_fn=_flex_zone_write),
     ),
@@ -617,6 +626,99 @@ def _door_open_state(rep):
 DOOR_GENERIC = Capability(
     href=None,
     href_prefix='/door/',
+    poll_tier='hot',
+    entities=(
+        BinarySensorDesc(key='open', rep_fn=_door_open_state,
+                         translation_key='instance_open',
+                         use_instance_name=True, device_class='door'),
+    ),
+)
+
+# ---------------------------------------------------------------------------
+# Kimchi refrigerator compartments (TP2X_REF_20K-class 3-compartment kimchi
+# units, issue #26) -- top/middle/bottom each report their own storage mode
+# plus a ripening status/timer on /status/kimchi/<slot>/vs/0, all three in
+# an identical shape; modeled as a pattern capability the same way
+# DOOR_GENERIC/TEMP_CURRENT_GENERIC above are, deriving the per-compartment
+# key and {instance_name} from the href's top/middle/bottom segment. Only
+# the top compartment's door has been seen reported separately (kimchidoors);
+# middle/bottom apparently have no contact switch of their own, so that's
+# its own narrower pattern cap rather than assumed universal.
+#
+# The same state is also mirrored -- packed into single tokens like
+# "KIMCHIT_KIMCHI_STORAGE_NORMAL" (T/M/B prefix per compartment) with
+# bracketed parameters -- on /mode/vs/0, the same resource FLEX_ZONE reads
+# for RF9000-class fridges. /status/kimchi/<slot>/vs/0's plain currentMode/
+# supportMode fields are unpacked and self-describing, so that's what this
+# binds to instead.
+#
+# Write path is unconfirmed (no live write against a real unit) -- same
+# "write the same field back to the entity's own href" convention as
+# PANTRY_ZONE/BEVERAGE_ZONE above, first real-world write is also the test.
+#
+# translations/en.json's kimchi_zone_mode state labels were translated
+# directly from the reporter's own (Korean-language) SmartThings app
+# screenshots, not guessed from the codes or from their English paraphrase.
+# Cross-checking the screenshots against supportMode confirms the on-screen
+# option order matches the array order everywhere it's verifiable: the top
+# compartment's freezer triplet (표준/강냉/약냉 = Standard/Strong/Weak, at
+# -19/-21/-17°C) lines up 1:1 with STORAGE_FREEZER_NORMAL/COLD/WARM, and the
+# middle/bottom compartments' full 8-entry kimchi-storage list, 2-entry
+# ripening list, and 4-entry custom-storage list each line up 1:1 with their
+# supportMode order too -- so COLD/WARM consistently means Strong/Weak (a
+# colder or warmer preset around the NORMAL setpoint) everywhere that suffix
+# appears, including on STORAGE_FRIDGE_* and the low-salt kimchi variants,
+# which weren't directly screenshotted but share the same NORMAL/COLD/WARM
+# vocabulary as the two confirmed triplets. CRUNFCH (아삭, "crisp/crunchy")
+# and BUY (구입, "purchased") are also confirmed exact matches, not
+# abbreviation guesses.
+# ---------------------------------------------------------------------------
+
+def _kimchi_mode_write(p, rep, href=None):
+    if not href:
+        return None
+    return [s for s in href.strip('/').split('/') if s], {
+        'x.com.samsung.da.currentMode': p,
+    }
+
+
+KIMCHI_ZONE = Capability(
+    href=None,
+    href_prefix='/status/kimchi/',
+    strip_prefix_in_key=True,
+    poll_tier='warm',
+    entities=(
+        SelectDesc(key='mode', field='x.com.samsung.da.currentMode',
+                   use_instance_name=True, icon='mdi:fridge-outline',
+                   translation_key='kimchi_zone_mode',
+                   entity_category='config',
+                   options_field='x.com.samsung.da.supportMode',
+                   write_fn=_kimchi_mode_write),
+        SensorDesc(key='ripening_status', field='x.com.samsung.da.ripeStatus',
+                   use_instance_name=True, icon='mdi:progress-clock',
+                   translation_key='kimchi_ripening_status',
+                   entity_category='diagnostic',
+                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
+        SensorDesc(key='ripening_remaining', field='x.com.samsung.da.ripeRemaintime',
+                   use_instance_name=True, icon='mdi:timer-sand',
+                   translation_key='kimchi_ripening_remaining',
+                   entity_category='diagnostic',
+                   # No dump has this nonzero (ripeStatus is always "Off" so
+                   # far) -- device-reported unit unconfirmed, so this stays
+                   # a bare number rather than asserting minutes or hours.
+                   value_fn=_int),
+        SensorDesc(key='rack_count', field='x.com.samsung.da.rackCount',
+                   use_instance_name=True, icon='mdi:tray-full',
+                   translation_key='kimchi_rack_count',
+                   entity_category='diagnostic', enabled_default=False,
+                   value_fn=_int),
+    ),
+)
+
+KIMCHI_DOOR_GENERIC = Capability(
+    href=None,
+    href_prefix='/kimchidoors/',
+    strip_prefix_in_key=True,
     poll_tier='hot',
     entities=(
         BinarySensorDesc(key='open', rep_fn=_door_open_state,

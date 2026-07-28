@@ -163,6 +163,26 @@ class TestFlexZone:
         assert 'CV_FDR_MEAT' not in modes
         assert 'CVN_CONVERTIBLE_ZONE' in modes and 'WATERFILTER_ENABLE' in modes
 
+    def test_exists_only_when_a_current_value_resolves(self):
+        """Issue #26's kimchi-refrigerator family also populates /mode/vs/0's
+        modes/supportedOptions, but its supportedOptions tokens carry a
+        "_[n]:[n]" suffix modes never repeats, so no item ever overlaps --
+        the entity used to bind anyway (supportedOptions is nonempty) and
+        get stuck on "unknown" forever."""
+        no_overlap_rep = {
+            'x.com.samsung.da.modes': ['KIMCHIT_STORAGE_FREEZER_NORMAL'],
+            'x.com.samsung.da.supportedOptions': [
+                'KIMCHIT_STORAGE_FREEZER_NORMAL_[0]:[0]'],
+        }
+        desc = fridge.FLEX_ZONE.entities[0]
+        assert desc.exists_fn(no_overlap_rep, {}) is False
+
+        overlap_rep = {
+            'x.com.samsung.da.modes': ['CV_FDR_MEAT'],
+            'x.com.samsung.da.supportedOptions': ['CV_FDR_WINE', 'CV_FDR_MEAT'],
+        }
+        assert desc.exists_fn(overlap_rep, {}) is True
+
 
 class TestTp1xNativeDuplicateResources:
     """The US TP1X_REF_21K publishes two native mirrors in addition to the
@@ -210,6 +230,37 @@ class TestPantryZone:
         assert body == {'x.com.samsung.da.mode': 'FDR_WINE'}
 
 
+class TestKimchiZone:
+    """Kimchi-refrigerator compartments (TP2X_REF_20K-class, issue #26) --
+    top/middle/bottom each report an identically-shaped currentMode/
+    supportMode resource under /status/kimchi/<slot>/vs/0."""
+
+    def test_href_prefix(self):
+        assert fridge.KIMCHI_ZONE.href_prefix == '/status/kimchi/'
+        assert fridge.KIMCHI_DOOR_GENERIC.href_prefix == '/kimchidoors/'
+
+    def test_write_derives_path_from_href(self):
+        desc = fridge.KIMCHI_ZONE.entities[0]
+        path, body = desc.write_fn(
+            'KIMCHI_STORAGE_COLD', {}, href='/status/kimchi/middle/vs/0')
+        assert path == ['status', 'kimchi', 'middle', 'vs', '0']
+        assert body == {'x.com.samsung.da.currentMode': 'KIMCHI_STORAGE_COLD'}
+
+    def test_write_without_href_is_rejected(self):
+        desc = fridge.KIMCHI_ZONE.entities[0]
+        assert desc.write_fn('KIMCHI_STORAGE_COLD', {}) is None
+
+    def test_ripening_status_is_lowercased(self):
+        desc = next(e for e in fridge.KIMCHI_ZONE.entities if e.key == 'ripening_status')
+        assert desc.value_fn('Off') == 'off'
+        assert desc.value_fn(None) is None
+
+    def test_door_reuses_open_state_helper(self):
+        desc = fridge.KIMCHI_DOOR_GENERIC.entities[0]
+        assert desc.rep_fn({'x.com.samsung.da.openState': 'Open'}) is True
+        assert desc.rep_fn({'x.com.samsung.da.openState': 'Close'}) is False
+
+
 class TestArtik051AndTp2xFixturesHaveCompleteCoverage:
     """issue #20 (ARTIK051_REF_17K) and #26 (TP2X_REF_20K) both triggered
     the incomplete-capability-coverage repair; both must resolve to zero
@@ -252,6 +303,33 @@ class TestArtik051AndTp2xFixturesHaveCompleteCoverage:
         assert unbound == []
         state = flatten(bound, resources)
         assert state['flex_zone_mode'] == 'CV_FDR_BEVERAGE'
+
+    def test_tp2x_ref_20k_kimchi(self):
+        """A different physical unit sharing the same modelNum string (issue
+        #26, second reporter) -- a 3-compartment kimchi refrigerator instead
+        of the flex-zone fridge above. /kimchidoors/top/vs/0 and
+        /status/kimchi/{top,middle,bottom}/vs/0 were previously unbound."""
+        from custom_components.localthings.registry.adapter import flatten
+        from custom_components.localthings.registry.by_type import refrigerator
+        from custom_components.localthings.registry.discovery import discover
+        from tests.conftest import _load_device
+
+        resources = _load_device('refrigerator_tp2x_ref_20k_kimchi')
+        unbound = []
+        bound = discover(
+            resources,
+            refrigerator.REGISTRY.capabilities,
+            refrigerator.REGISTRY.pattern_capabilities,
+            log=unbound.append,
+        )
+        assert unbound == []
+        state = flatten(bound, resources)
+        assert state['top_mode'] == 'STORAGE_FREEZER_NORMAL'
+        assert state['middle_mode'] == 'KIMCHI_STORAGE_NORMAL'
+        assert state['bottom_mode'] == 'KIMCHI_STORAGE_NORMAL'
+        assert state['top_open'] is False
+        assert 'middle_open' not in state  # no /kimchidoors/middle/vs/0 reported
+        assert 'flex_zone_mode' not in state  # no resolvable overlap on this family
 
 
 class TestArtik051DongleRefFixtureCoverage:

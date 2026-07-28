@@ -36,5 +36,7 @@ REGISTRY = DeviceRegistry(
         fridge.TEMP_SETPOINT,
         fridge.ICEMAKER_GENERIC,
         fridge.DOOR_GENERIC,
+        fridge.KIMCHI_ZONE,
+        fridge.KIMCHI_DOOR_GENERIC,
     ],
 )

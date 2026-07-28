@@ -381,6 +381,37 @@
       "operating_mode": {
         "name": "Bedrijfsmodus"
       },
+      "kimchi_zone_mode": {
+        "name": "{instance_name} opslagmodus",
+        "state": {
+          "off": "Uit",
+          "kimchi_storage_normal": "Kimchi",
+          "kimchi_storage_cold": "Kimchi, sterk",
+          "kimchi_storage_warm": "Kimchi, zwak",
+          "kimchi_storage_low_salt_normal": "Kimchi met weinig zout",
+          "kimchi_storage_low_salt_cold": "Kimchi met weinig zout, sterk",
+          "kimchi_storage_low_salt_warm": "Kimchi met weinig zout, zwak",
+          "kimchi_storage_crunfch": "Knapperige kimchi",
+          "kimchi_storage_buy": "Gekochte kimchi",
+          "storage_fridge_normal": "Koelkast",
+          "storage_fridge_cold": "Koelkast, sterk",
+          "storage_fridge_warm": "Koelkast, zwak",
+          "storage_freezer_normal": "Vriezer",
+          "storage_freezer_cold": "Vriezer, sterk",
+          "storage_freezer_warm": "Vriezer, zwak",
+          "kimchi_ripe_low_temp": "Kimchi rijpen, lage temperatuur",
+          "kimchi_ripe_normal_temp": "Kimchi rijpen, kamertemperatuur",
+          "kimchi_ripe_kkakdugi": "Kkakdugi rijpen",
+          "kimchi_ripe_dongchimi": "Dongchimi rijpen",
+          "meat_ripe_normal": "Vlees rijpen",
+          "storage_meat": "Vlees en vis",
+          "storage_fridge_vegetables_fruit": "Groenten en fruit",
+          "storage_fresh_cereal": "Granen",
+          "storage_fridge_drink": "Dranken",
+          "storage_fresh_wine": "Wijn",
+          "storage_fresh_potato_banana": "Aardappelen en bananen"
+        }
+      },
       "pantry_zone_mode": {
         "name": "Modus voorraadzone",
         "state": {
@@ -677,6 +708,15 @@
       },
       "fridge_temperature": {
         "name": "Koelkasttemperatuur"
+      },
+      "kimchi_ripening_status": {
+        "name": "{instance_name} rijpingsstatus"
+      },
+      "kimchi_ripening_remaining": {
+        "name": "{instance_name} resterende rijptijd"
+      },
+      "kimchi_rack_count": {
+        "name": "{instance_name} aantal rekken"
       },
       "hood_filter_capacity": {
         "name": "Filtercapaciteit"

@@ -381,6 +381,37 @@
       "operating_mode": {
         "name": "Operating mode"
       },
+      "kimchi_zone_mode": {
+        "name": "{instance_name} storage mode",
+        "state": {
+          "off": "Off",
+          "kimchi_storage_normal": "Kimchi",
+          "kimchi_storage_cold": "Kimchi, strong",
+          "kimchi_storage_warm": "Kimchi, weak",
+          "kimchi_storage_low_salt_normal": "Low-salt kimchi",
+          "kimchi_storage_low_salt_cold": "Low-salt kimchi, strong",
+          "kimchi_storage_low_salt_warm": "Low-salt kimchi, weak",
+          "kimchi_storage_crunfch": "Crisp kimchi",
+          "kimchi_storage_buy": "Purchased kimchi",
+          "storage_fridge_normal": "Fridge",
+          "storage_fridge_cold": "Fridge, strong",
+          "storage_fridge_warm": "Fridge, weak",
+          "storage_freezer_normal": "Freezer",
+          "storage_freezer_cold": "Freezer, strong",
+          "storage_freezer_warm": "Freezer, weak",
+          "kimchi_ripe_low_temp": "Kimchi ripening, low temperature",
+          "kimchi_ripe_normal_temp": "Kimchi ripening, room temperature",
+          "kimchi_ripe_kkakdugi": "Kkakdugi ripening",
+          "kimchi_ripe_dongchimi": "Dongchimi ripening",
+          "meat_ripe_normal": "Meat ripening",
+          "storage_meat": "Meat & fish",
+          "storage_fridge_vegetables_fruit": "Fruit & vegetables",
+          "storage_fresh_cereal": "Grains",
+          "storage_fridge_drink": "Beverages",
+          "storage_fresh_wine": "Wine",
+          "storage_fresh_potato_banana": "Potato & banana"
+        }
+      },
       "pantry_zone_mode": {
         "name": "Pantry zone mode",
         "state": {
@@ -677,6 +708,15 @@
       },
       "fridge_temperature": {
         "name": "Fridge temperature"
+      },
+      "kimchi_ripening_status": {
+        "name": "{instance_name} ripening status"
+      },
+      "kimchi_ripening_remaining": {
+        "name": "{instance_name} ripening time remaining"
+      },
+      "kimchi_rack_count": {
+        "name": "{instance_name} rack count"
       },
       "hood_filter_capacity": {
         "name": "Filter capacity"

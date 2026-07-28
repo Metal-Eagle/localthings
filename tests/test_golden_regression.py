@@ -300,6 +300,23 @@ def test_registry_reproduces_golden_state_keys_for_tp2x_ref_20k():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_tp2x_ref_20k_kimchi():
+    """A different physical unit reporting the same "TP2X_REF_20K" modelNum
+    string as the fixture above (issue #26's second reporter) -- a
+    3-compartment kimchi refrigerator with no flex zone, doors/icemaker, or
+    freezer/cooler split, but its own /status/kimchi/<slot>/vs/0 and
+    /kimchidoors/top/vs/0 resources (fridge.KIMCHI_ZONE/KIMCHI_DOOR_GENERIC)."""
+    from tests.conftest import _load_device
+    resources = _load_device('refrigerator_tp2x_ref_20k_kimchi')
+    golden = json.loads((GOLDEN / 'refrigerator_tp2x_ref_20k_kimchi.json').read_text())
+    state_keys = _new_state_keys('refrigerator_tp2x_ref_20k_kimchi', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_ac_tp1x_da_ac_rac_01011():
     """Newer AC firmware (Tizen Lite, oneUiVersion "7.0 Air conditioner"; model
     TP1X_DA-AC-RAC-01011) reports temperature via the vendor /temperatures/vs/0
