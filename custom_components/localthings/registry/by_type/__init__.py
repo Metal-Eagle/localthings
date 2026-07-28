@@ -223,6 +223,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
         key = 'airconditioner'
     if key is None and '_TVTL_' in (model_num or ''):
         key = 'air_purifier'
+    # BESPOKE Cube Air (e.g. A-VTWW-TP2-21-COMMON, issue #151) reports no
+    # oneUiVersion and carries the hyphenated '-VTWW-' board-family token
+    # (distinct from the underscore-delimited '_TVTL_' ARTIK051 family
+    # above). Its fan lives on /wind/strength/vs/0 rather than /mode/vs/0 --
+    # see capabilities/air_purifier.py's WIND_STRENGTH_FAN.
+    if key is None and '-VTWW-' in (model_num or '').upper():
+        key = 'air_purifier'
     model_identity = f'{model_num} {description}'.upper()
     if key is None and ('_COOKTOP' in model_identity or '_GB_CT_' in model_identity):
         key = 'cooktop'

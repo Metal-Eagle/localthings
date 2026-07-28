@@ -768,6 +768,24 @@ def test_registry_reproduces_golden_state_keys_for_air_dresser_tp2_20():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_air_purifier_vtww():
+    """A-VTWW-TP2-21-COMMON BESPOKE Cube Air (issue #151) -- reports no
+    oneUiVersion; resolved via the '-VTWW-' modelNum token fallback into
+    the existing air_purifier registry. Its fan lives on
+    /wind/strength/vs/0 (air_purifier.WIND_STRENGTH_FAN) rather than the
+    /mode/vs/0 FAN the other two board generations in this registry use.
+    Binds cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_purifier_vtww')
+    golden = json.loads((GOLDEN / 'air_purifier_vtww.json').read_text())
+    state_keys = _new_state_keys('air_purifier_vtww', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {
