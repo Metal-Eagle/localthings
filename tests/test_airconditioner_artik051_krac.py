@@ -24,7 +24,8 @@ from custom_components.localthings.registry.by_type import (
     airconditioner, for_device_by_model,
 )
 from custom_components.localthings.registry.capabilities.airconditioner import (
-    HREF_AIRFLOW, _option_number_write, _option_switch_write,
+    HREF_AIRFLOW, HREF_WIND_STRENGTH, _option_number_write,
+    _option_switch_write, is_legacy_board,
 )
 from custom_components.localthings.registry.discovery import discover
 from custom_components.localthings.registry.entities import ClimateDesc
@@ -117,6 +118,22 @@ def test_token_entities_stay_off_newer_boards():
     for key in ('spi', 'auto_clean_legacy', 'air_monitoring', 'buzzer_volume',
                 'good_sleep', 'outdoor_temperature', 'filter_time'):
         assert key not in state, key
+
+
+def test_climate_legacy_airflow_gate_agrees_with_is_legacy_board():
+    """issue #161: climate.py's _legacy_airflow() delegates to
+    capabilities/airconditioner.py's is_legacy_board() instead of
+    re-implementing the same presence/absence check, so the token entities
+    and the climate card's legacy read/write paths can't drift apart on
+    which board generation is in play."""
+    legacy_resources = _load_device(FIXTURE)
+    assert is_legacy_board(legacy_resources) is True
+    assert _climate(legacy_resources)._legacy_airflow() == legacy_resources[HREF_AIRFLOW]
+
+    newer_resources = _load_device('airconditioner_tp1x_rac')
+    assert is_legacy_board(newer_resources) is False
+    assert _climate(newer_resources)._legacy_airflow() == {}
+    assert HREF_WIND_STRENGTH in newer_resources
 
 
 def test_absent_token_yields_no_entity():

@@ -152,7 +152,7 @@ def _option_token(rep, prefix):
     return None
 
 
-def _is_legacy_board(resources):
+def is_legacy_board(resources):
     """True for the board generation whose airflow lives in /airflow/vs/0.
 
     Newer families carry several of the same option tokens (Volume, Sleep,
@@ -163,13 +163,12 @@ def _is_legacy_board(resources):
     /airflow/vs/0. Same test as climate.py's _legacy_airflow(), so the entities
     below and the climate entity can never disagree about the generation.
     """
-    return ('/airflow/vs/0' in resources
-            and '/wind/strength/vs/0' not in resources)
+    return HREF_AIRFLOW in resources and HREF_WIND_STRENGTH not in resources
 
 
 def _has_option_token(prefix):
     return lambda rep, resources: (
-        _is_legacy_board(resources) and _option_token(rep, prefix) is not None)
+        is_legacy_board(resources) and _option_token(rep, prefix) is not None)
 
 
 def _option_token_on(prefix):

@@ -51,6 +51,7 @@ from .registry.capabilities.airconditioner import (
     HREF_WIND_OSCILLATION as WIND_OSCILLATION_HREF,
     HREF_CONVENIENT as CONVENIENT_HREF,
     HREF_AIRFLOW as AIRFLOW_HREF,
+    is_legacy_board,
 )
 from .registry.capabilities.common import normalize_temp_unit
 
@@ -247,10 +248,23 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
     def _legacy_airflow(self) -> dict:
         """The /airflow/vs/0 rep, but only when it is the fan/swing channel to
-        use -- i.e. this board has no /wind/strength/vs/0."""
-        if self.coordinator.resource(WIND_STRENGTH_HREF):
-            return {}
-        return self.coordinator.resource(AIRFLOW_HREF) or {}
+        use -- i.e. this board has no /wind/strength/vs/0.
+
+        Delegates the board-generation test to is_legacy_board (the same
+        test capabilities/airconditioner.py's token entities are gated on)
+        instead of re-implementing it, via a minimal presence dict built
+        from the two hrefs it actually inspects -- cheaper than
+        last_resources' full snapshot copy, since is_legacy_board only
+        checks key membership.
+        """
+        airflow = self.coordinator.resource(AIRFLOW_HREF)
+        wind_strength = self.coordinator.resource(WIND_STRENGTH_HREF)
+        presence = {}
+        if airflow:
+            presence[AIRFLOW_HREF] = airflow
+        if wind_strength:
+            presence[WIND_STRENGTH_HREF] = wind_strength
+        return airflow if is_legacy_board(presence) else {}
 
     def _legacy_preset(self) -> bool:
         """Whether presets come from the Comode_* token rather than a resource.
