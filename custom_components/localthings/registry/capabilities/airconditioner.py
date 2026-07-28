@@ -210,14 +210,20 @@ def _humidity(rep):
     (51% observed, matching what the same unit's cloud integration reported at
     that moment), then zeroes the field and switches Air monitoring back off by
     itself. So 0 reads as "not measuring" and is reported as unknown rather than
-    as 0% humidity, which would poison long-term history -- which is also why
-    the boards that do have fivepercentHumidity read a permanent 0 here.
+    as 0% humidity, which would poison long-term history.
+
+    That zero-as-"not measuring" carve-out is specific to the ARTIK051
+    fallback field's hardware quirk -- every other board's fivepercentHumidity
+    has never been documented getting stuck at zero, and collapsing a
+    genuine 0% reading there to unknown is a regression, not a safeguard
+    (issue #160). So fivepercentHumidity passes 0 through unchanged; only the
+    humidity fallback applies the zero-collapse.
     """
-    for field in ('x.com.samsung.da.fivepercentHumidity',
-                  'x.com.samsung.da.humidity'):
-        if field in rep:
-            value = _num(rep[field])
-            return value if value else None
+    if 'x.com.samsung.da.fivepercentHumidity' in rep:
+        return _num(rep['x.com.samsung.da.fivepercentHumidity'])
+    if 'x.com.samsung.da.humidity' in rep:
+        value = _num(rep['x.com.samsung.da.humidity'])
+        return value if value else None
     return None
 
 

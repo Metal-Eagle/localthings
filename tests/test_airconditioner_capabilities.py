@@ -415,3 +415,14 @@ def test_humidity_falls_back_to_the_plain_field_where_five_percent_is_absent():
     assert desc.rep_fn({'x.com.samsung.da.humidity': '51'}) == 51.0
     assert desc.rep_fn({'x.com.samsung.da.humidity': '0'}) is None
     assert desc.rep_fn({}) is None
+
+
+def test_humidity_five_percent_field_passes_a_genuine_zero_through():
+    """issue #160: fivepercentHumidity's zero-as-"not measuring" carve-out
+    (added in #146 to cover ARTIK051's plain humidity field) was
+    over-applied to fivepercentHumidity too, silently turning a real 0%
+    reading on every other AC board into unknown. Only the humidity
+    fallback field collapses 0 -- fivepercentHumidity's 0 is a real
+    reading."""
+    desc = airconditioner.HUMIDITY.entities[0]
+    assert desc.rep_fn({'x.com.samsung.da.fivepercentHumidity': '0'}) == 0.0
