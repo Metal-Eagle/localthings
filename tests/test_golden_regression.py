@@ -544,6 +544,23 @@ def test_registry_reproduces_golden_state_keys_for_range_ne8300d():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_range_ne63a6511():
+    """NE63A6511SS/AA (issue #138) -- reports no /information/vs/0 at all,
+    same shape as issue #74's NE63B8411SS; resolved via the same
+    'Bake'-in-supportedModes + /cooktopmonitoring/vs/0 signature in
+    for_device_by_resources. Binds cleanly against the existing range
+    registry with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('range_ne63a6511')
+    golden = json.loads((GOLDEN / 'range_ne63a6511.json').read_text())
+    state_keys = _new_state_keys('range_ne63a6511', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_airconditioner_ara_ww_tp1_22():
     """ARA-WW-TP1-22-COMMON wall-mount RACs (model AR10/13/18BYEAAWKNME,
     issues #115/#116/#117/#120) report no oneUiVersion and no

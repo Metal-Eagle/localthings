@@ -51,6 +51,15 @@ SETPOINT_STEP_F = 5
 # Mode options seen on NV7000BS-class. No dump exists so this list is inferred
 # from Samsung documentation and firmware observations. The firmware will
 # reject unknown modes; missing entries here are a coverage gap, not a bug.
+#
+# ConvectionRoast/KeepWarm/BreadProof/AirFryer/Dehydrate/SelfClean/SteamClean
+# are confirmed against issue #138's range dump (NE63A6511SS/AA) -- its
+# /mode/vs/0 supportedModes lists all of them, and the range family shares
+# this select via range.py reusing oven.OVEN_MODE wholesale. 'AirFryer' is
+# kept alongside 'AirFry' rather than replacing it -- the NV7000BS-class
+# dump this list was originally inferred from spells it without the
+# trailing 'er', and neither model's actual token is independently
+# confirmed, so both are treated as real device-reported spellings.
 _OVEN_MODES = (
     'NoOperation',
     'Bake',
@@ -58,10 +67,17 @@ _OVEN_MODES = (
     'Convection',
     'ConvectionBake',
     'ConvectionBroil',
+    'ConvectionRoast',
     'FrozenPizzaPlus',
     'SlowCook',
     'PlateWarm',
     'AirFry',
+    'AirFryer',
+    'KeepWarm',
+    'BreadProof',
+    'Dehydrate',
+    'SelfClean',
+    'SteamClean',
 )
 
 _SAMSUNG_STATE_TO_OCF = {
