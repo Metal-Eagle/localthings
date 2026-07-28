@@ -709,6 +709,27 @@ def test_registry_reproduces_golden_state_keys_for_artik051_krac_18k():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_rac_01001():
+    """TP1X_DA-AC-RAC-01001_0000 (model AR07C9150HZN, issue #155) -- binds
+    cleanly against the existing airconditioner registry with zero unbound
+    hrefs (the registry/discovery side was never the gap here). Its
+    /wind/strength/vs/0 reports supportedModes "0"/"31"-"35" instead of the
+    "0"-"4" scale climate.py's _DEVICE_TO_FAN was built from, which silently
+    dropped every fan speed but Auto -- see
+    test_airconditioner_tp1x_rac_01001_fan.py for the climate-level fix."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_tp1x_rac_01001')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_tp1x_rac_01001.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_tp1x_rac_01001', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

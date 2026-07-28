@@ -143,6 +143,22 @@ def _oscillation_swing(rep: dict) -> str | None:
         return 'horizontal'
     return 'off'
 
+def _wind_strength_label(code, rep: dict) -> str:
+    """Human label for a /wind/strength/vs/0 code from the device's own
+    modesName array (parallel-indexed with supportedModes), lowercased for
+    HA -- used only for codes _DEVICE_TO_FAN doesn't already cover (issue
+    #155, TP1X_DA-AC-RAC-01001_0000: codes "0"/"31"-"35" instead of the
+    "0"-"4" scale _DEVICE_TO_FAN was built from, with modesName giving
+    "Auto"/"1"/"2"/"3"/"4"/"MAX"). No per-model numeric map -- mirrors
+    preset_mode's dynamic code->str resolution. Falls back to the raw code
+    lowercased when modesName is absent or misaligned."""
+    supported = rep.get('x.com.samsung.da.supportedModes') or []
+    names = rep.get('x.com.samsung.da.modesName') or []
+    if code in supported and len(names) == len(supported):
+        return str(names[supported.index(code)]).lower()
+    return str(code).lower()
+
+
 # Preset (convenient mode): resolved dynamically from the device's own
 # /mode/convenient/vs/0 supportedModes -- no per-model table. The device 'Off'
 # code maps to HA's PRESET_NONE ("no preset active"); every other code is
@@ -428,14 +444,24 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         airflow = self._legacy_airflow()
         if airflow:
             return _DEVICE_TO_FAN.get(str(airflow.get('x.com.samsung.da.speedLevel')))
-        return self._read_mode(WIND_STRENGTH_HREF, _DEVICE_TO_FAN)
+        rep = self._rep(WIND_STRENGTH_HREF)
+        code = _first(rep.get(_MODES_FIELD))
+        if code is None:
+            return None
+        return _DEVICE_TO_FAN.get(code) or _wind_strength_label(code, rep)
 
     @property
     def fan_modes(self) -> list[str]:
         if self._legacy_airflow():
             # This resource carries no supportedModes, so the full scale is offered.
             return list(_DEVICE_TO_FAN.values())
-        return self._read_modes(WIND_STRENGTH_HREF, _DEVICE_TO_FAN)
+        rep = self._rep(WIND_STRENGTH_HREF)
+        modes = []
+        for code in self._supported(WIND_STRENGTH_HREF):
+            mode = _DEVICE_TO_FAN.get(code) or _wind_strength_label(code, rep)
+            if mode not in modes:
+                modes.append(mode)
+        return modes
 
     def _swing_via_direction(self) -> bool:
         """True when WIND_DIRECTION_HREF is the swing channel to use --
@@ -537,7 +563,18 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
                 await self.coordinator.async_send_command(
                     self._bound, ('fan_legacy', level))
             return
-        await self._set_mapped('fan', _FAN_TO_DEVICE, fan_mode)
+        device = _FAN_TO_DEVICE.get(fan_mode)
+        if device is None:
+            # fan_mode came from _wind_strength_label's dynamic path (issue
+            # #155) -- resolve back to the device's own code the same way
+            # async_set_preset_mode does for its dynamic codes.
+            rep = self._rep(WIND_STRENGTH_HREF)
+            for code in self._supported(WIND_STRENGTH_HREF):
+                if code not in _DEVICE_TO_FAN and _wind_strength_label(code, rep) == fan_mode:
+                    device = code
+                    break
+        if device is not None:
+            await self.coordinator.async_send_command(self._bound, ('fan', device))
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         if self._legacy_airflow():
