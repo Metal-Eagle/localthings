@@ -201,6 +201,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # here) -- no WAC-specific resources needed.
     if key is None and '_WAC_' in (model_num or ''):
         key = 'airconditioner'
+    # Wind-Free 2-in-1 systems (floor-standing + wall-mounted indoor units
+    # sharing one outdoor unit and one local IP, e.g. TP2X_FAC_BORA_21K,
+    # issues #150/#153) report no oneUiVersion and carry the '_FAC_' token
+    # instead of '_RAC_'/'_PRAC_'. Same TP1X/TP2X-class resource surface as
+    # the room-AC models above.
+    if key is None and '_FAC_' in (model_num or ''):
+        key = 'airconditioner'
     # ARA-WW-class wall-mount RACs (e.g. ARA-WW-TP1-22-COMMON, issues #115/
     # #116/#117/#120) report no oneUiVersion and no '_RAC_'/'-RAC-' token at
     # all -- the board family is spelled 'ARA-WW-' instead. Same resource

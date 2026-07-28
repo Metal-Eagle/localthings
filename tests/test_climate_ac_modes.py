@@ -7,8 +7,8 @@ testable directly.
 from homeassistant.components.climate import HVACMode
 
 from custom_components.localthings.climate import (
-    _AI_COMFORT_MODE, _DEVICE_TO_HVAC, _HVAC_TO_DEVICE, PRESET_AI_COMFORT,
-    _preset_to_ha,
+    _AI_COMFORT_MODE, _DEVICE_TO_FAN, _DEVICE_TO_HVAC, _HVAC_TO_DEVICE,
+    PRESET_AI_COMFORT, _preset_to_ha,
 )
 
 
@@ -74,3 +74,13 @@ def test_preset_to_ha_lowercases_other_codes():
     assert _preset_to_ha('Sleep') == 'sleep'
     assert _preset_to_ha('NanoSleep') == 'nanosleep'
     assert _preset_to_ha('MotionIndirect') == 'motionindirect'
+
+
+def test_fac_bora_wind_strength_codes_fit_the_standard_scale():
+    """TP2X_FAC_BORA_21K's (issues #150/#153) /wind/strength/vs/0 codes
+    (0/2/3/4, skipping 1/'low') and modesName (Auto/Mid/High/Turbo) already
+    match _DEVICE_TO_FAN's own mapping exactly -- no dynamic modesName
+    fallback needed for this particular board, unlike issue #155's
+    TP1X_DA-AC-RAC-01001_0000."""
+    for code in ('0', '2', '3', '4'):
+        assert code in _DEVICE_TO_FAN

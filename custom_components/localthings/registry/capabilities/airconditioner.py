@@ -602,6 +602,19 @@ _AC_IGNORED = [
     # topology -- indoor/outdoor unit pairing, per-unit serials, MCU info.
     # Commissioning-time plumbing, not user-actionable appliance state.
     '/sac/installationinfo/vs/0',
+    # Wind-Free 2-in-1 systems (one outdoor unit driving a floor-standing
+    # *and* a wall-mounted indoor unit over one shared local IP, e.g.
+    # TP2X_FAC_BORA_21K, issues #150/#153): an opaque paired-subdevice id
+    # list, same "remote device ids, not user-actionable locally" role as
+    # /remotedeviceinfo/vs/0 above. This integration talks to whichever
+    # single local endpoint the config entry was set up against; the
+    # second indoor unit isn't independently reachable through this
+    # resource (or any other in the dump) -- it would need its own local
+    # DTLS session/IP, which SmartThings pairing doesn't expose here.
+    '/subdevices/vs/0',
+    # Undocumented single int (runningMode: 0 on every dump seen), no
+    # supported-values list to interpret it against -- 'don't guess'.
+    '/runn/vs/0',
 ]
 
 # Built as bare no-entity caps; folded into the AC registry (not global).

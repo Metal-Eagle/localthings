@@ -426,3 +426,47 @@ def test_humidity_five_percent_field_passes_a_genuine_zero_through():
     reading."""
     desc = airconditioner.HUMIDITY.entities[0]
     assert desc.rep_fn({'x.com.samsung.da.fivepercentHumidity': '0'}) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Wind-Free 2-in-1 (TP2X_FAC_BORA_21K, issues #150/#153): a floor-standing +
+# wall-mounted indoor unit pair sharing one outdoor unit and one local IP.
+# Reported "no climate entity is generated, only power" -- the device simply
+# fell back to 'unknown' for lack of a '_FAC_' modelNum routing token; once
+# routed, it binds against the exact same CLIMATE composite every other RAC
+# family uses, zero unbound hrefs, no new capabilities needed beyond ignoring
+# the two hrefs (/subdevices/vs/0, /runn/vs/0) unique to this board.
+# ---------------------------------------------------------------------------
+
+def _ac_fac_bora():
+    resources = _load_device('airconditioner_fac_bora')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
+    )
+    return reg, resources
+
+
+def test_fac_bora_resolves_to_airconditioner_registry():
+    reg, _ = _ac_fac_bora()
+    assert reg is not None and reg.name == 'airconditioner'
+
+
+def test_fac_bora_no_unbound_hrefs():
+    reg, resources = _ac_fac_bora()
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
+def test_fac_bora_climate_entity_present():
+    """The actual reported gap: only a power switch existed before, no
+    climate entity at all."""
+    reg, resources = _ac_fac_bora()
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    assert any(isinstance(item.desc, ClimateDesc) for item in bound)
+
+
+def test_fac_bora_subdevices_and_runningmode_are_ignored_not_guessed():
+    assert '/subdevices/vs/0' in airconditioner._AC_IGNORED
+    assert '/runn/vs/0' in airconditioner._AC_IGNORED

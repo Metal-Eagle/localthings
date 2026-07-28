@@ -786,6 +786,26 @@ def test_registry_reproduces_golden_state_keys_for_air_purifier_vtww():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora():
+    """TP2X_FAC_BORA_21K Wind-Free 2-in-1 (floor-standing + wall-mounted
+    indoor units sharing one outdoor unit and one local IP, issues
+    #150/#153) -- reports no oneUiVersion; resolved via the '_FAC_'
+    modelNum fallback. Binds cleanly against the existing airconditioner
+    registry (including a real climate entity, the actual reported gap)
+    with zero unbound hrefs -- /subdevices/vs/0 and /runn/vs/0 are the only
+    hrefs this board reports that no other AC family does, both added to
+    _AC_IGNORED as undocumented/not-locally-actionable."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_fac_bora')
+    golden = json.loads((GOLDEN / 'airconditioner_fac_bora.json').read_text())
+    state_keys = _new_state_keys('airconditioner_fac_bora', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

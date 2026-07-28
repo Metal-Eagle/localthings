@@ -1,0 +1,446 @@
+{
+  "device0": [
+    {
+      "rt": [
+        "x.com.samsung.devcol",
+        "oic.wk.col"
+      ],
+      "if": [
+        "oic.if.baseline",
+        "oic.if.ll",
+        "oic.if.b"
+      ]
+    },
+    {
+      "href": "/alarms/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Alarm",
+            "x.com.samsung.da.alarmType": "Device",
+            "x.com.samsung.da.code": "ErrorCode_OFF",
+            "x.com.samsung.da.triggeredTime": "2024-01-01T00:00:00"
+          },
+          {
+            "x.com.samsung.da.id": "2",
+            "x.com.samsung.da.description": "Alarm",
+            "x.com.samsung.da.alarmType": "Device",
+            "x.com.samsung.da.code": "AC_V_0002_OFF",
+            "x.com.samsung.da.triggeredTime": "2024-01-01T00:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/availablecontrolsets/vs/0",
+      "rep": {
+        "x.com.samsung.da.sets": "000000B4012C0000404B0C000000",
+        "x.com.samsung.da.id": "FAC",
+        "x.com.samsung.da.version": "1.0"
+      }
+    },
+    {
+      "href": "/configuration/vs/0",
+      "rep": {
+        "x.com.samsung.da.region": "2824500000",
+        "x.com.samsung.da.airconOptionList": [
+          "HOMECARE_WIZARD_V2",
+          "ENERGY_2.0",
+          "AI_2.0",
+          "DeviceTypeMaster",
+          "SingleCommand_1"
+        ]
+      }
+    },
+    {
+      "href": "/diagnosis/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/drlc/0",
+      "rep": {
+        "DRLevel": 0,
+        "start": "1970-01-01T00:00:00Z",
+        "duration": 0,
+        "override": false
+      }
+    },
+    {
+      "href": "/drlc/vs/0",
+      "rep": {
+        "x.com.samsung.da.drlcLevel": "0",
+        "x.com.samsung.da.duration": "00:00:00",
+        "x.com.samsung.da.drlcStartTime": "1970-01-01T00:00:00Z",
+        "x.com.samsung.da.override": "Off"
+      }
+    },
+    {
+      "href": "/energy/consumption/0",
+      "rep": {
+        "energy": 100.0,
+        "power": 65278.0
+      }
+    },
+    {
+      "href": "/energy/consumption/vs/0",
+      "rep": {
+        "x.com.samsung.da.cumulativeConsumption": "100.000000",
+        "x.com.samsung.da.instantaneousPower": "65278.000000",
+        "x.com.samsung.da.usageThreshold": "0.000000",
+        "x.com.samsung.da.cumulativePower": "1278818",
+        "x.com.samsung.da.cumulativeDate": "1785243600",
+        "x.com.samsung.da.cumulativeUnit": "Wh",
+        "x.com.samsung.da.instantaneousPowerUnit": "W",
+        "x.com.samsung.da.cumulativePowerType": "individual"
+      }
+    },
+    {
+      "href": "/file/information/vs/0",
+      "rep": {
+        "x.com.samsung.timeoffset": "+09:00",
+        "x.com.samsung.supprtedtype": 1
+      }
+    },
+    {
+      "href": "/filter/airdustfilter/vs/0",
+      "rep": {
+        "x.com.samsung.da.filterUsage": "100",
+        "x.com.samsung.da.filterUsageResolution": "1",
+        "x.com.samsung.da.filterDesiredUsage": "112",
+        "x.com.samsung.da.filterStatus": "wash",
+        "x.com.samsung.da.filterCapacity": "112",
+        "x.com.samsung.da.filterCapacityUnit": "Hour",
+        "x.com.samsung.da.filterResetType": [
+          "washable"
+        ],
+        "x.com.samsung.da.supportedFilterDesiredUsage": [
+          "112",
+          "224",
+          "336",
+          "448"
+        ]
+      }
+    },
+    {
+      "href": "/humidity/0",
+      "rep": {
+        "humidity": 0
+      }
+    },
+    {
+      "href": "/humidity/vs/0",
+      "rep": {
+        "x.com.samsung.da.humidity": "0.000000",
+        "x.com.samsung.da.fivepercentHumidity": "73"
+      }
+    },
+    {
+      "href": "/information/vs/0",
+      "rep": {
+        "x.com.samsung.da.modelNum": "TP2X_FAC_BORA_21K|10233041|600001110015110006000C1200830000",
+        "x.com.samsung.da.description": "TP2X_FAC_BORA_21K",
+        "x.com.samsung.da.serialNum": "REDACTED",
+        "x.com.samsung.da.otnDUID": "REDACTED",
+        "x.com.samsung.da.diagProtocolType": "WIFI_HTTPS",
+        "x.com.samsung.da.diagLogType": [
+          "errCode",
+          "dump"
+        ],
+        "x.com.samsung.da.diagDumpType": "file",
+        "x.com.samsung.da.diagEndPoint": "SSM",
+        "x.com.samsung.da.diagMnid": "0AJT",
+        "x.com.samsung.da.diagSetupid": "000",
+        "x.com.samsung.da.diagMinVersion": "1.0",
+        "x.com.samsung.da.serialNumOption": "REDACTED",
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Version",
+            "x.com.samsung.da.type": "Software",
+            "x.com.samsung.da.number": "02337A260424",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Version",
+            "x.com.samsung.da.type": "Firmware",
+            "x.com.samsung.da.number": "2102240021022200",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "2",
+            "x.com.samsung.da.description": "Version",
+            "x.com.samsung.da.type": "Outdoor",
+            "x.com.samsung.da.number": "2103300110000300"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/keepnormalstate/vs/0",
+      "rep": {
+        "x.com.samsung.da.keepnormal": 1
+      }
+    },
+    {
+      "href": "/mode/convenient/vs/0",
+      "rep": {
+        "x.com.samsung.da.modes": "Off",
+        "x.com.samsung.da.supportedModes": [
+          "Off",
+          "Sleep",
+          "Quiet",
+          "Speed"
+        ]
+      }
+    },
+    {
+      "href": "/mode/vs/0",
+      "rep": {
+        "x.com.samsung.da.supportedModes": [
+          "AIComfort",
+          "Cool",
+          "Dry",
+          "Wind"
+        ],
+        "x.com.samsung.da.modes": [
+          "AIComfort"
+        ],
+        "x.com.samsung.da.options": [
+          "Operation_Family",
+          "Blooming_0",
+          "OnTimer_0",
+          "OffTimer_0",
+          "Sleep_16",
+          "ArtificialWorking_Off",
+          "ComfortAICooling_Off",
+          "AiTempChanged_Off",
+          "AiTemp_270",
+          "welcomecare_Off",
+          "Panel_Close",
+          "Weather_Off",
+          "Volume_100",
+          "StopAutoClean_Idle",
+          "DiagnosisAI_Off",
+          "Display_Off",
+          "ProgressDiagnosisAI_1",
+          "ResultDiagnosisAI_Normal",
+          "Service_Off",
+          "SmartCoolClean_Off",
+          "ProgressSmartClean_0",
+          "OutDoorVentil_Off",
+          "FreezeAlarmSetting_On",
+          "DesiredFreezeAlarm_112",
+          "OptionCode_529",
+          "ExtendOptionCode_16975",
+          "RacInfo_First",
+          "RacInfo_None_Second",
+          "ModelInfo_16K_BORA_VENT2",
+          "UpdateAllow_NotAllowed",
+          "EnergySaveIcon_Off",
+          "DurationOn_0",
+          "welcomecareElapsedTime_0",
+          "welcomecareThresholdTemp_0",
+          "welcomecareStartDate_0000",
+          "welcomecareEndDate_0000",
+          "welcomecareSeason_None"
+        ]
+      }
+    },
+    {
+      "href": "/option/autoclean/vs/0",
+      "rep": {
+        "x.com.samsung.da.status": "Stop",
+        "x.com.samsung.da.settingStatus": "On",
+        "x.com.samsung.da.progress": "0",
+        "x.com.samsung.da.supportedStatus": [
+          "Start",
+          "SpeedClean",
+          "QuietClean",
+          "Stop"
+        ],
+        "x.com.samsung.da.supportedSettingStatus": [
+          "On",
+          "SpeedClean",
+          "QuietClean",
+          "Off"
+        ]
+      }
+    },
+    {
+      "href": "/otninformation/vs/0",
+      "rep": {
+        "x.com.samsung.da.target": "",
+        "x.com.samsung.da.newVersionAvailable": "false",
+        "x.com.samsung.da.newVersionNo": "00000000",
+        "x.com.samsung.da.currentVersionInfo": "00000000",
+        "otnStatus": "None",
+        "flashingProgress": "",
+        "otnTarget": "main",
+        "otnCompleteDate": "noHistory",
+        "otnList": [
+          {
+            "type": "WIFI",
+            "modelId": "AFA-KR-TP2-21-AF9X00",
+            "versions": [
+              "10260424"
+            ],
+            "visVersion": "260424"
+          },
+          {
+            "type": "Micom",
+            "modelId": "04511023304110232941",
+            "versions": [
+              "21022400",
+              "21022200"
+            ],
+            "visVersion": "210224"
+          },
+          {
+            "type": "Micom",
+            "modelId": "04511022974110229941",
+            "versions": [
+              "21033001",
+              "10000300"
+            ],
+            "visVersion": "210330"
+          },
+          {
+            "type": "Micom",
+            "modelId": "045110230741FFFFFFFF",
+            "versions": [
+              "22050300",
+              "FFFFFFFF"
+            ],
+            "visVersion": "220503"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/personality/presence/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "",
+            "x.com.samsung.da.deviceId": "REDACTED",
+            "x.com.samsung.da.value": ""
+          }
+        ]
+      }
+    },
+    {
+      "href": "/power/0",
+      "rep": {
+        "value": false
+      }
+    },
+    {
+      "href": "/power/vs/0",
+      "rep": {
+        "x.com.samsung.da.power": "Off"
+      }
+    },
+    {
+      "href": "/realtimenotiforclient/vs/0",
+      "rep": {
+        "x.com.samsung.da.timeforshortnoti": "0",
+        "x.com.samsung.da.longnotisubscription": "true",
+        "x.com.samsung.da.periodicnotisubscription": "true"
+      }
+    },
+    {
+      "href": "/runn/vs/0",
+      "rep": {
+        "x.com.samsung.da.runningMode": 0
+      }
+    },
+    {
+      "href": "/subdevices/vs/0",
+      "rep": {
+        "x.com.samsung.da.subdeviceIdList": "REDACTED"
+      }
+    },
+    {
+      "href": "/temperature/control/vs/0",
+      "rep": {
+        "x.com.samsung.da.increment": "1"
+      }
+    },
+    {
+      "href": "/temperature/current/0",
+      "rep": {
+        "range": [
+          18.0,
+          30.0
+        ],
+        "units": "C",
+        "temperature": 31.0
+      }
+    },
+    {
+      "href": "/temperature/desired/0",
+      "rep": {
+        "range": [
+          18.0,
+          30.0
+        ],
+        "units": "C",
+        "temperature": 27.0
+      }
+    },
+    {
+      "href": "/temperatures/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Temperature",
+            "x.com.samsung.da.desired": "27.0",
+            "x.com.samsung.da.current": "31.0",
+            "x.com.samsung.da.maximum": "30",
+            "x.com.samsung.da.minimum": "18",
+            "x.com.samsung.da.increment": "1.0",
+            "x.com.samsung.da.unit": "Celsius"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/timezone/vs/0",
+      "rep": {
+        "timezoneid": "Asia/Seoul",
+        "offset": "+09:00",
+        "DST": "OFF"
+      }
+    },
+    {
+      "href": "/wind/direction/vs/0",
+      "rep": {
+        "x.com.samsung.da.modes": "NotSupported",
+        "x.com.samsung.da.supportedModes": [
+          "NotSupported"
+        ]
+      }
+    },
+    {
+      "href": "/wind/strength/vs/0",
+      "rep": {
+        "x.com.samsung.da.modes": "0",
+        "x.com.samsung.da.supportedModes": [
+          "0",
+          "2",
+          "3",
+          "4"
+        ],
+        "x.com.samsung.da.modesName": [
+          "Auto",
+          "Mid",
+          "High",
+          "Turbo"
+        ]
+      }
+    }
+  ]
+}
