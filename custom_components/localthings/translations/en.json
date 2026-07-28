@@ -150,6 +150,9 @@
       }
     },
     "number": {
+      "buzzer_volume": {
+        "name": "Beep volume"
+      },
       "cook_time": {
         "name": "Cook time"
       },
@@ -158,6 +161,9 @@
       },
       "dispense_capacity": {
         "name": "Dispense capacity"
+      },
+      "good_sleep": {
+        "name": "Good Sleep"
       },
       "instance_setpoint": {
         "name": "{instance_name} setpoint"
@@ -569,8 +575,14 @@
       "current_limit_level": {
         "name": "Current limit level"
       },
+      "filter_time": {
+        "name": "Filter time"
+      },
       "hepa_filter_usage": {
         "name": "HEPA filter usage"
+      },
+      "outdoor_temperature": {
+        "name": "Outdoor temperature"
       },
       "panel_status": {
         "name": "Panel status"
@@ -820,6 +832,9 @@
       "ai_energy_level": {
         "name": "AI Energy Mode"
       },
+      "air_monitoring": {
+        "name": "Air monitoring"
+      },
       "air_purify": {
         "name": "Air purification"
       },
@@ -837,6 +852,9 @@
       },
       "dustbin_auto_close": {
         "name": "Dustbin auto-close"
+      },
+      "spi": {
+        "name": "Purifying ion"
       },
       "uvc_intensive_mode": {
         "name": "UV-C intensive mode"

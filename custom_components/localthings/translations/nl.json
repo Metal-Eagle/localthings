@@ -150,6 +150,9 @@
       }
     },
     "number": {
+      "buzzer_volume": {
+        "name": "Zoemervolume"
+      },
       "cook_time": {
         "name": "Bereidingstijd"
       },
@@ -158,6 +161,9 @@
       },
       "dispense_capacity": {
         "name": "Schenkhoeveelheid"
+      },
+      "good_sleep": {
+        "name": "Good Sleep"
       },
       "instance_setpoint": {
         "name": "Instelpunt {instance_name}"
@@ -569,8 +575,14 @@
       "current_limit_level": {
         "name": "Niveau stroombegrenzing"
       },
+      "filter_time": {
+        "name": "Filtertijd"
+      },
       "hepa_filter_usage": {
         "name": "HEPA-filtergebruik"
+      },
+      "outdoor_temperature": {
+        "name": "Buitentemperatuur"
       },
       "panel_status": {
         "name": "Paneelstatus"
@@ -820,6 +832,9 @@
       "ai_energy_level": {
         "name": "AI Energy Mode"
       },
+      "air_monitoring": {
+        "name": "Luchtmonitoring"
+      },
       "air_purify": {
         "name": "Luchtzuivering"
       },
@@ -837,6 +852,9 @@
       },
       "dustbin_auto_close": {
         "name": "Stofreservoir automatisch sluiten"
+      },
+      "spi": {
+        "name": "Ionisatie"
       },
       "uvc_intensive_mode": {
         "name": "Intensieve UV-C-modus"
