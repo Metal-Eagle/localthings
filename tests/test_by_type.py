@@ -529,3 +529,21 @@ class TestForDeviceByResources:
             },
         }
         assert for_device_by_resources(resources) is None
+
+    def test_microwave_without_information_is_microwave(self):
+        """Issue #172: Samsung Microwave (ME8000T-/AA0) has no /information/vs/0
+        resource and empty oneUiVersion; 'MicroWave' in supportedModes alongside
+        /oven/vs/0 must route to the microwave registry."""
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['MicroWave', 'Autocook', 'Convection'],
+                'x.com.samsung.da.options': ['DeviceType_ME8000T-/AA0', 'Lamp_Off'],
+            },
+            '/oven/vs/0': {'x.com.samsung.da.state': 'Ready'},
+            '/hood/fanspeed/vs/0': {'x.com.samsung.da.hood.fanSpeed': '0'},
+        }
+        reg = for_device_by_resources(resources)
+        assert reg is not None
+        assert reg.name == 'microwave'
+
