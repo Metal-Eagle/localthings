@@ -366,14 +366,22 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if reg is None:
             reg = for_device_by_resources(resources)
         unbound: list[str] = []
+        hot, warm = set(), set()
+
+        def _tier_log(href: str, tier: str) -> None:
+            if tier == 'hot':
+                hot.add(href)
+            elif tier == 'warm':
+                warm.add(href)
+
         if reg is not None:
             self._log.debug("device type: %s (oneUiVersion=%r)", reg.name, one_ui)
             bound = discover(resources, reg.capabilities, reg.pattern_capabilities,
-                              log=unbound.append)
+                              log=unbound.append, tier_log=_tier_log)
             self.device_type_name = reg.name
         else:
             self._log.warning("unknown device type oneUiVersion=%r; using common caps", one_ui)
-            bound = discover(resources, CAPABILITIES, log=unbound.append)
+            bound = discover(resources, CAPABILITIES, log=unbound.append, tier_log=_tier_log)
             self.device_type_name = None
         self.bound = bound
         self._unbound_hrefs = unbound
@@ -398,13 +406,6 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self._update_coverage_gap_issue(reg is None, unbound, name)
 
-        hot, warm = set(), set()
-        for be in bound:
-            tier = be.capability.poll_tier
-            if tier == 'hot':
-                hot.add(be.href)
-            elif tier == 'warm':
-                warm.add(be.href)
         self._hot_hrefs = sorted(hot)
         self._warm_hrefs = sorted(warm)
 

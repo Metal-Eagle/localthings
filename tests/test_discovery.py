@@ -209,3 +209,19 @@ def test_discover_rt_filter_gates_binding():
     resources = {'/mode/vs/0': {'rt': ['x.com.samsung.da.mode'], 'x.com.samsung.da.mode': 'Bake'}}
     bound = discover(resources, {'/mode/vs/0': [oven_mode_cap]})
     assert bound == []
+
+
+def test_discover_tier_log_fires_for_no_entity_coverage_cap():
+    """A coverage-only Capability (entities=(), used to mark a href as
+    handled by e.g. a composite climate entity rather than its own HA
+    entity) produces zero BoundEntity rows -- `bound` alone can't tell a
+    caller its poll_tier. tier_log must still report it, or a consumer
+    (the coordinator's hot/warm href lists) silently treats it as 'cold'
+    regardless of what poll_tier the capability actually declares."""
+    coverage_cap = Capability(href='/wind/strength/vs/0', poll_tier='warm')
+    resources = {'/wind/strength/vs/0': {'x.com.samsung.da.modes': '0'}}
+    seen = []
+    bound = discover(resources, {coverage_cap.href: [coverage_cap]},
+                      tier_log=lambda href, tier: seen.append((href, tier)))
+    assert bound == []
+    assert seen == [('/wind/strength/vs/0', 'warm')]
