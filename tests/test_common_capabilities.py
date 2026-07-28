@@ -399,13 +399,20 @@ class TestAiEnergyLevelStubDoesNotDecideThePlatform:
     if a stub carve-out let one of them win at setup time while the other
     wins once real data lands, flatten() would feed the already-instantiated
     entity a value shaped for the other platform (e.g. a bool into a Select
-    expecting a string option). Neither side gets a `not rep` carve-out, so
-    an unfetched stub can never win entity creation for either platform --
+    expecting a string option). Neither side gets an is_stub_rep carve-out,
+    so an unfetched stub can never win entity creation for either platform --
     the entity simply doesn't appear until a reload happens with real data,
     same as any other exists_fn-gated entity in this codebase that's unlucky
     on first-poll timing, instead of appearing as the wrong widget type."""
 
-    def test_neither_widget_exists_on_empty_stub_rep(self):
+    def test_neither_widget_exists_on_true_stub_rep(self):
+        switch = _ai_energy_level_desc('SwitchDesc')
+        select = _ai_energy_level_desc('SelectDesc')
+        stub = {'href': '/energy/ailevel/vs/0'}
+        assert switch.exists_fn(stub, {}) is False
+        assert select.exists_fn(stub, {}) is False
+
+    def test_neither_widget_exists_on_genuinely_empty_rep(self):
         switch = _ai_energy_level_desc('SwitchDesc')
         select = _ai_energy_level_desc('SelectDesc')
         assert switch.exists_fn({}, {}) is False

@@ -503,7 +503,7 @@ AI_ENERGY_LEVEL = Capability(
     href='/energy/ailevel/vs/0',
     poll_tier='cold',
     entities=(
-        # No `not rep` stub carve-out on either side, unlike most exists_fn
+        # No is_stub_rep carve-out on either side, unlike most exists_fn
         # gates in this file -- entity creation only ever runs once, against
         # whichever snapshot happens to be current the moment platforms are
         # set up (see entity._is_included / __init__.py's
