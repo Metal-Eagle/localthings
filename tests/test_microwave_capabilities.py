@@ -165,13 +165,28 @@ def test_lamp_gated_present_when_lamp_option_reported():
 
 
 def test_lamp_write_is_single_token():
+    """issue #152: the device has never been observed accepting 'On' --
+    only 'High'/'Off' -- so the switch's "on" write uses 'High'."""
     desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'lamp')
     rep = {'x.com.samsung.da.options': ['Lamp_Off']}
     path, body = desc.write_fn('On', rep)
     assert path == ['mode', 'vs', '0']
-    assert body == {'x.com.samsung.da.options': ['Lamp_On']}
+    assert body == {'x.com.samsung.da.options': ['Lamp_High']}
 
 
 def test_lamp_write_requires_existing_options():
     desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'lamp')
     assert desc.write_fn('On', {}) is None
+
+
+def test_lamp_reads_off_as_false():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'lamp')
+    assert desc.value_fn(['Lamp_Off']) is False
+
+
+def test_lamp_reads_any_non_off_level_as_true():
+    """issue #152's ME7500D reports 'Lamp_High', not the binary 'Lamp_On'
+    #137's dump implied -- any non-Off/non-absent value must read as on, not
+    just a literal 'On'."""
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'lamp')
+    assert desc.value_fn(['Lamp_High']) is True
