@@ -522,24 +522,6 @@
       "air_filter_usage_hours": {
         "name": "Filter usage hours"
       },
-      "software_version": {
-        "name": "Software version"
-      },
-      "firmware_version": {
-        "name": "Firmware version"
-      },
-      "firmware_version_2": {
-        "name": "Firmware version (secondary)"
-      },
-      "firmware_version_3": {
-        "name": "Firmware version (tertiary)"
-      },
-      "outdoor_unit_version": {
-        "name": "Outdoor unit version"
-      },
-      "touch_ic_version": {
-        "name": "Touch IC version"
-      },
       "air_sensing_state": {
         "name": "Air sensing state"
       },
@@ -694,9 +676,6 @@
       },
       "hood_filter_usage": {
         "name": "Filter usage"
-      },
-      "humidity": {
-        "name": "Humidity"
       },
       "instance_temperature": {
         "name": "{instance_name} temperature"

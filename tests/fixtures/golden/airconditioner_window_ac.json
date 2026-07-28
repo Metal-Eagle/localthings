@@ -12,15 +12,11 @@
     "energy_kwh",
     "energy_saved_kwh",
     "firmware_update",
-    "firmware_version",
     "humidity",
     "mute_once",
-    "outdoor_unit_version",
     "power_watts",
     "selfcheck_error",
     "selfcheck_result",
-    "selfcheck_status",
-    "software_version",
-    "touch_ic_version"
+    "selfcheck_status"
   ]
 }

@@ -12,12 +12,9 @@
     "energy_kwh",
     "energy_saved_kwh",
     "firmware_update",
-    "firmware_version",
-    "firmware_version_2",
     "humidity",
     "mute_once",
     "power_watts",
-    "software_version",
     "tropical_night_mode"
   ]
 }

@@ -16,14 +16,10 @@
     "energy_kwh",
     "energy_saved_kwh",
     "firmware_update",
-    "firmware_version",
-    "firmware_version_2",
-    "firmware_version_3",
     "mute_once",
     "selfcheck_error",
     "selfcheck_result",
     "selfcheck_status",
-    "software_version",
     "tropical_night_mode"
   ]
 }

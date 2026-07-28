@@ -16,12 +16,9 @@
     "energy_kwh",
     "energy_saved_kwh",
     "fine_dust",
-    "firmware_version",
     "humidity",
     "odor",
-    "outdoor_unit_version",
     "power_watts",
-    "software_version",
     "super_fine_dust",
     "tropical_night_mode"
   ]

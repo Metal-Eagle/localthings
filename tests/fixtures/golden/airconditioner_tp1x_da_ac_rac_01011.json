@@ -16,15 +16,11 @@
     "energy_saved_kwh",
     "fine_dust",
     "firmware_update",
-    "firmware_version",
-    "firmware_version_2",
-    "firmware_version_3",
     "humidity",
     "mute_once",
     "selfcheck_error",
     "selfcheck_result",
     "selfcheck_status",
-    "software_version",
     "super_fine_dust",
     "tropical_night_mode"
   ]

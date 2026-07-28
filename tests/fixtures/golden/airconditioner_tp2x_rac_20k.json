@@ -11,11 +11,9 @@
     "display_light",
     "energy_kwh",
     "firmware_update",
-    "firmware_version",
     "humidity",
     "mute_once",
     "power_watts",
-    "software_version",
     "tropical_night_mode"
   ]
 }

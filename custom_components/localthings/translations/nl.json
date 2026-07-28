@@ -522,24 +522,6 @@
       "air_filter_usage_hours": {
         "name": "Filterverbruik (uren)"
       },
-      "software_version": {
-        "name": "Softwareversie"
-      },
-      "firmware_version": {
-        "name": "Firmwareversie"
-      },
-      "firmware_version_2": {
-        "name": "Firmwareversie (secundair)"
-      },
-      "firmware_version_3": {
-        "name": "Firmwareversie (tertiair)"
-      },
-      "outdoor_unit_version": {
-        "name": "Versie buiteneenheid"
-      },
-      "touch_ic_version": {
-        "name": "Touch-IC-versie"
-      },
       "air_sensing_state": {
         "name": "Status luchtmeting"
       },
@@ -694,9 +676,6 @@
       },
       "hood_filter_usage": {
         "name": "Filterverbruik"
-      },
-      "humidity": {
-        "name": "Luchtvochtigheid"
       },
       "instance_temperature": {
         "name": "Temperatuur {instance_name}"

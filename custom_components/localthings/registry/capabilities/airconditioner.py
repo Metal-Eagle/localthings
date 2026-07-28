@@ -86,29 +86,6 @@ def _tropical_night_write(value, rep, href=None):
     }
 
 
-def _info_items_of_type(items, type_):
-    return [it for it in (items or [])
-            if isinstance(it, dict) and it.get('x.com.samsung.da.type') == type_]
-
-
-def _info_version(items, type_, ordinal):
-    """x.com.samsung.da.number of the ordinal-th /information/vs/0 item of the
-    given type. Boards carry one Software item but 1-3 Firmware items (separate
-    MCUs), plus an Outdoor unit and (window AC) a Touch IC item -- each a
-    distinct version string, so they're exposed per-item rather than collapsed
-    to a single 'first wins' value. None when the ordinal item is absent or
-    carries no number (e.g. tp2x_rac_20k's second Firmware item)."""
-    items = _info_items_of_type(items, type_)
-    if ordinal < len(items):
-        return items[ordinal].get('x.com.samsung.da.number')
-    return None
-
-
-def _has_info_version(type_, ordinal):
-    return lambda rep, resources: _info_version(
-        rep.get('x.com.samsung.da.items'), type_, ordinal) is not None
-
-
 def _filter_unit(rep):
     """Unit of the filter-usage fields, normalised from filterCapacityUnit
     ('Hour' -> 'h'). Wired through unit_fn so a board advertising a different
@@ -178,7 +155,6 @@ HREF_WIND_DIRECTION = '/wind/direction/vs/0'      # swing_mode
 HREF_WIND_OSCILLATION = '/wind/oscillation/vs/0'  # swing_mode fallback
 HREF_CONVENIENT = '/mode/convenient/vs/0'         # preset_mode
 HREF_TEMPS_VS = '/temperatures/vs/0'              # vendor temp fallback (items[] array)
-HREF_INFORMATION = '/information/vs/0'           # model/serial + Software/Firmware version items
 
 CLIMATE_CONSUMED_HREFS = [
     HREF_POWER, HREF_POWER_VS, HREF_TEMP_CURRENT, HREF_TEMP_DESIRED,
@@ -571,42 +547,6 @@ AIR_QUALITY = Capability(
     ),
 )
 
-# Software/Firmware version from /information/vs/0 items[] (the href is
-# globally ignored as identity plumbing; the AC registry drops that entry so
-# INFO is the sole cap on it). Boards carry one Software item but 1-3 Firmware
-# items (separate MCUs), plus an Outdoor unit and (window AC) a Touch IC item
-# -- each a distinct version string, exposed per-item (see _info_version)
-# rather than collapsed to a single 'first wins' value. Diagnostic, read-only.
-INFO = Capability(
-    href=HREF_INFORMATION,
-    poll_tier='cold',
-    entities=(
-        SensorDesc(key='software_version', field='x.com.samsung.da.items',
-                   icon='mdi:package-variant', entity_category='diagnostic',
-                   exists_fn=_has_info_version('Software', 0),
-                   value_fn=lambda items: _info_version(items, 'Software', 0)),
-        SensorDesc(key='firmware_version', field='x.com.samsung.da.items',
-                   icon='mdi:chip', entity_category='diagnostic',
-                   exists_fn=_has_info_version('Firmware', 0),
-                   value_fn=lambda items: _info_version(items, 'Firmware', 0)),
-        SensorDesc(key='firmware_version_2', field='x.com.samsung.da.items',
-                   icon='mdi:chip', entity_category='diagnostic',
-                   exists_fn=_has_info_version('Firmware', 1),
-                   value_fn=lambda items: _info_version(items, 'Firmware', 1)),
-        SensorDesc(key='firmware_version_3', field='x.com.samsung.da.items',
-                   icon='mdi:chip', entity_category='diagnostic',
-                   exists_fn=_has_info_version('Firmware', 2),
-                   value_fn=lambda items: _info_version(items, 'Firmware', 2)),
-        SensorDesc(key='outdoor_unit_version', field='x.com.samsung.da.items',
-                   icon='mdi:fan', entity_category='diagnostic',
-                   exists_fn=_has_info_version('Outdoor', 0),
-                   value_fn=lambda items: _info_version(items, 'Outdoor', 0)),
-        SensorDesc(key='touch_ic_version', field='x.com.samsung.da.items',
-                   icon='mdi:gesture-tap', entity_category='diagnostic',
-                   exists_fn=_has_info_version('Touch IC', 0),
-                   value_fn=lambda items: _info_version(items, 'Touch IC', 0)),
-    ),
-)
 
 # ---------------------------------------------------------------------------
 # AC-scoped coverage: the CLIMATE_CONSUMED_HREFS above (read by the climate
