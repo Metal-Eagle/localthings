@@ -16,10 +16,122 @@ by_type registry.
 """
 from ..capability import Capability
 from ..entities import (
-    BinarySensorDesc, ClimateDesc, NumberDesc, SensorDesc, SwitchDesc,
+    BinarySensorDesc, ClimateDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
 )
 from .common import filter_usage_percent, normalize_temp_unit
 from .laundry import option_write
+
+
+def _int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _beep_on(rep):
+    """Beep on/off from the `Volume_*` option token: Volume_Mute = off,
+    Volume_100 (and any non-Mute) = on. None when no Volume_ slot.
+
+    _option_token (defined further below, alongside the legacy-board token
+    helpers) returns the token's *value* half (e.g. 'Mute', '100'), not the
+    full 'Volume_100' token -- shared with _option_token_num/_option_token_on,
+    which this module's other options[] readers already rely on.
+    """
+    tok = _option_token(rep, 'Volume')
+    if tok is None:
+        return None
+    return tok != 'Mute'
+
+
+def _beep_write(payload, rep, href=None):
+    """Toggle beep via a single-token /mode/vs/0 options write (option_write's
+    one-token merge -- a full options RMW reverts on ARTIK051_PRAC). 'On'
+    restores the last non-Mute level rather than forcing Volume_100, so a
+    user's intermediate setting (e.g. Volume_50 set via the cloud) survives an
+    off/on cycle; falls back to 100 when no prior level is known."""
+    if payload not in ('On', 'Off'):
+        return None
+    if payload == 'Off':
+        token = 'Mute'
+    else:
+        prev = _option_token(rep, 'Volume')
+        token = prev if (prev and prev != 'Mute') else '100'
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': option_write('Volume', token),
+    }
+
+
+def _tropical_night_value(rep):
+    """Tropical night mode level (0-16) from the `Sleep_<N>` option token.
+
+    _option_token returns the token's value half already (e.g. '16' for
+    'Sleep_16'), same convention as _beep_on above.
+    """
+    tok = _option_token(rep, 'Sleep')
+    if tok is None:
+        return None
+    return _int(tok)
+
+
+def _tropical_night_write(value, rep, href=None):
+    """Set tropical night level via a single-token `Sleep_<N>` options write.
+    Samsung cloud counterpart: custom.airConditionerTropicalNightMode (0-16)."""
+    try:
+        level = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= level <= 16:
+        return None
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': option_write('Sleep', str(level)),
+    }
+
+
+def _filter_unit(rep):
+    """Unit of the filter-usage fields, normalised from filterCapacityUnit
+    ('Hour' -> 'h'). Wired through unit_fn so a board advertising a different
+    unit doesn't silently mislabel a duration statistic."""
+    u = rep.get('x.com.samsung.da.filterCapacityUnit')
+    return {'Hour': 'h', 'Minute': 'min', 'Second': 's'}.get(u, u or 'h')
+
+
+def _threshold_write(payload, rep, href=None):
+    """filterDesiredUsage is locally writable: a plain scalar POST of the
+    field to /filter/airdustfilter/vs/0 is 2.04-accepted and persists
+    (confirmed live on ARTIK051_PRAC: POST 700 -> 2.04, read-back 700). The
+    Select only surfaces where the device advertises
+    supportedFilterDesiredUsage, so the valid options are known rather than
+    guessed; boards without that enum leave this writable field unexposed."""
+    return ['filter', 'airdustfilter', 'vs', '0'], {
+        'x.com.samsung.da.filterDesiredUsage': payload,
+    }
+
+
+def _sensor_item_value(items, type_):
+    """First value of the /sensors/vs/0 item with the given
+    x.com.samsung.da.type. The resource exposes no unit, so no device_class is
+    set until a populated reading + unit is observed (the 'don't guess' rule).
+
+    Dust/FineDust/SuperFineDust report a 2-element array (['0','0']) while
+    CleanLevel/Odor report a single element -- the second element's meaning is
+    unconfirmed, so v[0] is taken as the reading and v[1] is dropped; left as
+    a string rather than coerced numeric because only CleanLevel has
+    corroborating evidence (a top-level x.com.samsung.da.cleanLevel scalar)."""
+    for it in (items or []):
+        if isinstance(it, dict) and it.get('x.com.samsung.da.type') == type_:
+            v = it.get('x.com.samsung.da.value')
+            if isinstance(v, list) and v:
+                return str(v[0])
+            return None
+    return None
+
+
+def _has_sensor_type(type_):
+    def fn(rep, resources):
+        return any(isinstance(i, dict) and i.get('x.com.samsung.da.type') == type_
+                   for i in (rep.get('x.com.samsung.da.items') or []))
+    return fn
 
 # ---------------------------------------------------------------------------
 # Canonical AC resource hrefs. The climate entity (climate.py) binds the
@@ -313,6 +425,29 @@ CLIMATE = Capability(
                    exists_fn=_has_display_light_option,
                    write_fn=_display_light_write,
                    icon='mdi:led-on', entity_category='config'),
+        # Beep on/off from the `Volume_*` option token (Volume_Mute/Volume_100).
+        # Single-token option_write; a full options RMW reverts on ARTIK051_PRAC.
+        # Gated off the legacy ARTIK051 board generation (see is_legacy_board):
+        # that generation's own Volume_ token is already modeled as the
+        # buzzer_volume Number below, and both reading the same options[] slot
+        # into two entities would be redundant.
+        SwitchDesc(key='beep', rep_fn=_beep_on,
+                   exists_fn=lambda rep, resources: (
+                       not is_legacy_board(resources)
+                       and _option_token(rep, 'Volume') is not None),
+                   write_fn=_beep_write,
+                   icon='mdi:volume-high', entity_category='config'),
+        # Tropical night mode level (0-16) from the `Sleep_<N>` option token.
+        # Single-token option_write. Cloud: custom.airConditionerTropicalNightMode.
+        # Gated off the legacy board for the same reason as beep above -- its
+        # Sleep_ token is already the good_sleep Number below.
+        NumberDesc(key='tropical_night_mode', rep_fn=_tropical_night_value,
+                   exists_fn=lambda rep, resources: (
+                       not is_legacy_board(resources)
+                       and _option_token(rep, 'Sleep') is not None),
+                   write_fn=_tropical_night_write,
+                   native_min=0, native_max=16, step=1,
+                   icon='mdi:weather-night', entity_category='config'),
         # Settings that this board generation keeps as options[] tokens.
         SwitchDesc(key='spi', rep_fn=_option_token_on('Spi'),
                    exists_fn=_has_option_token('Spi'),
@@ -403,6 +538,28 @@ AIR_FILTER = Capability(
         SensorDesc(key='air_filter_usage', rep_fn=filter_usage_percent,
                    unit='%', state_class='measurement',
                    icon='mdi:air-filter', entity_category='diagnostic'),
+        # filterUsage is a lifetime hour counter that only resets on filter
+        # replacement -- total_increasing so HA's long-term statistics handle
+        # the reset rather than treating it as a bounded measurement.
+        SensorDesc(key='air_filter_usage_hours',
+                   field='x.com.samsung.da.filterUsage',
+                   device_class='duration',
+                   state_class='total_increasing',
+                   unit_fn=_filter_unit,
+                   icon='mdi:air-filter', entity_category='diagnostic',
+                   value_fn=_int),
+        # The alarm threshold (filterDesiredUsage) is a locally writable option:
+        # see _threshold_write. Surfaces as a Select only where the device
+        # advertises supportedFilterDesiredUsage; boards without that enum
+        # leave it unexposed rather than guess the valid set.
+        SelectDesc(key='air_filter_threshold',
+                   field='x.com.samsung.da.filterDesiredUsage',
+                   options_field='x.com.samsung.da.supportedFilterDesiredUsage',
+                   exists_fn=lambda rep, res: bool(
+                       rep.get('x.com.samsung.da.supportedFilterDesiredUsage')),
+                   icon='mdi:alarm', entity_category='config',
+                   write_fn=_threshold_write,
+                   value_fn=lambda v: str(v) if v is not None else None),
         SensorDesc(key='air_filter_status', field='x.com.samsung.da.filterStatus',
                    device_class='enum',
                    options=('normal', 'wash', 'replace'),
@@ -538,6 +695,38 @@ HUMIDITY = Capability(
     ),
 )
 
+# /sensors/vs/0 items[] carry live air-quality readings. Removed from
+# _AC_IGNORED below so AIR_QUALITY is the sole cap on the href. CleanLevel is
+# corroborated as numeric by a top-level x.com.samsung.da.cleanLevel scalar
+# (tp1x_da_ac_rac_01011 reports both as '1'), so it's a measurement; the others
+# are 1- or 2-element arrays with no corroborating scalar, so they stay string
+# diagnostics (see _sensor_item_value for the 2-element ambiguity and why only
+# v[0] is taken). No unit is advertised on the resource, so no device_class.
+AIR_QUALITY = Capability(
+    href='/sensors/vs/0',
+    poll_tier='cold',
+    entities=(
+        SensorDesc(key='clean_level', field='x.com.samsung.da.items',
+                   icon='mdi:broom', entity_category='diagnostic',
+                   state_class='measurement',
+                   exists_fn=_has_sensor_type('CleanLevel'),
+                   value_fn=lambda items: _int(_sensor_item_value(items, 'CleanLevel'))),
+        *tuple(
+            SensorDesc(key=key, field='x.com.samsung.da.items',
+                       icon=icon, entity_category='diagnostic',
+                       exists_fn=_has_sensor_type(type_),
+                       value_fn=lambda items, t=type_: _sensor_item_value(items, t))
+            for key, icon, type_ in (
+                ('odor', 'mdi:weather-windy', 'Odor'),
+                ('dust', 'mdi:cloud', 'Dust'),
+                ('fine_dust', 'mdi:cloud-outline', 'FineDust'),
+                ('super_fine_dust', 'mdi:weather-fog', 'SuperFineDust'),
+            )
+        ),
+    ),
+)
+
+
 # ---------------------------------------------------------------------------
 # AC-scoped coverage: the CLIMATE_CONSUMED_HREFS above (read by the climate
 # entity) plus vendor duplicates / all-zero-ambiguous / plumbing resources.
@@ -557,9 +746,6 @@ HUMIDITY = Capability(
 # of waiting on the summary sweep.
 # ---------------------------------------------------------------------------
 _AC_IGNORED = [
-    # All-zero and ambiguously encoded on this model (2-value arrays); the
-    # 'don't guess' rule -- leave unmodeled rather than invent entities.
-    '/sensors/vs/0',
     # Stuck at "0" on every dump seen -- HUMIDITY above reads the vendor
     # resource's usable fivepercentHumidity field instead; this OCF-standard
     # one has no corresponding live value confirmed yet.

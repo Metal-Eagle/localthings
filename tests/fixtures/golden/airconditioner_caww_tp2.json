@@ -2,8 +2,10 @@
   "state_keys": [
     "air_filter_status",
     "air_filter_usage",
+    "air_filter_usage_hours",
     "alarm_code",
     "auto_clean",
+    "beep",
     "climate",
     "current_temperature_c",
     "diagnosis_status",
@@ -13,6 +15,7 @@
     "firmware_update",
     "humidity",
     "mute_once",
-    "power_watts"
+    "power_watts",
+    "tropical_night_mode"
   ]
 }

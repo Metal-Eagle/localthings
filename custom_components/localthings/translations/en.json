@@ -187,11 +187,17 @@
       },
       "target_humidity": {
         "name": "Target humidity"
+      },
+      "tropical_night_mode": {
+        "name": "Tropical night mode"
       }
     },
     "select": {
       "ai_energy_level": {
         "name": "AI Energy Mode level"
+      },
+      "air_filter_threshold": {
+        "name": "Filter alarm threshold"
       },
       "beverage_zone_mode": {
         "name": "Beverage zone mode",
@@ -580,6 +586,9 @@
       "air_filter_usage": {
         "name": "Filter usage"
       },
+      "air_filter_usage_hours": {
+        "name": "Filter usage hours"
+      },
       "air_sensing_state": {
         "name": "Air sensing state"
       },
@@ -750,9 +759,6 @@
       "hood_filter_usage": {
         "name": "Filter usage"
       },
-      "humidity": {
-        "name": "Humidity"
-      },
       "instance_temperature": {
         "name": "{instance_name} temperature"
       },
@@ -891,6 +897,9 @@
       },
       "auto_clean": {
         "name": "Auto clean"
+      },
+      "beep": {
+        "name": "Beep"
       },
       "display": {
         "name": "Display"

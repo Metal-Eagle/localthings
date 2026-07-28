@@ -187,11 +187,17 @@
       },
       "target_humidity": {
         "name": "Doelvochtigheid"
+      },
+      "tropical_night_mode": {
+        "name": "Tropische nachtmodus"
       }
     },
     "select": {
       "ai_energy_level": {
         "name": "Niveau AI Energy Mode"
+      },
+      "air_filter_threshold": {
+        "name": "Filteralarmdrempel"
       },
       "beverage_zone_mode": {
         "name": "Modus drankenzone",
@@ -580,6 +586,9 @@
       "air_filter_usage": {
         "name": "Filterverbruik"
       },
+      "air_filter_usage_hours": {
+        "name": "Filterverbruik (uren)"
+      },
       "air_sensing_state": {
         "name": "Status luchtmeting"
       },
@@ -750,9 +759,6 @@
       "hood_filter_usage": {
         "name": "Filterverbruik"
       },
-      "humidity": {
-        "name": "Luchtvochtigheid"
-      },
       "instance_temperature": {
         "name": "Temperatuur {instance_name}"
       },
@@ -891,6 +897,9 @@
       },
       "auto_clean": {
         "name": "Automatisch reinigen"
+      },
+      "beep": {
+        "name": "Piep"
       },
       "display": {
         "name": "Display"

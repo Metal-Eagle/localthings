@@ -22,6 +22,7 @@ REGISTRY = DeviceRegistry(
         airconditioner.AIR_PURIFY,
         airconditioner.AUTO_CLEAN,
         airconditioner.AIR_FILTER,
+        airconditioner.AIR_QUALITY,
         airconditioner.DISPLAY_LIGHT,
         airconditioner.MUTE_ONCE,
         airconditioner.CURRENT_LIMIT,

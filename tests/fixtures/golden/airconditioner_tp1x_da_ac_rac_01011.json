@@ -1,20 +1,27 @@
 {
   "state_keys": [
     "air_filter_status",
+    "air_filter_threshold",
     "air_filter_usage",
+    "air_filter_usage_hours",
     "air_purify",
     "alarm_code",
     "auto_clean",
+    "clean_level",
     "climate",
     "current_temperature_c",
     "display_light",
+    "dust",
     "energy_kwh",
     "energy_saved_kwh",
+    "fine_dust",
     "firmware_update",
     "humidity",
     "mute_once",
     "selfcheck_error",
     "selfcheck_result",
-    "selfcheck_status"
+    "selfcheck_status",
+    "super_fine_dust",
+    "tropical_night_mode"
   ]
 }
