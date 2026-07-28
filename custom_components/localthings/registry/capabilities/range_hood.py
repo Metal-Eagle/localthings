@@ -181,12 +181,18 @@ HOOD_FILTER = Capability(
 
 
 # After Run (issue #147): the hood keeps the fan running at low speed for a
-# while after it's switched off, to clear residual cooking smoke. No
+# while after it's switched off, to clear residual cooking smoke -- a
+# feature a user actively watches and cancels, not passive diagnostics, so
+# none of the three entities below carry entity_category. No
 # supported-values list is advertised for activationState, so it's modeled
 # read-only (monitoring, not an invented "enable" write) per the 'don't
 # guess' rule; runningCancel's only observed value is the command name
 # itself ('Cancel'), the same self-describing command-field shape as
-# operational.STOP_BUTTON.
+# operational.STOP_BUTTON. runningProgress is left a bare passthrough for the
+# same 'don't guess' reason -- the only observed sample is "0", with no
+# range or supported-values field to confirm it's a percentage rather than a
+# minutes/seconds count, and unit + state_class='measurement' would commit
+# it to long-term statistics under a possibly-wrong unit.
 AFTER_RUN = Capability(
     href='/afterrun/vs/0',
     poll_tier='warm',
@@ -195,17 +201,12 @@ AFTER_RUN = Capability(
             key='after_run_active',
             field='x.com.samsung.da.activationState',
             icon='mdi:fan-clock',
-            entity_category='diagnostic',
             value_fn=lambda value: str(value).lower() == 'on',
         ),
         SensorDesc(
             key='after_run_progress',
             field='x.com.samsung.da.runningProgress',
-            unit='%',
-            state_class='measurement',
             icon='mdi:fan-clock',
-            entity_category='diagnostic',
-            value_fn=int_or_none,
         ),
         ButtonDesc(
             key='after_run_cancel',

@@ -105,6 +105,29 @@ FAVORITE_CAPACITY = Capability(
 # Coffee-capable variant (issue #107) -- a "favorite" supported-list select
 # for the hot water dispensed alongside brewing, same shape as
 # FAVORITE_CAPACITY above.
+
+
+def _status_lock_definitely_lacks_hotwater_field(resources: dict) -> bool:
+    """Three-way read of /status/lock/vs/0's hotwaterLock field, favouring
+    LOCK.hotwater_lock (the primary descriptor) whenever the outcome is
+    still ambiguous:
+
+    - href entirely absent from this device -> definitely no clash, the
+      switchHotwater fallback below may claim the entity.
+    - href present but an unfetched stub ({}) -> outcome pending, *not* a
+      confirmed absence. LOCK's own exists_fn optimistically includes itself
+      through a stub (matching entity.py's default), so returning True here
+      too would register both descriptors -- as SwitchDescs sharing one key,
+      with identical unique_ids -- until the next poll resolves it.
+    - href present and fetched -> the real answer."""
+    rep = resources.get('/status/lock/vs/0')
+    if rep is None:
+        return True
+    if not rep:
+        return False
+    return 'x.com.samsung.da.hotwaterLock' not in rep
+
+
 FAVORITE_HOTWATER = Capability(
     href='/favorite/hotwater/vs/0',
     poll_tier='cold',
@@ -114,15 +137,26 @@ FAVORITE_HOTWATER = Capability(
         # hot-water lock as LOCK.hotwater_lock below, just surfaced through
         # this href on boards that don't populate /status/lock/vs/0's
         # hotwaterLock field. Shares that descriptor's key so only one "Hot
-        # water lock" entity ever appears; exists_fn activates this fallback
-        # only when the primary field is absent, so a board reporting both
-        # can't collide.
+        # water lock" entity ever appears.
+        #
+        # Both halves of this fallback pair need an exists_fn, not just this
+        # one: adapter.flatten() (the coordinator.data source every entity's
+        # is_on reads) only ever honours exists_fn, never entity.py's
+        # implicit "require own field present" default that gates plain
+        # registration. Two same-keyed descriptors with only one of them
+        # gated still both land in flatten()'s output dict -- whichever is
+        # processed last silently wins, decided by device-reported href
+        # order, not by which one is actually correct. So this exists_fn
+        # also re-asserts its own field's presence (switchHotwater), the
+        # gate a bare `field=` used to get for free before it had to share a
+        # key with LOCK's descriptor.
         SwitchDesc(key='hotwater_lock', field='x.com.samsung.da.switchHotwater',
                    device_class='lock',
                    entity_category='config',
                    value_fn=lambda v: v != 'Unlocked',
-                   exists_fn=lambda rep, resources: 'x.com.samsung.da.hotwaterLock' not in (
-                       resources.get('/status/lock/vs/0') or {}),
+                   exists_fn=lambda rep, resources: (
+                       'x.com.samsung.da.switchHotwater' in rep
+                       and _status_lock_definitely_lacks_hotwater_field(resources)),
                    write_fn=lambda p, rep, href=None: (
                        ['favorite', 'hotwater', 'vs', '0'],
                        {'x.com.samsung.da.switchHotwater': 'Locked' if p == 'On' else 'Unlocked'})),
@@ -160,10 +194,19 @@ LOCK = Capability(
     href='/status/lock/vs/0',
     poll_tier='warm',
     entities=(
+        # Shares its key with FAVORITE_HOTWATER's switchHotwater fallback
+        # above (issue #144); see the comment there for why this half also
+        # needs an explicit exists_fn now that the two share a key in
+        # adapter.flatten()'s output. A stub rep ({}) still counts as
+        # "present" here (matches entity.py's own default for a field-less
+        # gate) since the alternative -- treating an unfetched resource as
+        # confirmed-absent -- is what let both descriptors register at once.
         SwitchDesc(key='hotwater_lock', field='x.com.samsung.da.hotwaterLock',
                    device_class='lock',
                    entity_category='config',
                    value_fn=lambda v: v != 'Unlocked',
+                   exists_fn=lambda rep, resources: (
+                       not rep or 'x.com.samsung.da.hotwaterLock' in rep),
                    write_fn=lambda p, rep, href=None: (
                        ['status', 'lock', 'vs', '0'],
                        {'x.com.samsung.da.hotwaterLock': 'Locked' if p == 'On' else 'Unlocked'})),
