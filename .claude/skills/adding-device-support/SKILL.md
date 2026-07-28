@@ -6,6 +6,7 @@ description: >-
   raises the "incomplete capability coverage" repair, a diagnostics JSON needs
   triaging, or you're mapping OCF resources to HA entities. Covers reading dumps,
   OCF-standard vs vendor hrefs, the diagnostic/config/normal entity taxonomy,
+  preferring dynamic (device-reported) select options over hardcoded lists,
   ensuring every href is bound or ignored, and locking it in with a fixture +
   golden + test.
 ---
@@ -103,7 +104,37 @@ sub-polled between summary polls. Pick descriptor types from `entities.py`
 as a gap for a human, or ignore it with a documented reason — never invent an
 entity on a hunch (`ignored.py`'s rule).
 
-## 5. Names and enum labels live in translations, never in Python
+## 5. Select options: read them from the device, don't hardcode
+
+A `SelectDesc`'s `options` should come from the device's own advertised list
+whenever the resource carries one, not from a Python tuple typed in from a
+single dump. Two dynamic forms already exist in the repo and should be
+reached for first:
+- `options_field='x.com.samsung.da.supportedModes'` (or whatever the
+  resource's own supported-values field is called) — reads the live rep on
+  the capability's own href. See `laundry.py`'s `buzzer_sound`/
+  `finish_sound` (`options_field='supportedBuzzerSound'`/
+  `'supportedFinishSound'`).
+- `options=<callable>` — for option lists that live on a **different**
+  resource than the select's own href (e.g. a course table keyed off a
+  sibling href). See `laundry.cycle_select`'s `options=cycle_options`.
+
+A static `options=(...)` tuple is a coverage gap waiting to happen: the next
+dump from a different board generation will report modes/values the tuple
+doesn't have, and both the HA options list *and* `write_fn`'s validation (if
+it checks the same tuple) will silently reject values the device itself
+advertises as supported. That's exactly what happened with `oven._OVEN_MODES`
+in issue #138 — a hardcoded list rejected `AirFryer`/`Dehydrate`/
+`SelfClean`/etc. even though the device's own `supportedModes` field listed
+them. Reach for a static tuple only when the dump genuinely has no
+supported-values field to read (e.g. the NV7000BS-class oven dump
+`_OVEN_MODES` was inferred before any live oven dump existed — see that
+module's docstring), and treat it as an interim best-guess rather than a
+permanent design choice: migrate it to `options_field`/a callable the moment
+a dump with a real supported-values list surfaces, instead of just adding
+the new values to the static tuple.
+
+## 6. Names and enum labels live in translations, never in Python
 
 Descriptors have **no `name` field**. Every entity is named from the shipped
 catalog, keyed by `translation_key` — which defaults to the descriptor's own
@@ -142,7 +173,7 @@ no `[%key:...%]` resolution (that's Core build tooling). Every other language
 must mirror `en.json` key for key — also enforced by
 `tests/test_translations.py`.
 
-## 6. Coverage discipline: bound or ignored
+## 7. Coverage discipline: bound or ignored
 
 Every href in the dump must resolve, or the repair fires. If a resource isn't
 worth an entity, add it to `capabilities/ignored.py` (a no-entity `Capability`)
@@ -156,7 +187,7 @@ friendlier href**.
   ignored because washers bind it. When only one family should ignore an href
   that another binds, scope the ignore to that family's registry.
 
-## 7. Reuse before writing new code
+## 8. Reuse before writing new code
 
 Check `common.py` (generic OCF: power, energy, alarms, water) and `laundry.py`
 (shared washer/dryer/dishwasher: buzzer, job status, `cycle_select` + course
@@ -165,7 +196,7 @@ registry uses `fridge.FIRMWARE_UPDATE`; all three laundry families share
 `laundry.cycle_select`. If two families hand-roll the same helper, hoist it to a
 shared module rather than copying.
 
-## 8. Lock it in
+## 9. Lock it in
 
 1. Add a **scrubbed** fixture `tests/fixtures/<type>_device.json`
    (`{"device0": [ {devcol rep}, {href, rep}, ... ]}`) — replace serials, MACs,
