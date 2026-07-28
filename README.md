@@ -3,6 +3,19 @@
 <!-- light mode -->
 <img src="custom_components/localthings/brand/logo@2x.png#gh-light-mode-only" alt="LocalThings Logo"/>
 
+<p align="center">
+  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/mbillow/localthings" />
+  <img alt="GitHub watchers" src="https://img.shields.io/github/watchers/mbillow/localthings" />
+</p>
+
+<p align="center">
+  <img alt="GitHub Release" src="https://img.shields.io/github/v/release/mbillow/localthings" />
+  <img alt="hacs validation" src="https://img.shields.io/github/check-runs/mbillow/localthings/main?nameFilter=HACS%20validation&label=hacs%20validation" />
+  <img alt="hassfest" src="https://img.shields.io/github/check-runs/mbillow/localthings/main?nameFilter=Hassfest%20validation&label=hassfest" />
+  <img alt="tests" src="https://img.shields.io/github/check-runs/mbillow/localthings/main?nameFilter=Pytest&label=tests" />
+
+</p>
+
 # LocalThings
 
 **A native Home Assistant custom integration for local control of newer-generation Samsung connected appliances.** No cloud round-trip. Add a device through HA's normal *Settings > Devices & Services* flow and it talks CoAP-over-DTLS straight to the appliance on your LAN.
@@ -25,7 +38,8 @@ Your state stays on your LAN: HA talks to the appliance over a direct DTLS sessi
 | Air purifier | `by_type/air_purifier.py` |
 | Dehumidifier | `by_type/dehumidifier.py` |
 | Dryer | `by_type/dryer.py` |
-| Oven (including combi microwaves) | `by_type/oven.py` |
+| Oven | `by_type/oven.py` |
+| Microwave | `by_type/microwave.py` |
 | Gas cooktop (read-only burner status) | `by_type/cooktop.py` |
 | Range hood | `by_type/range_hood.py` |
 | Range | `by_type/range.py` |

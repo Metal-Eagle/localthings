@@ -1,6 +1,9 @@
 {
   "entity": {
     "binary_sensor": {
+      "after_run_active": {
+        "name": "After run active"
+      },
       "any_burner_active": {
         "name": "Any burner active"
       },
@@ -93,6 +96,9 @@
       }
     },
     "button": {
+      "after_run_cancel": {
+        "name": "Cancel after run"
+      },
       "diagnosis_start": {
         "name": "Start diagnosis"
       },
@@ -128,7 +134,8 @@
               "longwind": "Long wind",
               "motionindirect": "Motion indirect",
               "motiondirect": "Motion direct",
-              "drycomfort": "Dry comfort"
+              "drycomfort": "Dry comfort",
+              "2step": "2-Step"
             }
           }
         }
@@ -150,6 +157,9 @@
       }
     },
     "number": {
+      "buzzer_volume": {
+        "name": "Beep volume"
+      },
       "cook_time": {
         "name": "Cook time"
       },
@@ -159,10 +169,16 @@
       "dispense_capacity": {
         "name": "Dispense capacity"
       },
+      "good_sleep": {
+        "name": "Good Sleep"
+      },
       "instance_setpoint": {
         "name": "{instance_name} setpoint"
       },
       "oven_setpoint": {
+        "name": "Setpoint"
+      },
+      "setpoint": {
         "name": "Setpoint"
       },
       "sound_volume": {
@@ -350,6 +366,22 @@
           "high": "High"
         }
       },
+      "cooking_mode": {
+        "name": "Cooking mode",
+        "state": {
+          "no_operation": "No operation",
+          "micro_wave": "Microwave",
+          "micro_wave_grill": "Microwave + grill",
+          "micro_wave_convection": "Microwave + convection",
+          "convection": "Convection",
+          "air_fryer": "Air fry",
+          "grill": "Grill",
+          "autocook": "Auto cook",
+          "autocook_custom": "Auto cook (custom)",
+          "deodorization": "Deodorize",
+          "keep_warm": "Keep warm"
+        }
+      },
       "oven_mode": {
         "name": "Cooking mode",
         "state": {
@@ -367,6 +399,37 @@
       },
       "operating_mode": {
         "name": "Operating mode"
+      },
+      "kimchi_zone_mode": {
+        "name": "{instance_name} storage mode",
+        "state": {
+          "off": "Off",
+          "kimchi_storage_normal": "Kimchi",
+          "kimchi_storage_cold": "Kimchi, strong",
+          "kimchi_storage_warm": "Kimchi, weak",
+          "kimchi_storage_low_salt_normal": "Low-salt kimchi",
+          "kimchi_storage_low_salt_cold": "Low-salt kimchi, strong",
+          "kimchi_storage_low_salt_warm": "Low-salt kimchi, weak",
+          "kimchi_storage_crunfch": "Crisp kimchi",
+          "kimchi_storage_buy": "Purchased kimchi",
+          "storage_fridge_normal": "Fridge",
+          "storage_fridge_cold": "Fridge, strong",
+          "storage_fridge_warm": "Fridge, weak",
+          "storage_freezer_normal": "Freezer",
+          "storage_freezer_cold": "Freezer, strong",
+          "storage_freezer_warm": "Freezer, weak",
+          "kimchi_ripe_low_temp": "Kimchi ripening, low temperature",
+          "kimchi_ripe_normal_temp": "Kimchi ripening, room temperature",
+          "kimchi_ripe_kkakdugi": "Kkakdugi ripening",
+          "kimchi_ripe_dongchimi": "Dongchimi ripening",
+          "meat_ripe_normal": "Meat ripening",
+          "storage_meat": "Meat & fish",
+          "storage_fridge_vegetables_fruit": "Fruit & vegetables",
+          "storage_fresh_cereal": "Grains",
+          "storage_fridge_drink": "Beverages",
+          "storage_fresh_wine": "Wine",
+          "storage_fresh_potato_banana": "Potato & banana"
+        }
       },
       "pantry_zone_mode": {
         "name": "Pantry zone mode",
@@ -516,6 +579,9 @@
       }
     },
     "sensor": {
+      "after_run_progress": {
+        "name": "After run progress"
+      },
       "air_filter_usage": {
         "name": "Filter usage"
       },
@@ -559,8 +625,14 @@
       "current_limit_level": {
         "name": "Current limit level"
       },
+      "filter_time": {
+        "name": "Filter time"
+      },
       "hepa_filter_usage": {
         "name": "HEPA filter usage"
+      },
+      "outdoor_temperature": {
+        "name": "Outdoor temperature"
       },
       "panel_status": {
         "name": "Panel status"
@@ -668,6 +740,15 @@
       "fridge_temperature": {
         "name": "Fridge temperature"
       },
+      "kimchi_ripening_status": {
+        "name": "{instance_name} ripening status"
+      },
+      "kimchi_ripening_remaining": {
+        "name": "{instance_name} ripening time remaining"
+      },
+      "kimchi_rack_count": {
+        "name": "{instance_name} rack count"
+      },
       "hood_filter_capacity": {
         "name": "Filter capacity"
       },
@@ -709,6 +790,12 @@
       },
       "oven_state": {
         "name": "Cavity state"
+      },
+      "cavity_state": {
+        "name": "Cavity state"
+      },
+      "power_level": {
+        "name": "Power level"
       },
       "paired_hood_fan_speed": {
         "name": "Paired hood fan speed"
@@ -801,6 +888,9 @@
       "ai_energy_level": {
         "name": "AI Energy Mode"
       },
+      "air_monitoring": {
+        "name": "Air monitoring"
+      },
       "air_purify": {
         "name": "Air purification"
       },
@@ -821,6 +911,9 @@
       },
       "dustbin_auto_close": {
         "name": "Dustbin auto-close"
+      },
+      "spi": {
+        "name": "Purifying ion"
       },
       "uvc_intensive_mode": {
         "name": "UV-C intensive mode"
@@ -869,9 +962,6 @@
       },
       "favorite_coffee_enabled": {
         "name": "Favorite coffee"
-      },
-      "favorite_hotwater_enabled": {
-        "name": "Favorite hot water"
       },
       "fridge_sound": {
         "name": "Sound"

@@ -329,19 +329,19 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
-    def test_oven_via_microwave_token(self):
-        """Issue #121: a combi microwave (MW7300B-/EU1) reports no
+    def test_microwave_via_microwave_token(self):
+        """Issue #121/#66: a combi microwave (MW7300B-/EU1) reports no
         oneUiVersion and an unrecognized consumer token; falls back to the
-        '-MICROWAVE-' token in modelNum onto the *existing* oven registry
-        (same '/oven/vs/0' cavity + cook-mode shape), not a new device
-        type."""
+        '-MICROWAVE-' token in modelNum onto its own microwave registry
+        (initially folded into 'oven' for issue #121, split out into a
+        distinct device type per user feedback)."""
         from custom_components.localthings.registry.by_type import for_device_by_model
         reg = for_device_by_model(
             'TP1X_DA-KS-MICROWAVE-01041|40475341|50040100021811000A00000000000000',
             'MW7300B-/EU1',
         )
         assert reg is not None
-        assert reg.name == 'oven'
+        assert reg.name == 'microwave'
 
     def test_vacuum_station_via_vskr_token(self):
         """Issue #131: a stick-vacuum clean/auto-empty station

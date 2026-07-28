@@ -29,21 +29,19 @@ def _int(v):
         return None
 
 
-def _option_token(rep, prefix):
-    """Return the `<prefix>_<value>` token from /mode/vs/0 options, else None."""
-    for o in _mode_options(rep):
-        if isinstance(o, str) and o.startswith(prefix + '_'):
-            return o
-    return None
-
-
 def _beep_on(rep):
     """Beep on/off from the `Volume_*` option token: Volume_Mute = off,
-    Volume_100 (and any non-Mute) = on. None when no Volume_ slot."""
+    Volume_100 (and any non-Mute) = on. None when no Volume_ slot.
+
+    _option_token (defined further below, alongside the legacy-board token
+    helpers) returns the token's *value* half (e.g. 'Mute', '100'), not the
+    full 'Volume_100' token -- shared with _option_token_num/_option_token_on,
+    which this module's other options[] readers already rely on.
+    """
     tok = _option_token(rep, 'Volume')
     if tok is None:
         return None
-    return tok != 'Volume_Mute'
+    return tok != 'Mute'
 
 
 def _beep_write(payload, rep, href=None):
@@ -58,7 +56,7 @@ def _beep_write(payload, rep, href=None):
         token = 'Mute'
     else:
         prev = _option_token(rep, 'Volume')
-        token = prev[len('Volume_'):] if (prev and prev != 'Volume_Mute') else '100'
+        token = prev if (prev and prev != 'Mute') else '100'
     return ['mode', 'vs', '0'], {
         'x.com.samsung.da.options': option_write('Volume', token),
     }
@@ -155,11 +153,18 @@ HREF_WIND_DIRECTION = '/wind/direction/vs/0'      # swing_mode
 HREF_WIND_OSCILLATION = '/wind/oscillation/vs/0'  # swing_mode fallback
 HREF_CONVENIENT = '/mode/convenient/vs/0'         # preset_mode
 HREF_TEMPS_VS = '/temperatures/vs/0'              # vendor temp fallback (items[] array)
+# Legacy ARTIK051 boards (ARTIK051_KRAC_18K, issue #136) carry no /wind/* resources
+# at all: fan speed and vane direction sit together in this one resource, as
+# x.com.samsung.da.speedLevel (the same 0-4 scale as _DEVICE_TO_FAN) and
+# x.com.samsung.da.direction (the same codes as _DEVICE_TO_SWING). Their
+# convenient-mode preset is a Comode_* token in /mode/vs/0's options instead of a
+# resource of its own -- see climate.py's _legacy_airflow/_legacy_convenient.
+HREF_AIRFLOW = '/airflow/vs/0'                    # legacy fan_mode + swing_mode
 
 CLIMATE_CONSUMED_HREFS = [
     HREF_POWER, HREF_POWER_VS, HREF_TEMP_CURRENT, HREF_TEMP_DESIRED,
     HREF_TEMP_CONTROL, HREF_TEMPS_VS, HREF_WIND_STRENGTH, HREF_WIND_DIRECTION,
-    HREF_WIND_OSCILLATION, HREF_CONVENIENT,
+    HREF_WIND_OSCILLATION, HREF_CONVENIENT, HREF_AIRFLOW,
 ]
 
 
@@ -239,6 +244,91 @@ def _display_light_write(payload, rep, href=None):
             {'x.com.samsung.da.options': option_write('Light', token)})
 
 
+# ---------------------------------------------------------------------------
+# Legacy ARTIK051 boards keep several settings that newer boards expose as their
+# own resources (/option/*, /electriccurrent/vs/0, ...) as `<Prefix>_<value>`
+# tokens inside /mode/vs/0's options blob instead. Reads pull the token apart;
+# writes reuse option_write's single-token merge, exactly like the display light.
+# ---------------------------------------------------------------------------
+
+
+def _option_token(rep, prefix):
+    """Value part of a `<prefix>_<value>` token in /mode/vs/0's options."""
+    for option in _mode_options(rep):
+        if isinstance(option, str) and option.startswith(prefix + '_'):
+            return option.split('_', 1)[1]
+    return None
+
+
+def _is_legacy_board(resources):
+    """True for the board generation whose airflow lives in /airflow/vs/0.
+
+    Newer families carry several of the same option tokens (Volume, Sleep,
+    OutdoorTemp, Autoclean) *alongside* dedicated resources for those settings,
+    so an ungated token entity would either duplicate an existing one or apply a
+    scale calibrated elsewhere. Every AC dump on record has one shape or the
+    other: /airflow/vs/0 with no /wind/* at all, or /wind/strength/vs/0 with no
+    /airflow/vs/0. Same test as climate.py's _legacy_airflow(), so the entities
+    below and the climate entity can never disagree about the generation.
+    """
+    return ('/airflow/vs/0' in resources
+            and '/wind/strength/vs/0' not in resources)
+
+
+def _has_option_token(prefix):
+    return lambda rep, resources: (
+        _is_legacy_board(resources) and _option_token(rep, prefix) is not None)
+
+
+def _option_token_on(prefix):
+    return lambda rep: _option_token(rep, prefix) == 'On'
+
+
+def _option_token_num(prefix, offset=0, divisor=1):
+    def read(rep):
+        raw = _option_token(rep, prefix)
+        try:
+            return (float(raw) - offset) / divisor
+        except (TypeError, ValueError):
+            return None
+    return read
+
+
+def _option_switch_write(prefix):
+    def write(payload, rep, href=None):
+        return (['mode', 'vs', '0'],
+                {'x.com.samsung.da.options': option_write(prefix, payload)})
+    return write
+
+
+def _option_number_write(prefix):
+    def write(payload, rep, href=None):
+        return (['mode', 'vs', '0'],
+                {'x.com.samsung.da.options':
+                 option_write(prefix, str(int(round(float(payload)))))})
+    return write
+
+
+def _humidity(rep):
+    """Relative humidity, preferring the 5%-rounded field where it exists.
+
+    ARTIK051 boards have no fivepercentHumidity field at all and report the
+    plain x.com.samsung.da.humidity instead -- and only populate it while the
+    Air monitoring option is on: the unit measures for roughly half a minute
+    (51% observed, matching what the same unit's cloud integration reported at
+    that moment), then zeroes the field and switches Air monitoring back off by
+    itself. So 0 reads as "not measuring" and is reported as unknown rather than
+    as 0% humidity, which would poison long-term history -- which is also why
+    the boards that do have fivepercentHumidity read a permanent 0 here.
+    """
+    for field in ('x.com.samsung.da.fivepercentHumidity',
+                  'x.com.samsung.da.humidity'):
+        if field in rep:
+            value = _num(rep[field])
+            return value if value else None
+    return None
+
+
 def _climate_write(payload, rep, href=None):
     """Map a (kind, value) command from the climate platform to the
     (path_segs, body) for that one sub-write. `value` is already the raw device
@@ -292,6 +382,16 @@ def _climate_write(payload, rep, href=None):
             'vertical': 'Swing' if value in ('vertical', 'both') else 'Fix',
             'horizontal': 'Swing' if value in ('horizontal', 'both') else 'Fix',
         })
+    if kind == 'fan_legacy':
+        return (['airflow', 'vs', '0'],
+                {'x.com.samsung.da.speedLevel': str(value)})
+    if kind == 'swing_legacy':
+        return (['airflow', 'vs', '0'],
+                {'x.com.samsung.da.direction': value})
+    if kind == 'preset_legacy':
+        # Single-token options merge, same mechanism as _display_light_write.
+        return (['mode', 'vs', '0'],
+                {'x.com.samsung.da.options': option_write('Comode', value)})
     if kind == 'preset':
         return (['mode', 'convenient', 'vs', '0'], {'x.com.samsung.da.modes': value})
     return None
@@ -318,17 +418,79 @@ CLIMATE = Capability(
                    icon='mdi:led-on', entity_category='config'),
         # Beep on/off from the `Volume_*` option token (Volume_Mute/Volume_100).
         # Single-token option_write; a full options RMW reverts on ARTIK051_PRAC.
+        # Gated off the legacy ARTIK051 board generation (see _is_legacy_board):
+        # that generation's own Volume_ token is already modeled as the
+        # buzzer_volume Number below, and both reading the same options[] slot
+        # into two entities would be redundant.
         SwitchDesc(key='beep', rep_fn=_beep_on,
-                   exists_fn=lambda rep, resources: _option_token(rep, 'Volume') is not None,
+                   exists_fn=lambda rep, resources: (
+                       not _is_legacy_board(resources)
+                       and _option_token(rep, 'Volume') is not None),
                    write_fn=_beep_write,
                    icon='mdi:volume-high', entity_category='config'),
         # Tropical night mode level (0-16) from the `Sleep_<N>` option token.
         # Single-token option_write. Cloud: custom.airConditionerTropicalNightMode.
+        # Gated off the legacy board for the same reason as beep above -- its
+        # Sleep_ token is already the good_sleep Number below.
         NumberDesc(key='tropical_night_mode', rep_fn=_tropical_night_value,
-                   exists_fn=lambda rep, resources: _option_token(rep, 'Sleep') is not None,
+                   exists_fn=lambda rep, resources: (
+                       not _is_legacy_board(resources)
+                       and _option_token(rep, 'Sleep') is not None),
                    write_fn=_tropical_night_write,
                    native_min=0, native_max=16, step=1,
                    icon='mdi:weather-night', entity_category='config'),
+        # Settings that this board generation keeps as options[] tokens.
+        SwitchDesc(key='spi', rep_fn=_option_token_on('Spi'),
+                   exists_fn=_has_option_token('Spi'),
+                   write_fn=_option_switch_write('Spi'),
+                   icon='mdi:air-purifier', entity_category='config'),
+        # Shares AUTO_CLEAN's catalog entry rather than duplicating it: same
+        # feature, different board generation (that one is a /option/autoclean/
+        # vs/0 field, absent here). Distinct key, so nothing collides if some
+        # future board ever reported both.
+        SwitchDesc(key='auto_clean_legacy', translation_key='auto_clean',
+                   rep_fn=_option_token_on('Autoclean'),
+                   exists_fn=_has_option_token('Autoclean'),
+                   write_fn=_option_switch_write('Autoclean'),
+                   icon='mdi:fan-auto', entity_category='config'),
+        SwitchDesc(key='air_monitoring', rep_fn=_option_token_on('AirMonitoring'),
+                   exists_fn=_has_option_token('AirMonitoring'),
+                   write_fn=_option_switch_write('AirMonitoring'),
+                   icon='mdi:air-filter', entity_category='config'),
+        NumberDesc(key='buzzer_volume', rep_fn=_option_token_num('Volume'),
+                   exists_fn=_has_option_token('Volume'),
+                   write_fn=_option_number_write('Volume'),
+                   native_min=0, native_max=100, step=10,
+                   icon='mdi:volume-high', entity_category='config'),
+        # "Good Sleep" timer. 0 = off; the upper bound is a guess (the token
+        # carries no range hint and only 0 has been observed on hardware), so a
+        # write above 0 is unverified.
+        NumberDesc(key='good_sleep', rep_fn=_option_token_num('Sleep'),
+                   exists_fn=_has_option_token('Sleep'),
+                   write_fn=_option_number_write('Sleep'),
+                   native_min=0, native_max=12, step=1, unit='h',
+                   icon='mdi:sleep', entity_category='config'),
+        # Outdoor temperature, offset by 55. Two calibration points on one unit:
+        # token 75 while an independent outdoor thermometer in the same install
+        # read 20.3 C, and token 74 against a 19.4 C forecast. Fahrenheit fits far
+        # worse (74 F = 23.3 C); the issue #136 unit's 81 gives 26 C in a warmer
+        # climate, which is also plausible.
+        SensorDesc(key='outdoor_temperature',
+                   rep_fn=_option_token_num('OutdoorTemp', offset=55),
+                   exists_fn=_has_option_token('OutdoorTemp'),
+                   device_class='temperature', state_class='measurement',
+                   unit='°C', icon='mdi:home-thermometer-outline'),
+        # Filter time in tenths of an hour: the token read 1710 while the official
+        # Samsung app displayed "171 hours 0 minutes" for the filter on the same
+        # unit, and the .0 matching the app's "0 minutes" pins the scale. Whether
+        # it counts up or down is NOT established -- it was seen rising (171.0 ->
+        # 171.5) while the unit ran, which contradicts the app's "remaining"
+        # wording, so the entity is deliberately named neutrally.
+        SensorDesc(key='filter_time',
+                   rep_fn=_option_token_num('FilterTime', divisor=10),
+                   exists_fn=_has_option_token('FilterTime'),
+                   device_class='duration', unit='h',
+                   state_class='measurement', icon='mdi:air-filter'),
     ),
 )
 
@@ -504,15 +666,23 @@ CURRENT_TEMPERATURE_VS = Capability(
 # Only the vendor resource's `fivepercentHumidity` (current reading, rounded
 # to the nearest 5%) has live data on the issue #75 dump -- its `humidity`
 # field, and the OCF-standard /humidity/0 resource entirely, both read a
-# stuck "0" there and stay ignored per the 'don't guess' rule (see
-# _AC_IGNORED below).
+# stuck "0" there, so /humidity/0 stays ignored per the 'don't guess' rule
+# (see _AC_IGNORED below).
+#
+# ARTIK051 boards (issue #136) have no fivepercentHumidity field at all, and
+# there the plain `humidity` field is not stuck: it carries a real reading
+# (51%, matching the same unit's cloud integration at that moment) for as long
+# as the Air monitoring option is on, which the unit itself switches back off
+# after roughly a minute -- so most dumps catch it at 0. Hence _humidity's
+# fallback, and hence 0 reading as "not measuring" rather than 0%: on both
+# board generations a zero here means no measurement, never dry air.
+# /humidity/0 stayed 0 throughout that same observation too.
 HUMIDITY = Capability(
     href='/humidity/vs/0',
     poll_tier='warm',
     entities=(
-        SensorDesc(key='humidity', field='x.com.samsung.da.fivepercentHumidity',
-                   device_class='humidity', state_class='measurement', unit='%',
-                   value_fn=_num),
+        SensorDesc(key='humidity', rep_fn=_humidity,
+                   device_class='humidity', state_class='measurement', unit='%'),
     ),
 )
 
@@ -573,6 +743,12 @@ _AC_IGNORED = [
     '/humidity/0',
     # Presence-personalization plumbing (empty item list here).
     '/personality/presence/vs/0',
+    # OCF-standard mirror of /airflow/vs/0 ({speed, direction} vs
+    # {speedLevel, direction}, identical values). The climate entity reads and
+    # writes the vendor form, which is the one confirmed on hardware here --
+    # note that air_purifier.py found the opposite ordering on its family, so
+    # neither form is reliable sight-unseen and this one stays unmodeled.
+    '/airflow/0',
     # --- TP1X/TP2X-class housekeeping / opaque blobs. These carry no
     # user-actionable state or no documented write contract, so per the
     # 'don't guess' rule they are ignored rather than modeled.

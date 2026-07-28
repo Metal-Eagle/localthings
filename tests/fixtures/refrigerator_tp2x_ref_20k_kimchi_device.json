@@ -1,0 +1,274 @@
+{
+  "device0": [
+    {
+      "rt": ["x.com.samsung.devcol", "oic.wk.col"],
+      "if": ["oic.if.baseline", "oic.if.ll", "oic.if.b"]
+    },
+    {
+      "href": "/alarms/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/diagnosis/vs/0",
+      "rep": {
+        "x.com.samsung.da.diagnosisStart": "Ready"
+      }
+    },
+    {
+      "href": "/energy/consumption/vs/0",
+      "rep": {
+        "x.com.samsung.da.cumulativeConsumption": "5",
+        "x.com.samsung.da.cumulativePower": "1733313",
+        "x.com.samsung.da.cumulativeUnit": "Wh",
+        "x.com.samsung.da.instantaneousPower": "61",
+        "x.com.samsung.da.instantaneousPowerUnit": "W"
+      }
+    },
+    {
+      "href": "/mode/vs/0",
+      "rep": {
+        "x.com.samsung.da.supportedModes": [
+          "HOMECARE_WIZARD_V2",
+          "ENERGY_REPORT_MODEL",
+          "18K_KIMCHI_OUTDOOR_CONTROL"
+        ],
+        "x.com.samsung.da.modes": [
+          "KIMCHIT_STORAGE_FREEZER_NORMAL",
+          "KIMCHIT_RIPE_REMAIN_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_NORMAL",
+          "KIMCHIM_RIPE_REMAIN_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_NORMAL",
+          "KIMCHIB_RIPE_REMAIN_[0]:[0]",
+          "KIMCHIT_BOX_COUNT_[6]",
+          "KIMCHIM_BOX_COUNT_[4]",
+          "KIMCHIB_BOX_COUNT_[2]",
+          "KIMCHI_BOX_COUNT_[0]"
+        ],
+        "x.com.samsung.da.supportedOptions": [
+          "KIMCHIT_KIMCHI_STORAGE_NORMAL_[0]:[0]",
+          "KIMCHIT_KIMCHI_STORAGE_COLD_[0]:[0]",
+          "KIMCHIT_KIMCHI_STORAGE_WARM_[0]:[0]",
+          "KIMCHIT_KIMCHI_STORAGE_LOW_SALT_NORMAL_[0]:[0]",
+          "KIMCHIT_KIMCHI_STORAGE_LOW_SALT_COLD_[0]:[0]",
+          "KIMCHIT_KIMCHI_STORAGE_LOW_SALT_WARM_[0]:[0]",
+          "KIMCHIT_STORAGE_FRIDGE_NORMAL_[0]:[0]",
+          "KIMCHIT_STORAGE_FRIDGE_COLD_[0]:[0]",
+          "KIMCHIT_STORAGE_FRIDGE_WARM_[0]:[0]",
+          "KIMCHIT_STORAGE_FREEZER_NORMAL_[0]:[0]",
+          "KIMCHIT_STORAGE_FREEZER_COLD_[0]:[0]",
+          "KIMCHIT_STORAGE_FREEZER_WARM_[0]:[0]",
+          "KIMCHIT_OFF_[0]:[0]",
+          "KIMCHIT_KIMCHI_RIPE_LOW_TEMP_[5]:[17]",
+          "KIMCHIT_KIMCHI_RIPE_NORMAL_TEMP_[2]:[12]",
+          "KIMCHIM_KIMCHI_STORAGE_NORMAL_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_COLD_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_WARM_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_LOW_SALT_NORMAL_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_LOW_SALT_COLD_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_LOW_SALT_WARM_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_CRUNFCH_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_BUY_[0]:[0]",
+          "KIMCHIM_MEAT_RIPE_NORMAL_[3]:[0]",
+          "KIMCHIM_STORAGE_MEAT_[0]:[0]",
+          "KIMCHIM_STORAGE_FRIDGE_VEGETABLES_FRUIT_[0]:[0]",
+          "KIMCHIM_STORAGE_FRESH_CEREAL_[0]:[0]",
+          "KIMCHIM_OFF_[0]:[0]",
+          "KIMCHIM_KIMCHI_RIPE_LOW_TEMP_[5]:[17]",
+          "KIMCHIM_KIMCHI_RIPE_NORMAL_TEMP_[2]:[12]",
+          "KIMCHIB_KIMCHI_STORAGE_NORMAL_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_COLD_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_WARM_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_LOW_SALT_NORMAL_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_LOW_SALT_COLD_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_LOW_SALT_WARM_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_CRUNFCH_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_BUY_[0]:[0]",
+          "KIMCHIB_STORAGE_FRIDGE_VEGETABLES_FRUIT_[0]:[0]",
+          "KIMCHIB_STORAGE_FRIDGE_DRINK_[0]:[0]",
+          "KIMCHIB_STORAGE_FRESH_WINE_[0]:[0]",
+          "KIMCHIB_STORAGE_FRESH_POTATO_BANANA_[0]:[0]",
+          "KIMCHIB_OFF_[0]:[0]",
+          "KIMCHIB_KIMCHI_RIPE_KKAKDUGI_[4]:[5]",
+          "KIMCHIB_KIMCHI_RIPE_DONGCHIMI_[7]:[6]"
+        ]
+      }
+    },
+    {
+      "href": "/mode/0",
+      "rep": {
+        "supportedModes": [
+          "HOMECARE_WIZARD_V2",
+          "ENERGY_REPORT_MODEL",
+          "18K_KIMCHI_OUTDOOR_CONTROL"
+        ],
+        "modes": [
+          "KIMCHIT_STORAGE_FREEZER_NORMAL",
+          "KIMCHIT_RIPE_REMAIN_[0]:[0]",
+          "KIMCHIM_KIMCHI_STORAGE_NORMAL",
+          "KIMCHIM_RIPE_REMAIN_[0]:[0]",
+          "KIMCHIB_KIMCHI_STORAGE_NORMAL",
+          "KIMCHIB_RIPE_REMAIN_[0]:[0]",
+          "KIMCHIT_BOX_COUNT_[6]",
+          "KIMCHIM_BOX_COUNT_[4]",
+          "KIMCHIB_BOX_COUNT_[2]",
+          "KIMCHI_BOX_COUNT_[0]"
+        ]
+      }
+    },
+    {
+      "href": "/realtimenotiforclient/vs/0",
+      "rep": {
+        "x.com.samsung.da.timeforshortnoti": "0",
+        "x.com.samsung.da.periodicnotisubscription": "true"
+      }
+    },
+    {
+      "href": "/information/vs/0",
+      "rep": {
+        "x.com.samsung.da.modelNum": "TP2X_REF_20K|00135941|10010221011411010103642021000000",
+        "x.com.samsung.da.description": "TP2X_REF_20K",
+        "x.com.samsung.da.serialNum": "**REDACTED**",
+        "x.com.samsung.da.otnDUID": "**REDACTED**",
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "WiFi Module",
+            "x.com.samsung.da.type": "Software",
+            "x.com.samsung.da.number": "02144A220110",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Micom",
+            "x.com.samsung.da.type": "Firmware",
+            "x.com.samsung.da.number": "20082109,FFFFFFFF",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/file/information/vs/0",
+      "rep": {
+        "x.com.samsung.timeoffset": "+09:00",
+        "x.com.samsung.supprtedtype": 1
+      }
+    },
+    {
+      "href": "/doors/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "4",
+            "x.com.samsung.da.description": "Door",
+            "x.com.samsung.da.openState": "Close"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/kimchidoors/top/vs/0",
+      "rep": {
+        "x.com.samsung.da.openState": "Close"
+      }
+    },
+    {
+      "href": "/configuration/vs/0",
+      "rep": {
+        "x.com.samsung.da.countryCode": "",
+        "x.com.samsung.da.region": ""
+      }
+    },
+    {
+      "href": "/bespoke/vs/0",
+      "rep": {
+        "x.com.samsung.da.BespokeProduct": "On"
+      }
+    },
+    {
+      "href": "/otninformation/vs/0",
+      "rep": {
+        "x.com.samsung.da.target": "Micom",
+        "x.com.samsung.da.newVersionAvailable": "false"
+      }
+    },
+    {
+      "href": "/status/kimchi/top/vs/0",
+      "rep": {
+        "x.com.samsung.da.currentMode": "STORAGE_FREEZER_NORMAL",
+        "x.com.samsung.da.ripeStatus": "Off",
+        "x.com.samsung.da.ripeRemaintime": "0",
+        "x.com.samsung.da.rackCount": "6",
+        "x.com.samsung.da.supportMode": [
+          "KIMCHI_STORAGE_NORMAL",
+          "KIMCHI_STORAGE_COLD",
+          "KIMCHI_STORAGE_WARM",
+          "KIMCHI_STORAGE_LOW_SALT_NORMAL",
+          "KIMCHI_STORAGE_LOW_SALT_COLD",
+          "KIMCHI_STORAGE_LOW_SALT_WARM",
+          "STORAGE_FRIDGE_NORMAL",
+          "STORAGE_FRIDGE_COLD",
+          "STORAGE_FRIDGE_WARM",
+          "STORAGE_FREEZER_NORMAL",
+          "STORAGE_FREEZER_COLD",
+          "STORAGE_FREEZER_WARM",
+          "OFF",
+          "KIMCHI_RIPE_LOW_TEMP",
+          "KIMCHI_RIPE_NORMAL_TEMP"
+        ]
+      }
+    },
+    {
+      "href": "/status/kimchi/middle/vs/0",
+      "rep": {
+        "x.com.samsung.da.currentMode": "KIMCHI_STORAGE_NORMAL",
+        "x.com.samsung.da.ripeStatus": "Off",
+        "x.com.samsung.da.ripeRemaintime": "0",
+        "x.com.samsung.da.rackCount": "4",
+        "x.com.samsung.da.supportMode": [
+          "KIMCHI_STORAGE_NORMAL",
+          "KIMCHI_STORAGE_COLD",
+          "KIMCHI_STORAGE_WARM",
+          "KIMCHI_STORAGE_LOW_SALT_NORMAL",
+          "KIMCHI_STORAGE_LOW_SALT_COLD",
+          "KIMCHI_STORAGE_LOW_SALT_WARM",
+          "KIMCHI_STORAGE_CRUNFCH",
+          "KIMCHI_STORAGE_BUY",
+          "MEAT_RIPE_NORMAL",
+          "STORAGE_MEAT",
+          "STORAGE_FRIDGE_VEGETABLES_FRUIT",
+          "STORAGE_FRESH_CEREAL",
+          "OFF",
+          "KIMCHI_RIPE_LOW_TEMP",
+          "KIMCHI_RIPE_NORMAL_TEMP"
+        ]
+      }
+    },
+    {
+      "href": "/status/kimchi/bottom/vs/0",
+      "rep": {
+        "x.com.samsung.da.currentMode": "KIMCHI_STORAGE_NORMAL",
+        "x.com.samsung.da.ripeStatus": "Off",
+        "x.com.samsung.da.ripeRemaintime": "0",
+        "x.com.samsung.da.rackCount": "2",
+        "x.com.samsung.da.supportMode": [
+          "KIMCHI_STORAGE_NORMAL",
+          "KIMCHI_STORAGE_COLD",
+          "KIMCHI_STORAGE_WARM",
+          "KIMCHI_STORAGE_LOW_SALT_NORMAL",
+          "KIMCHI_STORAGE_LOW_SALT_COLD",
+          "KIMCHI_STORAGE_LOW_SALT_WARM",
+          "KIMCHI_STORAGE_CRUNFCH",
+          "KIMCHI_STORAGE_BUY",
+          "STORAGE_FRIDGE_VEGETABLES_FRUIT",
+          "STORAGE_FRIDGE_DRINK",
+          "STORAGE_FRESH_WINE",
+          "STORAGE_FRESH_POTATO_BANANA",
+          "OFF",
+          "KIMCHI_RIPE_KKAKDUGI",
+          "KIMCHI_RIPE_DONGCHIMI"
+        ]
+      }
+    }
+  ]
+}

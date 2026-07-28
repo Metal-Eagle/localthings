@@ -161,6 +161,14 @@
       "rep": {"x.com.samsung.da.softwarereset": "false"}
     },
     {
+      "href": "/afterrun/vs/0",
+      "rep": {
+        "x.com.samsung.da.runningProgress": "0",
+        "x.com.samsung.da.runningCancel": "Cancel",
+        "x.com.samsung.da.activationState": "Off"
+      }
+    },
+    {
       "href": "/filter/hoodfilter/vs/0",
       "rep": {
         "x.com.samsung.da.filterUsage": "100",

@@ -1,0 +1,24 @@
+{
+  "state_keys": [
+    "alarm_code",
+    "bottom_mode",
+    "bottom_rack_count",
+    "bottom_ripening_remaining",
+    "bottom_ripening_status",
+    "diagnosis_status",
+    "door_open",
+    "energy_kwh",
+    "firmware_update",
+    "middle_mode",
+    "middle_rack_count",
+    "middle_ripening_remaining",
+    "middle_ripening_status",
+    "power_energy_kwh",
+    "power_watts",
+    "top_mode",
+    "top_open",
+    "top_rack_count",
+    "top_ripening_remaining",
+    "top_ripening_status"
+  ]
+}

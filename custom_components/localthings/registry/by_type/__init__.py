@@ -4,8 +4,8 @@ from typing import Optional
 from ._base import DeviceRegistry
 from . import (
     air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
-    induction_cooktop, oven, range as _range, range_hood, refrigerator,
-    vacuum_station, washer, water_purifier,
+    induction_cooktop, microwave, oven, range as _range, range_hood,
+    refrigerator, vacuum_station, washer, water_purifier,
 )
 
 __all__ = [
@@ -24,6 +24,7 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'dishwasher': dishwasher.REGISTRY,
     'dryer': dryer.REGISTRY,
     'induction_cooktop': induction_cooktop.REGISTRY,
+    'microwave': microwave.REGISTRY,
     'oven': oven.REGISTRY,
     'hood': range_hood.REGISTRY,
     'range': _range.REGISTRY,
@@ -211,6 +212,14 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
         key = 'airconditioner'
     # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
     # oneUiVersion either, and carry the '_TVTL_' board-family token.
+    # Room air conditioners on the ARTIK051 board (e.g. ARTIK051_KRAC_18K,
+    # issue #136) report no oneUiVersion and carry a '_KRAC_' token. The '_RAC_'
+    # check above cannot see it -- the 'K' sits between the underscore and 'RAC' --
+    # and the consumer-prefix fallback only covers washers/dryers/dishwashers, so
+    # these units fell back to 'unknown' and exposed nothing but power. Same
+    # ARTIK051 board family as the '_TVTL_' air purifier below.
+    if key is None and '_KRAC_' in (model_num or ''):
+        key = 'airconditioner'
     if key is None and '_TVTL_' in (model_num or ''):
         key = 'air_purifier'
     model_identity = f'{model_num} {description}'.upper()
@@ -232,15 +241,18 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # oneUiVersion and doesn't match the washer/dryer/dishwasher prefix map.
     if key is None and '-OVEN-' in (model_num or '').upper():
         key = 'oven'
-    # Combi microwaves (e.g. TP1X_DA-KS-MICROWAVE-01041, issue #121) -- same
-    # board family as the wall oven above (an '/oven/vs/0' cavity resource
-    # with Convection/AirFryer/Grill/MicroWave modes on /mode/vs/0), just a
-    # different cavity. Reports no oneUiVersion and doesn't match the
-    # washer/dryer/dishwasher prefix map either. Binds cleanly against the
-    # existing oven registry once routed here (confirmed against the issue
-    # #121 dump) -- no microwave-specific device type needed.
+    # Microwaves, both combi (e.g. TP1X_DA-KS-MICROWAVE-01041, issue #121)
+    # and plain (e.g. TP2X_DA-KS-MICROWAVE-01011, issue #66) -- same board
+    # family as the wall oven above (an '/oven/vs/0' cavity resource, same
+    # /operational/state/vs/0 + /doors/vs/0 shape), but a distinct mode
+    # vocabulary (Convection/AirFryer/Grill/MicroWave*) and setpoint bounds
+    # from the oven registry, plus a powerLevel field ovens don't report --
+    # its own device type rather than folded into 'oven' (issue #121 shipped
+    # it onto the oven registry initially; split out per user feedback).
+    # Reports no oneUiVersion and doesn't match the washer/dryer/dishwasher
+    # prefix map either.
     if key is None and '-MICROWAVE-' in (model_num or '').upper():
-        key = 'oven'
+        key = 'microwave'
     # Standalone induction cooktops (e.g. TP1X_DA-KS-COOKTOP-01011, issue
     # #86) -- same board family and '/cooktop/status/vs/0' resource shape
     # as the range combo above, but no oven attached at all. Distinct from

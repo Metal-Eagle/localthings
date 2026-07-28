@@ -405,7 +405,17 @@ def test_current_temperature_vs_only_binds_when_ocf_href_absent():
 def test_humidity_reads_five_percent_field_not_stuck_humidity_field():
     desc = airconditioner.HUMIDITY.entities[0]
     rep = {'x.com.samsung.da.humidity': '0', 'x.com.samsung.da.fivepercentHumidity': '42'}
-    assert desc.value_fn(rep.get(desc.field)) == 42.0
+    assert desc.rep_fn(rep) == 42.0
+
+
+def test_humidity_falls_back_to_the_plain_field_where_five_percent_is_absent():
+    """ARTIK051 boards (issue #136) have no fivepercentHumidity field at all.
+    Their plain field is not stuck -- it carries a reading while Air monitoring
+    is on -- so 0 means "not measuring" on both generations, not 0% humidity."""
+    desc = airconditioner.HUMIDITY.entities[0]
+    assert desc.rep_fn({'x.com.samsung.da.humidity': '51'}) == 51.0
+    assert desc.rep_fn({'x.com.samsung.da.humidity': '0'}) is None
+    assert desc.rep_fn({}) is None
 
 
 # ---------------------------------------------------------------------------
@@ -634,3 +644,17 @@ def test_sensor_item_value_picks_first_value():
     assert airconditioner._sensor_item_value(items, 'Odor') is None
     assert airconditioner._sensor_item_value(items, 'Missing') is None
     assert airconditioner._sensor_item_value(None, 'Dust') is None
+
+
+def test_beep_and_tropical_night_stay_off_legacy_krac_board():
+    """ARTIK051_KRAC_18K (issue #136) reports both a Volume_ and a Sleep_
+    option token, but they're already modeled as buzzer_volume/good_sleep
+    (see airconditioner.CLIMATE) -- beep/tropical_night_mode must not also
+    bind there, or the same options[] slot would surface as two entities."""
+    reg, resources = _resolve('airconditioner_artik051_krac_18k')
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert 'beep' not in state
+    assert 'tropical_night_mode' not in state
+    assert state['buzzer_volume'] == 100.0
+    assert state['good_sleep'] == 0.0

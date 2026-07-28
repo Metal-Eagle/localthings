@@ -1,6 +1,9 @@
 {
   "entity": {
     "binary_sensor": {
+      "after_run_active": {
+        "name": "Nadraaien actief"
+      },
       "any_burner_active": {
         "name": "Een brander actief"
       },
@@ -93,6 +96,9 @@
       }
     },
     "button": {
+      "after_run_cancel": {
+        "name": "Nadraaien annuleren"
+      },
       "diagnosis_start": {
         "name": "Diagnose starten"
       },
@@ -128,7 +134,8 @@
               "longwind": "Lange wind",
               "motionindirect": "Beweging indirect",
               "motiondirect": "Beweging direct",
-              "drycomfort": "Droog comfort"
+              "drycomfort": "Droog comfort",
+              "2step": "2-Step"
             }
           }
         }
@@ -150,6 +157,9 @@
       }
     },
     "number": {
+      "buzzer_volume": {
+        "name": "Zoemervolume"
+      },
       "cook_time": {
         "name": "Bereidingstijd"
       },
@@ -159,10 +169,16 @@
       "dispense_capacity": {
         "name": "Schenkhoeveelheid"
       },
+      "good_sleep": {
+        "name": "Good Sleep"
+      },
       "instance_setpoint": {
         "name": "Instelpunt {instance_name}"
       },
       "oven_setpoint": {
+        "name": "Instelpunt"
+      },
+      "setpoint": {
         "name": "Instelpunt"
       },
       "sound_volume": {
@@ -350,6 +366,22 @@
           "high": "Hoog"
         }
       },
+      "cooking_mode": {
+        "name": "Bereidingsmodus",
+        "state": {
+          "no_operation": "Niet actief",
+          "micro_wave": "Magnetron",
+          "micro_wave_grill": "Magnetron + grill",
+          "micro_wave_convection": "Magnetron + hetelucht",
+          "convection": "Hetelucht",
+          "air_fryer": "Airfryen",
+          "grill": "Grillen",
+          "autocook": "Automatisch koken",
+          "autocook_custom": "Automatisch koken (aangepast)",
+          "deodorization": "Geurverwijdering",
+          "keep_warm": "Warmhouden"
+        }
+      },
       "oven_mode": {
         "name": "Bereidingsmodus",
         "state": {
@@ -367,6 +399,37 @@
       },
       "operating_mode": {
         "name": "Bedrijfsmodus"
+      },
+      "kimchi_zone_mode": {
+        "name": "{instance_name} opslagmodus",
+        "state": {
+          "off": "Uit",
+          "kimchi_storage_normal": "Kimchi",
+          "kimchi_storage_cold": "Kimchi, sterk",
+          "kimchi_storage_warm": "Kimchi, zwak",
+          "kimchi_storage_low_salt_normal": "Kimchi met weinig zout",
+          "kimchi_storage_low_salt_cold": "Kimchi met weinig zout, sterk",
+          "kimchi_storage_low_salt_warm": "Kimchi met weinig zout, zwak",
+          "kimchi_storage_crunfch": "Knapperige kimchi",
+          "kimchi_storage_buy": "Gekochte kimchi",
+          "storage_fridge_normal": "Koelkast",
+          "storage_fridge_cold": "Koelkast, sterk",
+          "storage_fridge_warm": "Koelkast, zwak",
+          "storage_freezer_normal": "Vriezer",
+          "storage_freezer_cold": "Vriezer, sterk",
+          "storage_freezer_warm": "Vriezer, zwak",
+          "kimchi_ripe_low_temp": "Kimchi rijpen, lage temperatuur",
+          "kimchi_ripe_normal_temp": "Kimchi rijpen, kamertemperatuur",
+          "kimchi_ripe_kkakdugi": "Kkakdugi rijpen",
+          "kimchi_ripe_dongchimi": "Dongchimi rijpen",
+          "meat_ripe_normal": "Vlees rijpen",
+          "storage_meat": "Vlees en vis",
+          "storage_fridge_vegetables_fruit": "Groenten en fruit",
+          "storage_fresh_cereal": "Granen",
+          "storage_fridge_drink": "Dranken",
+          "storage_fresh_wine": "Wijn",
+          "storage_fresh_potato_banana": "Aardappelen en bananen"
+        }
       },
       "pantry_zone_mode": {
         "name": "Modus voorraadzone",
@@ -516,6 +579,9 @@
       }
     },
     "sensor": {
+      "after_run_progress": {
+        "name": "Voortgang nadraaien"
+      },
       "air_filter_usage": {
         "name": "Filterverbruik"
       },
@@ -559,8 +625,14 @@
       "current_limit_level": {
         "name": "Niveau stroombegrenzing"
       },
+      "filter_time": {
+        "name": "Filtertijd"
+      },
       "hepa_filter_usage": {
         "name": "HEPA-filtergebruik"
+      },
+      "outdoor_temperature": {
+        "name": "Buitentemperatuur"
       },
       "panel_status": {
         "name": "Paneelstatus"
@@ -668,6 +740,15 @@
       "fridge_temperature": {
         "name": "Koelkasttemperatuur"
       },
+      "kimchi_ripening_status": {
+        "name": "{instance_name} rijpingsstatus"
+      },
+      "kimchi_ripening_remaining": {
+        "name": "{instance_name} resterende rijptijd"
+      },
+      "kimchi_rack_count": {
+        "name": "{instance_name} aantal rekken"
+      },
       "hood_filter_capacity": {
         "name": "Filtercapaciteit"
       },
@@ -709,6 +790,12 @@
       },
       "oven_state": {
         "name": "Status ovenruimte"
+      },
+      "cavity_state": {
+        "name": "Status ovenruimte"
+      },
+      "power_level": {
+        "name": "Vermogensniveau"
       },
       "paired_hood_fan_speed": {
         "name": "Ventilatorsnelheid gekoppelde afzuigkap"
@@ -801,6 +888,9 @@
       "ai_energy_level": {
         "name": "AI Energy Mode"
       },
+      "air_monitoring": {
+        "name": "Luchtmonitoring"
+      },
       "air_purify": {
         "name": "Luchtzuivering"
       },
@@ -821,6 +911,9 @@
       },
       "dustbin_auto_close": {
         "name": "Stofreservoir automatisch sluiten"
+      },
+      "spi": {
+        "name": "Ionisatie"
       },
       "uvc_intensive_mode": {
         "name": "Intensieve UV-C-modus"
@@ -869,9 +962,6 @@
       },
       "favorite_coffee_enabled": {
         "name": "Favoriete koffie"
-      },
-      "favorite_hotwater_enabled": {
-        "name": "Favoriet warm water"
       },
       "fridge_sound": {
         "name": "Geluid"

@@ -2,8 +2,25 @@
 from __future__ import annotations
 
 
+def is_stub_rep(rep: dict) -> bool:
+    """True for the device's "resource exists, no data fetched yet" marker --
+    an echoed {"href": "..."} with no other fields.
+
+    Distinct from a genuinely empty {} rep, which is the device's confirmed
+    (if empty) answer -- e.g. an unsupported resource on this model that will
+    never populate. Conflating the two used to make every field-gated entity
+    on a permanently-empty resource look like a not-yet-fetched stub forever,
+    creating phantom always-"unknown" entities (issue #127)."""
+    return isinstance(rep, dict) and set(rep.keys()) == {'href'}
+
+
 def parse_device0_batch(device0: list) -> dict[str, dict]:
-    """Extract {href: rep} from a /device/0 CBOR list response."""
+    """Extract {href: rep} from a /device/0 CBOR list response.
+
+    A stub rep is passed through unchanged rather than collapsed to {} --
+    downstream code (entity._is_included, capability exists_fns) uses
+    is_stub_rep to tell "not fetched yet" apart from a confirmed-empty {}.
+    """
     out = {}
     for entry in device0[1:]:   # skip [0] (device-level rep)
         if not isinstance(entry, dict):
@@ -12,8 +29,6 @@ def parse_device0_batch(device0: list) -> dict[str, dict]:
         rep  = entry.get('rep')
         if not href:
             continue
-        # rep == {"href": "..."} is a stub (resource present, no current data).
-        # Include it as {} so capabilities still bind and the entity exists.
         if isinstance(rep, dict):
-            out[href] = {} if set(rep.keys()) == {'href'} else rep
+            out[href] = rep
     return out

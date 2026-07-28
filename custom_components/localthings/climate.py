@@ -50,6 +50,7 @@ from .registry.capabilities.airconditioner import (
     HREF_WIND_DIRECTION as WIND_DIRECTION_HREF,
     HREF_WIND_OSCILLATION as WIND_OSCILLATION_HREF,
     HREF_CONVENIENT as CONVENIENT_HREF,
+    HREF_AIRFLOW as AIRFLOW_HREF,
 )
 from .registry.capabilities.common import normalize_temp_unit
 
@@ -228,8 +229,45 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
     # -- resource helpers ---------------------------------------------------
 
+    # Preset codes on legacy ARTIK051 boards, learned by driving the same unit
+    # through its cloud integration and reading the local token back each time:
+    # Nano=windFree, Quiet, Comfort, 2Step, Speed=Fast Turbo, Off=none.
+    _LEGACY_PRESET_CODES = ('Off', 'Nano', 'Quiet', 'Comfort', '2Step', 'Speed')
+
+    def _legacy_convenient(self) -> dict:
+        """A /mode/convenient/vs/0-shaped rep built from the Comode_* token in
+        /mode/vs/0's options, for boards that have no convenient resource."""
+        options = (self.coordinator.resource(MODE_HREF) or {}).get(
+            'x.com.samsung.da.options') or []
+        for option in options:
+            if isinstance(option, str) and option.startswith('Comode_'):
+                return {_MODES_FIELD: [option.split('_', 1)[1]],
+                        _SUPPORTED_FIELD: list(self._LEGACY_PRESET_CODES)}
+        return {}
+
+    def _legacy_airflow(self) -> dict:
+        """The /airflow/vs/0 rep, but only when it is the fan/swing channel to
+        use -- i.e. this board has no /wind/strength/vs/0."""
+        if self.coordinator.resource(WIND_STRENGTH_HREF):
+            return {}
+        return self.coordinator.resource(AIRFLOW_HREF) or {}
+
+    def _legacy_preset(self) -> bool:
+        """Whether presets come from the Comode_* token rather than a resource.
+
+        Gated on the same board test as _legacy_airflow, not on the convenient
+        rep being empty alone: newer boards carry Comode tokens too, so a
+        momentarily empty /mode/convenient/vs/0 there must not silently switch
+        the preset read (and write) over to the token path.
+        """
+        return (not self.coordinator.resource(CONVENIENT_HREF)
+                and bool(self._legacy_airflow()))
+
     def _rep(self, href: str) -> dict:
-        return self.coordinator.resource(href) or {}
+        rep = self.coordinator.resource(href) or {}
+        if not rep and href == CONVENIENT_HREF and self._legacy_airflow():
+            return self._legacy_convenient()
+        return rep
 
     def _is_on(self) -> bool:
         # Prefer the vendor /power/vs/0 (present on every observed board and
@@ -373,10 +411,16 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
     @property
     def fan_mode(self):
+        airflow = self._legacy_airflow()
+        if airflow:
+            return _DEVICE_TO_FAN.get(str(airflow.get('x.com.samsung.da.speedLevel')))
         return self._read_mode(WIND_STRENGTH_HREF, _DEVICE_TO_FAN)
 
     @property
     def fan_modes(self) -> list[str]:
+        if self._legacy_airflow():
+            # This resource carries no supportedModes, so the full scale is offered.
+            return list(_DEVICE_TO_FAN.values())
         return self._read_modes(WIND_STRENGTH_HREF, _DEVICE_TO_FAN)
 
     def _swing_via_direction(self) -> bool:
@@ -387,12 +431,17 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
     @property
     def swing_mode(self):
+        airflow = self._legacy_airflow()
+        if airflow:
+            return _DEVICE_TO_SWING.get(airflow.get('x.com.samsung.da.direction'))
         if self._swing_via_direction():
             return self._read_mode(WIND_DIRECTION_HREF, _DEVICE_TO_SWING)
         return _oscillation_swing(self._rep(WIND_OSCILLATION_HREF))
 
     @property
     def swing_modes(self) -> list[str]:
+        if self._legacy_airflow():
+            return list(_SWING_TO_DEVICE.keys())
         if self._swing_via_direction():
             return self._read_modes(WIND_DIRECTION_HREF, _DEVICE_TO_SWING)
         if self._rep(WIND_OSCILLATION_HREF):
@@ -468,9 +517,21 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
             await self.coordinator.async_send_command(self._bound, (kind, device))
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
+        if self._legacy_airflow():
+            level = _FAN_TO_DEVICE.get(fan_mode)
+            if level is not None:
+                await self.coordinator.async_send_command(
+                    self._bound, ('fan_legacy', level))
+            return
         await self._set_mapped('fan', _FAN_TO_DEVICE, fan_mode)
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
+        if self._legacy_airflow():
+            code = _SWING_TO_DEVICE.get(swing_mode)
+            if code is not None:
+                await self.coordinator.async_send_command(
+                    self._bound, ('swing_legacy', code))
+            return
         if self._swing_via_direction():
             await self._set_mapped('swing', _SWING_TO_DEVICE, swing_mode)
             return
@@ -489,5 +550,6 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         # a fixed transform of the HA value -- e.g. 'NanoSleep' -> 'nanosleep').
         for code in self._supported(CONVENIENT_HREF):
             if _preset_to_ha(code) == preset_mode:
-                await self.coordinator.async_send_command(self._bound, ('preset', code))
+                kind = 'preset_legacy' if self._legacy_preset() else 'preset'
+                await self.coordinator.async_send_command(self._bound, (kind, code))
                 return

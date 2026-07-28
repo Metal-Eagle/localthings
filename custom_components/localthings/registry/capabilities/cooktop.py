@@ -9,6 +9,7 @@ cooktop must not be remotely ignited by an automation.
 
 import re
 
+from ..batch import is_stub_rep
 from ..capability import Capability
 from ..entities import BinarySensorDesc, SensorDesc
 
@@ -97,7 +98,7 @@ COOKTOP_MODE = Capability(
                     options, f'OperationState{slot}'
                 ),
                 exists_fn=lambda rep, resources, slot=slot: (
-                    not rep or _option_value(
+                    is_stub_rep(rep) or _option_value(
                         rep.get('x.com.samsung.da.options'),
                         f'OperationState{slot}',
                     ) is not None

@@ -9,9 +9,11 @@ independent fields.
 
 from datetime import datetime, timezone
 
+from ..batch import is_stub_rep
 from ..capability import Capability
 from ..entities import (
     BinarySensorDesc,
+    ButtonDesc,
     FanDesc,
     SelectDesc,
     SensorDesc,
@@ -99,6 +101,11 @@ HOOD_FAN = Capability(
             field='x.com.samsung.da.hood.autoOperation',
             icon='mdi:fan-auto',
             entity_category='diagnostic',
+            # Absent on the microwave family's built-in vent fan (issue
+            # #137) -- this board has no auto-ventilation mode, unlike the
+            # standalone range hood this capability was written for.
+            exists_fn=lambda rep, resources: (
+                is_stub_rep(rep) or 'x.com.samsung.da.hood.autoOperation' in rep),
             value_fn=lambda value: str(value).lower() == 'on',
         ),
     ),
@@ -174,6 +181,50 @@ HOOD_FILTER = Capability(
             entity_category='diagnostic',
             enabled_default=False,
             value_fn=int_or_none,
+        ),
+    ),
+)
+
+
+# After Run (issue #147): the hood keeps the fan running at low speed for a
+# while after it's switched off, to clear residual cooking smoke -- a
+# feature a user actively watches and cancels, not passive diagnostics, so
+# none of the three entities below carry entity_category. No
+# supported-values list is advertised for activationState, so it's modeled
+# read-only (monitoring, not an invented "enable" write) per the 'don't
+# guess' rule; runningCancel's only observed value is the command name
+# itself ('Cancel'), the same self-describing command-field shape as
+# operational.STOP_BUTTON. runningProgress's own name states its domain
+# (a percentage of the cycle completed), so it's modeled as one rather than
+# left an opaque passthrough -- unlike activationState/runningCancel, there's
+# no ambiguous field name or missing-write-contract question here to hedge on.
+AFTER_RUN = Capability(
+    href='/afterrun/vs/0',
+    poll_tier='warm',
+    entities=(
+        BinarySensorDesc(
+            key='after_run_active',
+            field='x.com.samsung.da.activationState',
+            icon='mdi:fan-clock',
+            value_fn=lambda value: str(value).lower() == 'on',
+        ),
+        SensorDesc(
+            key='after_run_progress',
+            field='x.com.samsung.da.runningProgress',
+            unit='%',
+            state_class='measurement',
+            icon='mdi:fan-clock',
+            value_fn=int_or_none,
+        ),
+        ButtonDesc(
+            key='after_run_cancel',
+            field='',
+            payload='Cancel',
+            icon='mdi:fan-off',
+            write_fn=lambda p, rep, href=None: (
+                ['afterrun', 'vs', '0'],
+                {'x.com.samsung.da.runningCancel': p},
+            ),
         ),
     ),
 )
