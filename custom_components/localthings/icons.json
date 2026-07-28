@@ -1,0 +1,31 @@
+{
+  "entity": {
+    "climate": {
+      "airconditioner": {
+        "state_attributes": {
+          "fan_mode": {
+            "state": {
+              "turbo": "mdi:speedometer",
+              "max": "mdi:speedometer"
+            }
+          },
+          "preset_mode": {
+            "state": {
+              "ai_comfort": "mdi:creation",
+              "quiet": "mdi:volume-off",
+              "smart": "mdi:brain",
+              "speed": "mdi:speedometer",
+              "nano": "mdi:weather-windy-variant",
+              "nanosleep": "mdi:sleep",
+              "longwind": "mdi:weather-windy",
+              "motiondirect": "mdi:account-arrow-right",
+              "motionindirect": "mdi:account-arrow-left",
+              "drycomfort": "mdi:water-percent",
+              "2step": "mdi:stairs"
+            }
+          }
+        }
+      }
+    }
+  }
+}
