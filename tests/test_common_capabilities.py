@@ -184,6 +184,40 @@ class TestWmSetinfoFlags:
             },
         ]) == 'LE'
 
+    def test_off_suffixed_placeholder_codes_filtered(self):
+        """issue #166: Samsung pre-populates /alarms/vs/0 with one row per
+        supported alarm *type*, each carrying a '<Name>_OFF' placeholder
+        code (no 'Deleted' state at all) when that alarm isn't firing --
+        confirmed not just for 'ErrorCode_OFF' but also 'FilterAlarm_OFF'
+        on the same dump. These were previously shown as if they were
+        active alarms."""
+        assert common._active_alarm_codes([
+            {
+                'x.com.samsung.da.code': 'ErrorCode_OFF',
+                'x.com.samsung.da.triggeredTime': '2026-07-28T12:59:22',
+            },
+            {
+                'x.com.samsung.da.code': 'FilterAlarm_OFF',
+                'x.com.samsung.da.triggeredTime': '2026-07-28T12:59:22',
+            },
+        ]) == 'none'
+
+    def test_real_filter_alarm_not_off_suffixed_still_shown(self):
+        """issue #166's actual live filter alert: code 'FilterAlarm' (no
+        '_OFF' suffix), state 'Created' -- distinct from the 'FilterAlarm_OFF'
+        placeholder and must still surface."""
+        assert common._active_alarm_codes([
+            {
+                'x.com.samsung.da.code': 'ErrorCode_OFF',
+                'x.com.samsung.da.triggeredTime': '2026-07-28T12:59:22',
+            },
+            {
+                'x.com.samsung.da.code': 'FilterAlarm',
+                'x.com.samsung.da.state': 'Created',
+                'x.com.samsung.da.triggeredTime': '2026-07-28T12:59:22',
+            },
+        ]) == 'FilterAlarm'
+
 
 class TestKidsLockFallback:
     def test_generic_read_write(self):

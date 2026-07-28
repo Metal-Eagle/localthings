@@ -191,6 +191,27 @@ def test_registry_reproduces_golden_state_keys_for_tp1x_ref_21k_us():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_tp1x_ref_21k_eu():
+    """TP1X_REF_21K, EU region variant (issue #165) -- self-reports
+    oneUiVersion "7.0 Refrigerator" like the US variant, but additionally
+    carries /rm/control/vs/0 (a bare resource-monitoring poll-interval
+    config, added to the global ignore list) that the US dump doesn't
+    report at all. Door sensors (the reporter's actual ask) were already
+    covered by fridge.DOOR_GENERIC/DOORS_FALLBACK -- this href was the only
+    gap keeping the coverage repair open."""
+    from tests.conftest import _load_device
+    resources = _load_device('refrigerator_tp1x_ref_21k_eu')
+    golden = json.loads(
+        (GOLDEN / 'refrigerator_tp1x_ref_21k_eu.json').read_text()
+    )
+    state_keys = _new_state_keys('refrigerator_tp1x_ref_21k_eu', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_range_hood():
     from tests.conftest import _load_device
     resources = _load_device('range_hood')
@@ -457,6 +478,12 @@ def test_registry_reproduces_golden_state_keys_for_induction_cooktop():
     resources = _load_device('induction_cooktop')
     golden = json.loads((GOLDEN / 'induction_cooktop.json').read_text())
     state_keys = _new_state_keys('induction_cooktop', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
 
 def test_registry_reproduces_golden_state_keys_for_range_no_info():
     """NE63B8411SS (issue #74) -- reports no oneUiVersion *and* no
@@ -537,6 +564,23 @@ def test_registry_reproduces_golden_state_keys_for_range_ne8300d():
     resources = _load_device('range_ne8300d')
     golden = json.loads((GOLDEN / 'range_ne8300d.json').read_text())
     state_keys = _new_state_keys('range_ne8300d', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_range_ne63a6511():
+    """NE63A6511SS/AA (issue #138) -- reports no /information/vs/0 at all,
+    same shape as issue #74's NE63B8411SS; resolved via the same
+    'Bake'-in-supportedModes + /cooktopmonitoring/vs/0 signature in
+    for_device_by_resources. Binds cleanly against the existing range
+    registry with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('range_ne63a6511')
+    golden = json.loads((GOLDEN / 'range_ne63a6511.json').read_text())
+    state_keys = _new_state_keys('range_ne63a6511', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
@@ -630,6 +674,22 @@ def test_registry_reproduces_golden_state_keys_for_microwave_me7500d():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_microwave_me7500d_lamp_high():
+    """Same TP1X_DA-KS-MICROWAVE-01051/ME7500D board as microwave_me7500d
+    above, but this live capture (issue #152) is the first to report a
+    non-Off Lamp token ('Lamp_High'). Locks in that the lamp switch reads
+    it as on rather than the previously-hardcoded 'On'-only comparison."""
+    from tests.conftest import _load_device
+    resources = _load_device('microwave_me7500d_lamp_high')
+    golden = json.loads((GOLDEN / 'microwave_me7500d_lamp_high.json').read_text())
+    state_keys = _new_state_keys('microwave_me7500d_lamp_high', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier_tp1x_da_ac_air():
     """TP1X_DA-AC-AIR-01031_0000 (issue #130) self-reports oneUiVersion
     '7.0 Air purifier' and resolves via for_device() onto the existing
@@ -685,6 +745,103 @@ def test_registry_reproduces_golden_state_keys_for_artik051_krac_18k():
         (GOLDEN / 'airconditioner_artik051_krac_18k.json').read_text()
     )
     state_keys = _new_state_keys('airconditioner_artik051_krac_18k', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_rac_01001():
+    """TP1X_DA-AC-RAC-01001_0000 (model AR07C9150HZN, issue #155) -- binds
+    cleanly against the existing airconditioner registry with zero unbound
+    hrefs (the registry/discovery side was never the gap here). Its
+    /wind/strength/vs/0 reports supportedModes "0"/"31"-"35" instead of the
+    "0"-"4" scale climate.py's _DEVICE_TO_FAN was built from, which silently
+    dropped every fan speed but Auto -- see
+    test_airconditioner_tp1x_rac_01001_fan.py for the climate-level fix."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_tp1x_rac_01001')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_tp1x_rac_01001.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_tp1x_rac_01001', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_air_dresser():
+    """DA_DF_A51_20_COMMON AirDresser (model DF8600T, issue #162) -- reports
+    no oneUiVersion; resolved via the '_DF_' modelNum token fallback. Has no
+    /wm/editcourse/vs/0 at all, so the course select's option list comes
+    entirely from laundry.cycle_options' supportedOptions fallback. Binds
+    cleanly against the new air_dresser registry with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_dresser')
+    golden = json.loads((GOLDEN / 'air_dresser.json').read_text())
+    state_keys = _new_state_keys('air_dresser', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_air_dresser_tp2_20():
+    """DA_DF_TP2_20_COMMON AirDresser (model DF9500A, issue #157) -- a
+    different board generation than issue #162's DA_DF_A51_20_COMMON, also
+    routed via the '_DF_' modelNum fallback into the same air_dresser
+    registry. Unlike #162's board, this one populates /wm/editcourse/vs/0's
+    editCourseList directly (no supportedOptions fallback needed) and
+    reports two AirDresser-specific resources #162 doesn't have:
+    /st/airdressercourse/vs/0 (course table id, ignored.py) and
+    /airdresseroption/sanitize/vs/0 (air_dresser.AIR_DRESSER_SANITIZE).
+    Binds cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_dresser_tp2_20')
+    golden = json.loads((GOLDEN / 'air_dresser_tp2_20.json').read_text())
+    state_keys = _new_state_keys('air_dresser_tp2_20', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_air_purifier_vtww():
+    """A-VTWW-TP2-21-COMMON BESPOKE Cube Air (issue #151) -- reports no
+    oneUiVersion; resolved via the '-VTWW-' modelNum token fallback into
+    the existing air_purifier registry. Its fan lives on
+    /wind/strength/vs/0 (air_purifier.WIND_STRENGTH_FAN) rather than the
+    /mode/vs/0 FAN the other two board generations in this registry use.
+    Binds cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_purifier_vtww')
+    golden = json.loads((GOLDEN / 'air_purifier_vtww.json').read_text())
+    state_keys = _new_state_keys('air_purifier_vtww', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora():
+    """TP2X_FAC_BORA_21K Wind-Free 2-in-1 (floor-standing + wall-mounted
+    indoor units sharing one outdoor unit and one local IP, issues
+    #150/#153) -- reports no oneUiVersion; resolved via the '_FAC_'
+    modelNum fallback. Binds cleanly against the existing airconditioner
+    registry (including a real climate entity, the actual reported gap)
+    with zero unbound hrefs -- /subdevices/vs/0 and /runn/vs/0 are the only
+    hrefs this board reports that no other AC family does, both added to
+    _AC_IGNORED as undocumented/not-locally-actionable."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_fac_bora')
+    golden = json.loads((GOLDEN / 'airconditioner_fac_bora.json').read_text())
+    state_keys = _new_state_keys('airconditioner_fac_bora', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

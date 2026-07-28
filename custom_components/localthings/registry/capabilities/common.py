@@ -91,12 +91,25 @@ def _ml_to_l(v):
 
 
 def _active_alarm_codes(items):
-    """Join active alarm codes; skip retained rows Samsung leaves as Deleted.
+    """Join active alarm codes; skip retained rows Samsung leaves as Deleted,
+    and any code ending in '_OFF'.
 
     Laundry boards keep a Deleted ErrorCode row in /alarms/vs/0 after the
     condition clears (see WD7000B diagnostics). Surface only live alarms so
-    HA doesn't stick on a stale ErrorCode. Range-hood has its own stricter
-    helper that also drops ErrorCode_OFF.
+    HA doesn't stick on a stale ErrorCode.
+
+    Samsung pre-populates this array with one row per alarm *type* the board
+    supports, each carrying its own '<Name>_OFF' placeholder code when that
+    alarm isn't firing -- confirmed across independent device families
+    (ErrorCode_OFF, FilterAlarm_OFF, OV_E_OFF, CT_E_OFF, WaterTankFull_OFF,
+    AC_V_0002_OFF all appear in fixtures with no corresponding active
+    condition). An alarm that's actually firing instead reports a plain,
+    unsuffixed code (FilterAlarm, DoorA_Opened, SNSF_Reached) -- issue #166's
+    AC dump has both a FilterAlarm_OFF placeholder and shows what a live
+    filter alert looks like: code 'FilterAlarm' (no suffix), state
+    'Created'. Range-hood previously special-cased only the literal
+    'ErrorCode_OFF' string in its own stricter helper; this generalizes
+    the same rule to the whole '_OFF' suffix convention.
     """
     if not items or not isinstance(items, list):
         return 'none'
@@ -105,6 +118,7 @@ def _active_alarm_codes(items):
         for i in items
         if i.get('x.com.samsung.da.code')
         and str(i.get('x.com.samsung.da.state', '')).lower() != 'deleted'
+        and not str(i.get('x.com.samsung.da.code', '')).lower().endswith('_off')
     ]
     return ', '.join(codes) if codes else 'none'
 

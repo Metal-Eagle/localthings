@@ -120,12 +120,29 @@ def test_oven_setpoint_native_bounds_track_live_unit():
 # ---------------------------------------------------------------------------
 
 def test_oven_mode_options_nonempty():
-    assert len(oven.OVEN_MODE.entities[0].options) > 0
+    desc = oven.OVEN_MODE.entities[0]
+    assert callable(desc.options)
+    assert len(desc.options({})) > 0
+
+
+def test_oven_mode_options_falls_back_when_no_live_supported_modes():
+    desc = oven.OVEN_MODE.entities[0]
+    assert desc.options({}) == list(oven._OVEN_MODES)
+
+
+def test_oven_mode_options_reads_live_supported_modes():
+    """issue #138: the device's own supportedModes list is used verbatim
+    when present, instead of the static _OVEN_MODES guess."""
+    desc = oven.OVEN_MODE.entities[0]
+    resources = {'/mode/vs/0': {
+        'x.com.samsung.da.supportedModes': ['Bake', 'AirFryer', 'SelfClean'],
+    }}
+    assert desc.options(resources) == ['Bake', 'AirFryer', 'SelfClean']
 
 
 def test_oven_mode_write_round_trips():
     desc = oven.OVEN_MODE.entities[0]
-    valid_mode = desc.options[1]   # e.g. 'Bake'
+    valid_mode = desc.options({})[1]   # e.g. 'Bake'
     path, body = desc.write_fn(valid_mode, {})
     assert path == ['mode', 'vs', '0']
     assert body['x.com.samsung.da.modes'] == [valid_mode]
@@ -134,6 +151,19 @@ def test_oven_mode_write_round_trips():
 def test_oven_mode_rejects_unknown():
     desc = oven.OVEN_MODE.entities[0]
     assert desc.write_fn('SpaghettiMode', {}) is None
+
+
+def test_oven_mode_write_validates_against_live_supported_modes():
+    """A device reporting its own supportedModes is validated against that
+    list, not the static fallback -- issue #138's AirFryer/SelfClean/etc.
+    are accepted, and a mode outside the device's own list is rejected even
+    if some other model's static guess would have allowed it."""
+    desc = oven.OVEN_MODE.entities[0]
+    rep = {'x.com.samsung.da.supportedModes': ['Bake', 'AirFryer', 'SelfClean']}
+    path, body = desc.write_fn('AirFryer', rep)
+    assert path == ['mode', 'vs', '0']
+    assert body['x.com.samsung.da.modes'] == ['AirFryer']
+    assert desc.write_fn('FrozenPizzaPlus', rep) is None
 
 
 # ---------------------------------------------------------------------------

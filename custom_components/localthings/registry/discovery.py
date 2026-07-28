@@ -73,7 +73,15 @@ def discover(
     registry: dict[str, list[Capability]],
     pattern_caps: Iterable[Capability] = (),
     log: Optional[Callable[[str], None]] = None,
+    tier_log: Optional[Callable[[str, str], None]] = None,
 ) -> list[BoundEntity]:
+    """`tier_log(href, poll_tier)` fires for every href a capability actually
+    matches, even a no-entity "coverage-only" capability (see COVERAGE lists
+    in capabilities/*.py) that `_bind()` turns into zero `BoundEntity` rows.
+    Callers that need a href's poll cadence (the coordinator's hot/warm
+    sub-poll and OBSERVE-attempt lists) must use this, not `bound` -- a
+    coverage-only capability's `poll_tier` would otherwise be silently
+    dropped since it never appears in `bound`."""
     out: list[BoundEntity] = []
 
     for href, rep in resources.items():
@@ -91,6 +99,8 @@ def discover(
             inst = instance_suffix(href)
             out.extend(_bind(cap, href, inst, _instance_name(cap, rep)))
             matched = True
+            if tier_log is not None:
+                tier_log(href, cap.poll_tier)
 
         if matched:
             continue
@@ -109,6 +119,8 @@ def discover(
             segs = [s for s in src.strip('/').split('/') if s and not s.isdigit() and s != 'vs']
             out.extend(_bind(cap, href, inst, _instance_name(cap, rep), '_'.join(segs)))
             matched = True
+            if tier_log is not None:
+                tier_log(href, cap.poll_tier)
             break
 
         if not matched and not caps and log is not None:

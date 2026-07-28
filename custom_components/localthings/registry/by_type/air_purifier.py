@@ -1,6 +1,6 @@
 """Air-purifier device registry.
 
-Spans two board generations sharing this one registry (see
+Spans three board generations sharing this one registry (see
 capabilities/air_purifier.py's module docstring for the per-href
 match_fn discriminators that keep them from colliding):
 
@@ -12,6 +12,10 @@ match_fn discriminators that keep them from colliding):
   reported; reuses airconditioner.DISPLAY_LIGHT and airconditioner.MUTE_ONCE
   for /light/vs/0 and /option/muteonce/vs/0, which are identical shapes on
   the shared DA-AC- board family.
+- A-VTWW-TP2-21-COMMON-class (issue #151). Reports no oneUiVersion and no
+  existing modelNum token; falls back to unknown until routed here. Its fan
+  is WIND_STRENGTH_FAN on /wind/strength/vs/0 rather than FAN on
+  /mode/vs/0 -- see that capability's comment.
 
 Reuses dishwasher.DIAGNOSIS for /diagnosis/vs/0 (identical field/write
 contract).
@@ -33,6 +37,7 @@ REGISTRY = DeviceRegistry(
         air_purifier.AIRFLOW_VS_FALLBACK,
         air_purifier.MODE,
         air_purifier.FAN,
+        air_purifier.WIND_STRENGTH_FAN,
         air_purifier.DISPLAY,
         air_purifier.HEPA_FILTER,
         air_purifier.PANEL_STATUS,

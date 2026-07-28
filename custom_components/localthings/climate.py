@@ -51,6 +51,7 @@ from .registry.capabilities.airconditioner import (
     HREF_WIND_OSCILLATION as WIND_OSCILLATION_HREF,
     HREF_CONVENIENT as CONVENIENT_HREF,
     HREF_AIRFLOW as AIRFLOW_HREF,
+    is_legacy_board,
 )
 from .registry.capabilities.common import normalize_temp_unit
 
@@ -141,6 +142,22 @@ def _oscillation_swing(rep: dict) -> str | None:
     if h:
         return 'horizontal'
     return 'off'
+
+def _wind_strength_label(code, rep: dict) -> str:
+    """Human label for a /wind/strength/vs/0 code from the device's own
+    modesName array (parallel-indexed with supportedModes), lowercased for
+    HA -- used only for codes _DEVICE_TO_FAN doesn't already cover (issue
+    #155, TP1X_DA-AC-RAC-01001_0000: codes "0"/"31"-"35" instead of the
+    "0"-"4" scale _DEVICE_TO_FAN was built from, with modesName giving
+    "Auto"/"1"/"2"/"3"/"4"/"MAX"). No per-model numeric map -- mirrors
+    preset_mode's dynamic code->str resolution. Falls back to the raw code
+    lowercased when modesName is absent or misaligned."""
+    supported = rep.get('x.com.samsung.da.supportedModes') or []
+    names = rep.get('x.com.samsung.da.modesName') or []
+    if code in supported and len(names) == len(supported):
+        return str(names[supported.index(code)]).lower()
+    return str(code).lower()
+
 
 # Preset (convenient mode): resolved dynamically from the device's own
 # /mode/convenient/vs/0 supportedModes -- no per-model table. The device 'Off'
@@ -247,8 +264,20 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
     def _legacy_airflow(self) -> dict:
         """The /airflow/vs/0 rep, but only when it is the fan/swing channel to
-        use -- i.e. this board has no /wind/strength/vs/0."""
-        if self.coordinator.resource(WIND_STRENGTH_HREF):
+        use -- i.e. this board has no /wind/strength/vs/0.
+
+        Delegates the board-generation test to is_legacy_board (the same
+        test capabilities/airconditioner.py's token entities are gated on)
+        instead of re-implementing it. Uses last_resources rather than a
+        two-key presence dict built from coordinator.resource()'s truthiness
+        -- resource() collapses "href absent" and "href present with an
+        empty {} rep" to the same falsy value, while is_legacy_board (and
+        discover()'s own binding) test key membership, not truthiness. A
+        presence dict built from truthiness alone would disagree with the
+        token entities on a board reporting a genuinely empty /airflow/vs/0,
+        silently reintroducing the drift this delegation exists to prevent.
+        """
+        if not is_legacy_board(self.coordinator.last_resources):
             return {}
         return self.coordinator.resource(AIRFLOW_HREF) or {}
 
@@ -414,14 +443,24 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         airflow = self._legacy_airflow()
         if airflow:
             return _DEVICE_TO_FAN.get(str(airflow.get('x.com.samsung.da.speedLevel')))
-        return self._read_mode(WIND_STRENGTH_HREF, _DEVICE_TO_FAN)
+        rep = self._rep(WIND_STRENGTH_HREF)
+        code = _first(rep.get(_MODES_FIELD))
+        if code is None:
+            return None
+        return _DEVICE_TO_FAN.get(code) or _wind_strength_label(code, rep)
 
     @property
     def fan_modes(self) -> list[str]:
         if self._legacy_airflow():
             # This resource carries no supportedModes, so the full scale is offered.
             return list(_DEVICE_TO_FAN.values())
-        return self._read_modes(WIND_STRENGTH_HREF, _DEVICE_TO_FAN)
+        rep = self._rep(WIND_STRENGTH_HREF)
+        modes = []
+        for code in self._supported(WIND_STRENGTH_HREF):
+            mode = _DEVICE_TO_FAN.get(code) or _wind_strength_label(code, rep)
+            if mode not in modes:
+                modes.append(mode)
+        return modes
 
     def _swing_via_direction(self) -> bool:
         """True when WIND_DIRECTION_HREF is the swing channel to use --
@@ -523,7 +562,23 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
                 await self.coordinator.async_send_command(
                     self._bound, ('fan_legacy', level))
             return
-        await self._set_mapped('fan', _FAN_TO_DEVICE, fan_mode)
+        supported = self._supported(WIND_STRENGTH_HREF)
+        device = _FAN_TO_DEVICE.get(fan_mode)
+        # A static hit is only trustworthy if this unit's own supportedModes
+        # actually includes that code -- a board can use non-standard codes
+        # (issue #155's "31"-"35") while still spelling a standard label
+        # ("Low"/"High") in modesName, in which case _FAN_TO_DEVICE.get would
+        # return a plausible-looking code ('1'/'3') the device never
+        # advertised at all. Fall through to the live scan whenever the
+        # static guess isn't actually one of this unit's own codes.
+        if device is None or (supported and device not in supported):
+            rep = self._rep(WIND_STRENGTH_HREF)
+            for code in supported:
+                if _wind_strength_label(code, rep) == fan_mode:
+                    device = code
+                    break
+        if device is not None:
+            await self.coordinator.async_send_command(self._bound, ('fan', device))
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         if self._legacy_airflow():

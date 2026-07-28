@@ -7,8 +7,8 @@ testable directly.
 from homeassistant.components.climate import HVACMode
 
 from custom_components.localthings.climate import (
-    _AI_COMFORT_MODE, _DEVICE_TO_HVAC, _HVAC_TO_DEVICE, PRESET_AI_COMFORT,
-    _preset_to_ha,
+    _AI_COMFORT_MODE, _DEVICE_TO_HVAC, _HVAC_TO_DEVICE,
+    PRESET_AI_COMFORT, _preset_to_ha,
 )
 
 
@@ -74,3 +74,45 @@ def test_preset_to_ha_lowercases_other_codes():
     assert _preset_to_ha('Sleep') == 'sleep'
     assert _preset_to_ha('NanoSleep') == 'nanosleep'
     assert _preset_to_ha('MotionIndirect') == 'motionindirect'
+
+
+def test_fac_bora_wind_strength_codes_fit_the_standard_scale():
+    """TP2X_FAC_BORA_21K's (issues #150/#153) /wind/strength/vs/0 codes
+    (0/2/3/4, skipping 1/'low') and modesName (Auto/Mid/High/Turbo) already
+    match _DEVICE_TO_FAN's own mapping exactly -- no dynamic modesName
+    fallback needed for this particular board, unlike issue #155's
+    TP1X_DA-AC-RAC-01001_0000.
+
+    Asserts the live climate entity's actual fan_modes/fan_mode output
+    (not just that the module constant _DEVICE_TO_FAN happens to have
+    these keys) -- a bare `code in _DEVICE_TO_FAN` check would still pass
+    even if fan_modes/fan_mode were completely broken, since it never
+    touches the entity at all.
+    """
+    from custom_components.localthings.climate import LocalThingsClimate
+    from custom_components.localthings.registry import by_type
+    from custom_components.localthings.registry.discovery import discover
+    from custom_components.localthings.registry.entities import ClimateDesc
+    from tests.conftest import _load_device
+
+    class _FakeCoordinator:
+        device_serial = 'TEST-FAC-BORA-SERIAL'
+        device_info = {}
+        data = {}
+
+        def __init__(self, resources):
+            self.last_resources = resources
+
+        def resource(self, href):
+            return self.last_resources.get(href, {})
+
+    resources = _load_device('airconditioner_fac_bora')
+    info = resources['/information/vs/0']
+    reg = by_type.for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    climate_bound = next(item for item in bound if isinstance(item.desc, ClimateDesc))
+    entity = LocalThingsClimate(_FakeCoordinator(resources), climate_bound)
+
+    assert entity.fan_modes == ['auto', 'medium', 'high', 'turbo']
+    assert entity.fan_mode == 'auto'

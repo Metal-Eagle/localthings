@@ -3,9 +3,9 @@ from typing import Optional
 
 from ._base import DeviceRegistry
 from . import (
-    air_purifier, airconditioner, cooktop, dehumidifier, dishwasher, dryer,
-    induction_cooktop, microwave, oven, range as _range, range_hood,
-    refrigerator, vacuum_station, washer, water_purifier,
+    air_dresser, air_purifier, airconditioner, cooktop, dehumidifier,
+    dishwasher, dryer, induction_cooktop, microwave, oven, range as _range,
+    range_hood, refrigerator, vacuum_station, washer, water_purifier,
 )
 
 __all__ = [
@@ -15,6 +15,7 @@ __all__ = [
 
 
 _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
+    'air_dresser': air_dresser.REGISTRY,
     'air_purifier': air_purifier.REGISTRY,
     'airpurifier': air_purifier.REGISTRY,
     'airconditioner': airconditioner.REGISTRY,
@@ -200,6 +201,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # here) -- no WAC-specific resources needed.
     if key is None and '_WAC_' in (model_num or ''):
         key = 'airconditioner'
+    # Wind-Free 2-in-1 systems (floor-standing + wall-mounted indoor units
+    # sharing one outdoor unit and one local IP, e.g. TP2X_FAC_BORA_21K,
+    # issues #150/#153) report no oneUiVersion and carry the '_FAC_' token
+    # instead of '_RAC_'/'_PRAC_'. Same TP1X/TP2X-class resource surface as
+    # the room-AC models above.
+    if key is None and '_FAC_' in (model_num or ''):
+        key = 'airconditioner'
     # ARA-WW-class wall-mount RACs (e.g. ARA-WW-TP1-22-COMMON, issues #115/
     # #116/#117/#120) report no oneUiVersion and no '_RAC_'/'-RAC-' token at
     # all -- the board family is spelled 'ARA-WW-' instead. Same resource
@@ -221,6 +229,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     if key is None and '_KRAC_' in (model_num or ''):
         key = 'airconditioner'
     if key is None and '_TVTL_' in (model_num or ''):
+        key = 'air_purifier'
+    # BESPOKE Cube Air (e.g. A-VTWW-TP2-21-COMMON, issue #151) reports no
+    # oneUiVersion and carries the hyphenated '-VTWW-' board-family token
+    # (distinct from the underscore-delimited '_TVTL_' ARTIK051 family
+    # above). Its fan lives on /wind/strength/vs/0 rather than /mode/vs/0 --
+    # see capabilities/air_purifier.py's WIND_STRENGTH_FAN.
+    if key is None and '-VTWW-' in (model_num or '').upper():
         key = 'air_purifier'
     model_identity = f'{model_num} {description}'.upper()
     if key is None and ('_COOKTOP' in model_identity or '_GB_CT_' in model_identity):
@@ -270,6 +285,14 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
     # station state) shares no hrefs with anything else already modeled.
     if key is None and '-VSKR-' in (model_num or '').upper():
         key = 'vacuum_station'
+    # AirDresser (e.g. DA_DF_A51_20_COMMON, issue #162) -- reports no
+    # oneUiVersion and carries the '_DF_' (Dresser Function) board-family
+    # token. Every resource it exposes (course select, wrinkle-prevent
+    # setting, diagnosis) is already handled by the shared laundry
+    # machinery; it needs its own device type only because none of the
+    # washer/dryer/dishwasher consumer-model prefixes below match it.
+    if key is None and '_DF_' in (model_num or ''):
+        key = 'air_dresser'
     # Consumer-model prefix from `description` (washer/dryer/dishwasher) --
     # last, since it's the fuzziest match (a bare 2-letter prefix) and would
     # otherwise shadow the more specific board-family tokens above.

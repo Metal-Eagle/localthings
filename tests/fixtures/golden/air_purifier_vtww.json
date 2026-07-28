@@ -1,0 +1,17 @@
+{
+  "state_keys": [
+    "alarm_code",
+    "clean_level",
+    "device_active",
+    "dust",
+    "energy_kwh",
+    "fine_dust",
+    "firmware_update",
+    "hepa_filter_status",
+    "hepa_filter_usage",
+    "odor",
+    "power_switch",
+    "super_fine_dust",
+    "wind_strength_fan"
+  ]
+}

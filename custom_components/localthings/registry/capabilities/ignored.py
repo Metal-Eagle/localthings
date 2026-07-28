@@ -53,6 +53,10 @@ IGNORED: list[Capability] = [
     Capability(href='/setting/vs/0'),          # supported/selected UI language
     Capability(href='/timezone/vs/0'),         # redundant with HA's own timezone
     Capability(href='/wm/setinfo/vs/0'),       # model/manufacturing metadata
+    # Resource-monitoring poll-interval config (a bare minPeriod in
+    # milliseconds, issue #165's TP1X_REF_21K fridge) -- internal transport
+    # plumbing, not appliance state.
+    Capability(href='/rm/control/vs/0'),
 
     # Demand Response Load Control — utility-company grid signals; requires
     # cloud registration with a utility program we don't support locally.
@@ -107,6 +111,11 @@ IGNORED: list[Capability] = [
     # exposed by dryer.DRYER_COURSE at /course/vs/0
     # (x.com.samsung.da.st.dryerMode is "Table_03_Course_<same hex code>").
     Capability(href='/st/dryercourse/vs/0'),
+    # AirDresser counterpart of the above (issue #157): read only for its
+    # courseTable id (air_dresser.AIR_DRESSER_COURSE's table_href), no
+    # entity of its own -- same "no entity, just the table id" role as
+    # /st/washercourse/vs/0 and /st/dryercourse/vs/0.
+    Capability(href='/st/airdressercourse/vs/0'),
     # Empty on every washer dump seen so far.
     Capability(href='/wm/welcomemsg/vs/0'),
     # User-saved custom course slots (F1-FA). No controllable/observable

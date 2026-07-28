@@ -21,7 +21,12 @@ different from an oven, and defined fresh here:
   * Lamp: this family's option-array token is bare 'Lamp' (issue #137's
     'Lamp_Off'), not oven.py's 'UpperLamp' -- and it's genuinely absent on
     the combi dump (issue #121), so it's gated with exists_fn rather than
-    assumed universal like oven.py's lamp switch.
+    assumed universal like oven.py's lamp switch. Issue #137's dump only
+    ever showed 'Off', so 'On' was a guess at the paired value; issue #152's
+    ME7500D dump is the first to show a real non-Off value, and it's 'High'
+    (a brightness level, not literally 'On') -- the switch now treats any
+    non-Off/non-None value as "on" for reads, and writes back 'High'/'Off'
+    (the two confirmed tokens) rather than the never-confirmed 'On'.
 
 Note: cooking-mode writes are unproven here, same caveat as oven.py's
 OVEN_MODE -- exposed as a SelectDesc for fidelity, first real-world write
@@ -107,8 +112,21 @@ def _power_level_watts(v):
     return int_or_none(s)
 
 
+def _cooking_mode_options(resources):
+    """Live mode list from the device's own /mode/vs/0 supportedModes when
+    it reports one (both known dumps do); the union-of-all-dumps
+    _MICROWAVE_MODES guess otherwise. Same live-first, static-fallback
+    pattern as oven._oven_mode_options -- a fixed list here would offer
+    users modes their own unit doesn't have (issue #152's ME7500D reports
+    only 4 of _MICROWAVE_MODES' 11)."""
+    rep = resources.get('/mode/vs/0') or {}
+    live = rep.get('x.com.samsung.da.supportedModes')
+    return list(live) if live else list(_MICROWAVE_MODES)
+
+
 def _mode_write(p, rep, href=None):
-    if p not in _MICROWAVE_MODES:
+    valid = rep.get('x.com.samsung.da.supportedModes') or _MICROWAVE_MODES
+    if p not in valid:
         return None
     return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [p]}
 
@@ -132,8 +150,12 @@ def _lamp_write(p, rep, href=None):
         return None
     if not rep.get('x.com.samsung.da.options'):
         return None
+    # 'High' and 'Off' are the two tokens actually confirmed on live dumps
+    # (issues #137/#152) -- 'On' has never been observed and the device
+    # likely doesn't recognize it (see module docstring).
+    token = 'High' if p == 'On' else 'Off'
     return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': option_write('Lamp', p),
+        'x.com.samsung.da.options': option_write('Lamp', token),
     }
 
 
@@ -178,7 +200,7 @@ MICROWAVE_MODE = Capability(
         # SelectDesc first — test_microwave_mode_options_nonempty uses entities[0]
         SelectDesc(key='cooking_mode', field='x.com.samsung.da.modes',
                    icon='mdi:tune',
-                   options=_MICROWAVE_MODES,
+                   options=_cooking_mode_options,
                    value_fn=lambda v: v[0] if v else None,
                    write_fn=_mode_write),
         SwitchDesc(key='sound', field='x.com.samsung.da.options',
@@ -189,7 +211,7 @@ MICROWAVE_MODE = Capability(
         SwitchDesc(key='lamp', field='x.com.samsung.da.options',
                    icon='mdi:track-light',
                    exists_fn=_lamp_exists,
-                   value_fn=lambda opts: option_value(opts, 'Lamp') == 'On',
+                   value_fn=lambda opts: option_value(opts, 'Lamp') not in (None, 'Off'),
                    write_fn=_lamp_write),
     ),
 )

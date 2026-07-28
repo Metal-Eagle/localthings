@@ -1,0 +1,20 @@
+{
+  "state_keys": [
+    "air_filter_status",
+    "air_filter_threshold",
+    "air_filter_usage",
+    "air_filter_usage_hours",
+    "alarm_code",
+    "auto_clean",
+    "beep",
+    "climate",
+    "current_temperature_c",
+    "diagnosis_status",
+    "energy_kwh",
+    "firmware_update",
+    "humidity",
+    "power_energy_kwh",
+    "power_watts",
+    "tropical_night_mode"
+  ]
+}

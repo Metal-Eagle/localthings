@@ -264,7 +264,7 @@ def _option_token(rep, prefix):
     return None
 
 
-def _is_legacy_board(resources):
+def is_legacy_board(resources):
     """True for the board generation whose airflow lives in /airflow/vs/0.
 
     Newer families carry several of the same option tokens (Volume, Sleep,
@@ -275,13 +275,12 @@ def _is_legacy_board(resources):
     /airflow/vs/0. Same test as climate.py's _legacy_airflow(), so the entities
     below and the climate entity can never disagree about the generation.
     """
-    return ('/airflow/vs/0' in resources
-            and '/wind/strength/vs/0' not in resources)
+    return HREF_AIRFLOW in resources and HREF_WIND_STRENGTH not in resources
 
 
 def _has_option_token(prefix):
     return lambda rep, resources: (
-        _is_legacy_board(resources) and _option_token(rep, prefix) is not None)
+        is_legacy_board(resources) and _option_token(rep, prefix) is not None)
 
 
 def _option_token_on(prefix):
@@ -322,14 +321,20 @@ def _humidity(rep):
     (51% observed, matching what the same unit's cloud integration reported at
     that moment), then zeroes the field and switches Air monitoring back off by
     itself. So 0 reads as "not measuring" and is reported as unknown rather than
-    as 0% humidity, which would poison long-term history -- which is also why
-    the boards that do have fivepercentHumidity read a permanent 0 here.
+    as 0% humidity, which would poison long-term history.
+
+    That zero-as-"not measuring" carve-out is specific to the ARTIK051
+    fallback field's hardware quirk -- every other board's fivepercentHumidity
+    has never been documented getting stuck at zero, and collapsing a
+    genuine 0% reading there to unknown is a regression, not a safeguard
+    (issue #160). So fivepercentHumidity passes 0 through unchanged; only the
+    humidity fallback applies the zero-collapse.
     """
-    for field in ('x.com.samsung.da.fivepercentHumidity',
-                  'x.com.samsung.da.humidity'):
-        if field in rep:
-            value = _num(rep[field])
-            return value if value else None
+    if 'x.com.samsung.da.fivepercentHumidity' in rep:
+        return _num(rep['x.com.samsung.da.fivepercentHumidity'])
+    if 'x.com.samsung.da.humidity' in rep:
+        value = _num(rep['x.com.samsung.da.humidity'])
+        return value if value else None
     return None
 
 
@@ -422,13 +427,13 @@ CLIMATE = Capability(
                    icon='mdi:led-on', entity_category='config'),
         # Beep on/off from the `Volume_*` option token (Volume_Mute/Volume_100).
         # Single-token option_write; a full options RMW reverts on ARTIK051_PRAC.
-        # Gated off the legacy ARTIK051 board generation (see _is_legacy_board):
+        # Gated off the legacy ARTIK051 board generation (see is_legacy_board):
         # that generation's own Volume_ token is already modeled as the
         # buzzer_volume Number below, and both reading the same options[] slot
         # into two entities would be redundant.
         SwitchDesc(key='beep', rep_fn=_beep_on,
                    exists_fn=lambda rep, resources: (
-                       not _is_legacy_board(resources)
+                       not is_legacy_board(resources)
                        and _option_token(rep, 'Volume') is not None),
                    write_fn=_beep_write,
                    icon='mdi:volume-high', entity_category='config'),
@@ -438,7 +443,7 @@ CLIMATE = Capability(
         # Sleep_ token is already the good_sleep Number below.
         NumberDesc(key='tropical_night_mode', rep_fn=_tropical_night_value,
                    exists_fn=lambda rep, resources: (
-                       not _is_legacy_board(resources)
+                       not is_legacy_board(resources)
                        and _option_token(rep, 'Sleep') is not None),
                    write_fn=_tropical_night_write,
                    native_min=0, native_max=16, step=1,
@@ -783,6 +788,19 @@ _AC_IGNORED = [
     # topology -- indoor/outdoor unit pairing, per-unit serials, MCU info.
     # Commissioning-time plumbing, not user-actionable appliance state.
     '/sac/installationinfo/vs/0',
+    # Wind-Free 2-in-1 systems (one outdoor unit driving a floor-standing
+    # *and* a wall-mounted indoor unit over one shared local IP, e.g.
+    # TP2X_FAC_BORA_21K, issues #150/#153): an opaque paired-subdevice id
+    # list, same "remote device ids, not user-actionable locally" role as
+    # /remotedeviceinfo/vs/0 above. This integration talks to whichever
+    # single local endpoint the config entry was set up against; the
+    # second indoor unit isn't independently reachable through this
+    # resource (or any other in the dump) -- it would need its own local
+    # DTLS session/IP, which SmartThings pairing doesn't expose here.
+    '/subdevices/vs/0',
+    # Undocumented single int (runningMode: 0 on every dump seen), no
+    # supported-values list to interpret it against -- 'don't guess'.
+    '/runn/vs/0',
 ]
 
 # Built as bare no-entity caps; folded into the AC registry (not global).

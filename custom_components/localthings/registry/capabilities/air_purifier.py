@@ -74,6 +74,7 @@ from .laundry import bool_option_exists, bool_option_value, option_value, option
 # are mutually exclusive via this presence check rather than colliding.
 HREF_MODE = '/mode/vs/0'
 HREF_AIRFLOW = '/airflow/0'
+HREF_WIND_STRENGTH = '/wind/strength/vs/0'
 
 
 def _has_top_level_modes(rep, resources):
@@ -136,14 +137,22 @@ DEVICE_ACTIVE = Capability(
     ),
 )
 
+def _power_write(power_href, value):
+    """Shared 'power' payload handling for this family's three FanDesc write
+    functions -- targets whichever power href fan.py's _power_payload picked
+    (the board may only report /power/0); a hardcoded vendor href here would
+    silently no-op on such a board even though the entity's own is_on
+    already falls back to reading it correctly."""
+    if power_href == '/power/0':
+        return ['power', '0'], {'value': bool(value)}
+    return (['power', 'vs', '0'],
+            {'x.com.samsung.da.power': 'On' if value else 'Off'})
+
+
 def _airflow_fan_write(payload, rep, href=None):
     kind, value, *args = payload
     if kind == 'power':
-        power_href = args[0] if args else '/power/vs/0'
-        if power_href == '/power/0':
-            return ['power', '0'], {'value': bool(value)}
-        return (['power', 'vs', '0'],
-                {'x.com.samsung.da.power': 'On' if value else 'Off'})
+        return _power_write(args[0] if args else '/power/vs/0', value)
     if kind == 'speed':
         return ['airflow', '0'], {'speed': int(value)}
     return None
@@ -233,15 +242,7 @@ MODE = Capability(
 def _fan_write(payload, rep, href=None):
     kind, value, *args = payload
     if kind == 'power':
-        # Targets whichever power href fan.py's _power_payload picked (the
-        # board may only report /power/0) -- a hardcoded vendor href here
-        # would silently no-op on such a board even though the entity's
-        # own is_on already falls back to reading it correctly.
-        power_href = args[0] if args else '/power/vs/0'
-        if power_href == '/power/0':
-            return ['power', '0'], {'value': bool(value)}
-        return (['power', 'vs', '0'],
-                {'x.com.samsung.da.power': 'On' if value else 'Off'})
+        return _power_write(args[0] if args else '/power/vs/0', value)
     if kind == 'mode':
         return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [value]}
     return None
@@ -269,6 +270,38 @@ FAN = Capability(
     entities=(
         FanDesc(key='fan', translation_key='air_purifier_fan',
                 rep_fn=_first_fan_mode, write_fn=_fan_write),
+    ),
+)
+
+
+def _wind_strength_fan_write(payload, rep, href=None):
+    kind, value, *args = payload
+    if kind == 'power':
+        return _power_write(args[0] if args else '/power/vs/0', value)
+    if kind == 'mode':
+        return ['wind', 'strength', 'vs', '0'], {'x.com.samsung.da.modes': value}
+    return None
+
+
+# A-VTWW-TP2-21-COMMON (issue #151): named preset modes like FAN above, but
+# on a distinct href with numeric codes ("87"/"89"/"90"/"91") instead of
+# self-describing supportedModes -- x.com.samsung.da.modesName gives the
+# actual names (SMART/MAX/WINDFREE/Sleep), read live by fan.py's
+# LocalThingsAirPurifierFan._label_for_code rather than a hardcoded
+# per-model map. modes here is a bare string ('87'), not a single-element
+# list like HREF_MODE's -- _wind_strength_fan_write writes it back as-is.
+#
+# key is 'wind_strength_fan', NOT 'fan' -- FAN above shares this registry
+# and also uses a FanDesc; BoundEntity's unique_id is built from key alone
+# (entity.py's _key), not href, so two same-key FanDescs in one registry
+# would collide if a board ever bound both (see AIRFLOW_GENERIC's own
+# comment on this exact hazard -- missed here in the initial cut).
+WIND_STRENGTH_FAN = Capability(
+    href=HREF_WIND_STRENGTH,
+    poll_tier='warm',
+    entities=(
+        FanDesc(key='wind_strength_fan', translation_key='air_purifier_fan',
+                field='x.com.samsung.da.modes', write_fn=_wind_strength_fan_write),
     ),
 )
 
@@ -425,4 +458,8 @@ COVERAGE = [
     # functionState both 'false'). Same "needs a multi-field schedule
     # editor" treatment as fridge.py's /defrost/reservation/vs/0.
     Capability(href='/dnd/autosleep/vs/0'),
+    # Empty ({}) on the A-VTWW-TP2-21 dump (issue #151) -- this board's
+    # convenient-mode-equivalent behavior lives entirely in WIND_STRENGTH_FAN
+    # above instead.
+    Capability(href='/mode/convenient/vs/0'),
 ]

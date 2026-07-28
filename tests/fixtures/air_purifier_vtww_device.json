@@ -1,0 +1,310 @@
+{
+  "device0": [
+    {
+      "rt": [
+        "x.com.samsung.devcol",
+        "oic.wk.col"
+      ],
+      "if": [
+        "oic.if.baseline",
+        "oic.if.ll",
+        "oic.if.b"
+      ]
+    },
+    {
+      "href": "/airlevelcheck/vs/0",
+      "rep": {
+        "x.com.samsung.da.periodicSensingActivationState": "Off",
+        "x.com.samsung.da.periodicSensingInterval": "600",
+        "x.com.samsung.da.startSensingOnce": "On",
+        "x.com.samsung.da.sensingState": "NonProcessing",
+        "x.com.samsung.da.lastSensingTime": "1785195000",
+        "x.com.samsung.da.lastSensingLevel": "Kr1",
+        "x.com.samsung.da.autoExeState": "Off",
+        "x.com.samsung.da.supportedAutoExeState": [
+          "Off",
+          "Airpurify",
+          "Alarm"
+        ],
+        "x.com.samsung.da.periodicSensingSkipStatus": "Off",
+        "x.com.samsung.da.periodicSensingSkipTime": "15002100"
+      }
+    },
+    {
+      "href": "/alarms/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Alarm",
+            "x.com.samsung.da.alarmType": "Device",
+            "x.com.samsung.da.code": "ErrorCode_OFF",
+            "x.com.samsung.da.triggeredTime": "2024-01-01T00:00:00",
+            "x.com.samsung.da.state": "Deleted"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/availablecontrolsets/vs/0",
+      "rep": {
+        "x.com.samsung.da.sets": "0000000000000000000000000000",
+        "x.com.samsung.da.id": "VTL",
+        "x.com.samsung.da.version": "1.0"
+      }
+    },
+    {
+      "href": "/configuration/vs/0",
+      "rep": {
+        "x.com.samsung.da.region": "3017000000",
+        "x.com.samsung.da.airconOptionList": [
+          "WELCOMECARE",
+          "AI_PURIFY"
+        ],
+        "x.com.samsung.da.countryCode": ""
+      }
+    },
+    {
+      "href": "/da/softreset/vs/0",
+      "rep": {
+        "x.com.samsung.da.softwarereset": "false"
+      }
+    },
+    {
+      "href": "/devicespecificinfo/vs/0",
+      "rep": {
+        "x.com.samsung.da.deviceActive": true
+      }
+    },
+    {
+      "href": "/dnd/autosleep/vs/0",
+      "rep": {
+        "x.com.samsung.da.startTime": "14:00:00",
+        "x.com.samsung.da.endTime": "22:00:00",
+        "x.com.samsung.da.visible": "true",
+        "x.com.samsung.da.useTimeSetting": "true",
+        "x.com.samsung.da.functionState": "true"
+      }
+    },
+    {
+      "href": "/energy/consumption/0",
+      "rep": {}
+    },
+    {
+      "href": "/energy/consumption/vs/0",
+      "rep": {
+        "x.com.samsung.da.cumulativePower": "196696",
+        "x.com.samsung.da.cumulativeDate": "1785245199",
+        "x.com.samsung.da.cumulativeDateUTC": "1785212799",
+        "x.com.samsung.da.cumulativeUnit": "Wh"
+      }
+    },
+    {
+      "href": "/file/information/vs/0",
+      "rep": {
+        "x.com.samsung.timeoffset": "+09:00"
+      }
+    },
+    {
+      "href": "/filter/hepafilter/vs/0",
+      "rep": {
+        "x.com.samsung.da.filterUsage": "0",
+        "x.com.samsung.da.filterUsageResolution": "1",
+        "x.com.samsung.da.filterStatus": "normal",
+        "x.com.samsung.da.filterCapacity": "8760",
+        "x.com.samsung.da.filterCapacityUnit": "Hour",
+        "x.com.samsung.da.filterResetType": [
+          "replaceable"
+        ]
+      }
+    },
+    {
+      "href": "/humidity/0",
+      "rep": {}
+    },
+    {
+      "href": "/humidity/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/information/vs/0",
+      "rep": {
+        "x.com.samsung.da.modelNum": "A-VTWW-TP2-21-COMMON|10231241|70000535001511EC0505090201000000",
+        "x.com.samsung.da.description": "A-VTWW-TP2-21-COMMON",
+        "x.com.samsung.da.serialNum": "REDACTED",
+        "x.com.samsung.da.otnDUID": "REDACTED",
+        "x.com.samsung.da.diagProtocolType": "WIFI_HTTPS",
+        "x.com.samsung.da.diagLogType": [
+          "errCode",
+          "dump"
+        ],
+        "x.com.samsung.da.diagDumpType": "file",
+        "x.com.samsung.da.diagEndPoint": "SSM",
+        "x.com.samsung.da.diagMnid": "0AJT",
+        "x.com.samsung.da.diagSetupid": "101",
+        "x.com.samsung.da.diagMinVersion": "1.0",
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Version",
+            "x.com.samsung.da.type": "Software",
+            "x.com.samsung.da.number": "02308A260310",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Version",
+            "x.com.samsung.da.type": "Firmware",
+            "x.com.samsung.da.number": "21063003,21063002",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/mode/convenient/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/mode/vs/0",
+      "rep": {
+        "x.com.samsung.da.options": [
+          "CountOfSlave_0",
+          "SlavePower01_NotSupported",
+          "Pollution_Off",
+          "OptionCode_23418",
+          "SmartSleep_Off"
+        ]
+      }
+    },
+    {
+      "href": "/otninformation/vs/0",
+      "rep": {
+        "x.com.samsung.da.target": "",
+        "x.com.samsung.da.newVersionAvailable": "false",
+        "x.com.samsung.da.newVersionNo": "00000000",
+        "x.com.samsung.da.currentVersionInfo": "00000000",
+        "otnStatus": "None",
+        "flashingProgress": "",
+        "otnTarget": "main",
+        "otnCompleteDate": "noHistory",
+        "otnList": [
+          {
+            "type": "WIFI",
+            "modelId": "A-VTWW-TP2-21-COMMON",
+            "versions": [
+              "12260310"
+            ],
+            "visVersion": "260310"
+          },
+          {
+            "type": "Micom",
+            "modelId": "09501023124110231341",
+            "versions": [
+              "21063003",
+              "21063002"
+            ],
+            "visVersion": "210630"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/power/0",
+      "rep": {
+        "value": false
+      }
+    },
+    {
+      "href": "/power/vs/0",
+      "rep": {
+        "x.com.samsung.da.power": "Off"
+      }
+    },
+    {
+      "href": "/realtimenotiforclient/vs/0",
+      "rep": {
+        "x.com.samsung.da.timeforshortnoti": "7",
+        "x.com.samsung.da.longnotisubscription": "true",
+        "x.com.samsung.da.periodicnotisubscription": "true"
+      }
+    },
+    {
+      "href": "/sensors/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "Sensor for Dust",
+            "x.com.samsung.da.type": "Dust",
+            "x.com.samsung.da.value": [
+              "5",
+              "1"
+            ]
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Sensor for FineDust",
+            "x.com.samsung.da.type": "FineDust",
+            "x.com.samsung.da.value": [
+              "5",
+              "1"
+            ]
+          },
+          {
+            "x.com.samsung.da.id": "2",
+            "x.com.samsung.da.description": "Sensor for Odor",
+            "x.com.samsung.da.type": "Odor",
+            "x.com.samsung.da.value": [
+              "1"
+            ]
+          },
+          {
+            "x.com.samsung.da.id": "3",
+            "x.com.samsung.da.description": "Sensor for CleanLevel",
+            "x.com.samsung.da.type": "CleanLevel",
+            "x.com.samsung.da.value": [
+              "1"
+            ]
+          },
+          {
+            "x.com.samsung.da.id": "4",
+            "x.com.samsung.da.description": "Sensor for SuperFineDust",
+            "x.com.samsung.da.type": "SuperFineDust",
+            "x.com.samsung.da.value": [
+              "5",
+              "1"
+            ]
+          }
+        ],
+        "x.com.samsung.da.total": "5"
+      }
+    },
+    {
+      "href": "/timezone/vs/0",
+      "rep": {
+        "timezoneid": "Asia/Seoul",
+        "offset": "+09:00",
+        "DST": "OFF"
+      }
+    },
+    {
+      "href": "/wind/strength/vs/0",
+      "rep": {
+        "x.com.samsung.da.modes": "87",
+        "x.com.samsung.da.supportedModes": [
+          "87",
+          "89",
+          "90",
+          "91"
+        ],
+        "x.com.samsung.da.modesName": [
+          "SMART",
+          "MAX",
+          "WINDFREE",
+          "Sleep"
+        ]
+      }
+    }
+  ]
+}

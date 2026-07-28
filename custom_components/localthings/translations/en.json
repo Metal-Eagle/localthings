@@ -120,7 +120,8 @@
         "state_attributes": {
           "fan_mode": {
             "state": {
-              "turbo": "Turbo"
+              "turbo": "Turbo",
+              "max": "Max"
             }
           },
           "preset_mode": {

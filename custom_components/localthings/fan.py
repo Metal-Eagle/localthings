@@ -1,15 +1,18 @@
 """Fan platform for Samsung range hoods and air purifiers.
 
-Three FanDesc-bound hrefs exist, dispatched by href in async_setup_entry
+Four FanDesc-bound hrefs exist, dispatched by href in async_setup_entry
 below since each needs different HA fan semantics: the range hood's fan
 speed and the older ARTIK051_TVTL air-purifier family's Auto/Sleep/Low/
 Medium/High (issue #56) are both an ordered set of numeric levels
 (SET_SPEED) -- the latter confirmed monotonic in capabilities/
 air_purifier.py's module docstring, with no named-mode list to preserve
-since this board never self-reports one. The newer TP1X air-purifier
-family's modes (Smart/Max/Mid/WindFree/Sleep, issue #130) are named
-behaviors with no linear order (PRESET_MODE), reported directly by that
-board's own supportedModes."""
+since this board never self-reports one. The TP1X air-purifier family's
+modes (Smart/Max/Mid/WindFree/Sleep, issue #130) and the A-VTWW-TP2-21
+family's /wind/strength/vs/0 modes (issue #151) are both named behaviors
+with no linear order (PRESET_MODE) -- LocalThingsAirPurifierFan handles
+both hrefs, the only difference being whether the label comes straight
+from supportedModes or from a parallel modesName array (see
+_label_for_code)."""
 
 from __future__ import annotations
 
@@ -29,6 +32,7 @@ from .coordinator import LocalThingsCoordinator
 from .entity import LocalThingsEntity, _is_included
 from .registry.capabilities.air_purifier import HREF_AIRFLOW
 from .registry.capabilities.air_purifier import HREF_MODE as AIR_PURIFIER_FAN_HREF
+from .registry.capabilities.air_purifier import HREF_WIND_STRENGTH as AIR_PURIFIER_WIND_STRENGTH_HREF
 from .registry.entities import FanDesc
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +46,7 @@ _OFF_SPEED_CODE = '0'
 
 _MODES_FIELD = 'x.com.samsung.da.modes'
 _SUPPORTED_MODES_FIELD = 'x.com.samsung.da.supportedModes'
+_MODES_NAME_FIELD = 'x.com.samsung.da.modesName'
 
 
 async def async_setup_entry(
@@ -54,7 +59,7 @@ async def async_setup_entry(
     for bound in coordinator.bound:
         if not (isinstance(bound.desc, FanDesc) and _is_included(bound, coordinator)):
             continue
-        if bound.href == AIR_PURIFIER_FAN_HREF:
+        if bound.href in (AIR_PURIFIER_FAN_HREF, AIR_PURIFIER_WIND_STRENGTH_HREF):
             entities.append(LocalThingsAirPurifierFan(coordinator, bound))
         elif bound.href == HREF_AIRFLOW:
             entities.append(LocalThingsAirflowFan(coordinator, bound))
@@ -243,10 +248,29 @@ class LocalThingsAirPurifierFan(LocalThingsEntity, FanEntity):
             return str(power).lower() == 'on'
         return bool(self._rep(POWER_HREF).get('value'))
 
+    def _label_for_code(self, code) -> str:
+        """Lowercased HA preset label for a device mode code.
+
+        The TP1X_DA-AC-AIR board (issue #130) reports its named modes
+        directly as supportedModes ('Smart'/'Max'/...), so the code IS the
+        label. The A-VTWW-TP2-21 board (issue #151) instead reports numeric
+        wind-strength codes ('87'/'89'/...) with a separate modesName array
+        (parallel-indexed with supportedModes) giving the actual names --
+        same shape as climate.py's _wind_strength_label, and coincidentally
+        the same word set (Smart/Max/WindFree/Sleep), so both board
+        generations land on identical HA preset values without needing
+        their own translation catalog entry."""
+        rep = self._mode_rep()
+        supported = list(rep.get(_SUPPORTED_MODES_FIELD, ()))
+        names = rep.get(_MODES_NAME_FIELD)
+        if names and code in supported and len(names) == len(supported):
+            return str(names[supported.index(code)]).lower()
+        return str(code).lower()
+
     @property
     def preset_modes(self) -> list[str]:
         return [
-            str(code).lower()
+            self._label_for_code(code)
             for code in self._mode_rep().get(_SUPPORTED_MODES_FIELD, ())
         ]
 
@@ -254,7 +278,7 @@ class LocalThingsAirPurifierFan(LocalThingsEntity, FanEntity):
     def preset_mode(self) -> str | None:
         modes = self._mode_rep().get(_MODES_FIELD)
         code = modes[0] if isinstance(modes, (list, tuple)) and modes else modes
-        return str(code).lower() if code is not None else None
+        return self._label_for_code(code) if code is not None else None
 
     async def async_turn_on(
         self, percentage: int | None = None, preset_mode: str | None = None,
@@ -269,10 +293,10 @@ class LocalThingsAirPurifierFan(LocalThingsEntity, FanEntity):
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         # Reverse-resolve against the unit's own supportedModes -- the
-        # write needs the raw device code (e.g. 'WindFree'), not the
-        # lowercased HA value.
+        # write needs the raw device code (e.g. 'WindFree', or '90' on the
+        # modesName-labelled board), not the lowercased HA value.
         for code in self._mode_rep().get(_SUPPORTED_MODES_FIELD, ()):
-            if str(code).lower() == preset_mode:
+            if self._label_for_code(code) == preset_mode:
                 await self.coordinator.async_send_command(self._bound, ('mode', code))
                 return
         _LOGGER.warning(
