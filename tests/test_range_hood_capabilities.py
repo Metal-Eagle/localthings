@@ -62,7 +62,7 @@ def test_range_hood_fixture_values():
     assert state['air_sensing_state'] == 'NonProcessing'
     assert state['last_air_sensing_level'] == 'Kr2'
     assert state['after_run_active'] is False
-    assert state['after_run_progress'] == '0'
+    assert state['after_run_progress'] == 0
 
 
 def test_one_composite_fan_is_bound():

@@ -188,11 +188,10 @@ HOOD_FILTER = Capability(
 # read-only (monitoring, not an invented "enable" write) per the 'don't
 # guess' rule; runningCancel's only observed value is the command name
 # itself ('Cancel'), the same self-describing command-field shape as
-# operational.STOP_BUTTON. runningProgress is left a bare passthrough for the
-# same 'don't guess' reason -- the only observed sample is "0", with no
-# range or supported-values field to confirm it's a percentage rather than a
-# minutes/seconds count, and unit + state_class='measurement' would commit
-# it to long-term statistics under a possibly-wrong unit.
+# operational.STOP_BUTTON. runningProgress's own name states its domain
+# (a percentage of the cycle completed), so it's modeled as one rather than
+# left an opaque passthrough -- unlike activationState/runningCancel, there's
+# no ambiguous field name or missing-write-contract question here to hedge on.
 AFTER_RUN = Capability(
     href='/afterrun/vs/0',
     poll_tier='warm',
@@ -206,7 +205,10 @@ AFTER_RUN = Capability(
         SensorDesc(
             key='after_run_progress',
             field='x.com.samsung.da.runningProgress',
+            unit='%',
+            state_class='measurement',
             icon='mdi:fan-clock',
+            value_fn=int_or_none,
         ),
         ButtonDesc(
             key='after_run_cancel',

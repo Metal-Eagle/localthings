@@ -536,7 +536,7 @@
     },
     "sensor": {
       "after_run_progress": {
-        "name": "Nadraaien voortgang"
+        "name": "Voortgang nadraaien"
       },
       "air_filter_usage": {
         "name": "Filterverbruik"
