@@ -63,11 +63,15 @@ def _beep_write(payload, rep, href=None):
 
 
 def _tropical_night_value(rep):
-    """Tropical night mode level (0-16) from the `Sleep_<N>` option token."""
+    """Tropical night mode level (0-16) from the `Sleep_<N>` option token.
+
+    _option_token returns the token's value half already (e.g. '16' for
+    'Sleep_16'), same convention as _beep_on above.
+    """
     tok = _option_token(rep, 'Sleep')
-    if tok is None or '_' not in tok:
+    if tok is None:
         return None
-    return _int(tok.split('_', 1)[1])
+    return _int(tok)
 
 
 def _tropical_night_write(value, rep, href=None):
