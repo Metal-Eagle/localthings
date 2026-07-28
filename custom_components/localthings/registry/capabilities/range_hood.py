@@ -9,6 +9,7 @@ independent fields.
 
 from datetime import datetime, timezone
 
+from ..batch import is_stub_rep
 from ..capability import Capability
 from ..entities import (
     BinarySensorDesc,
@@ -104,7 +105,7 @@ HOOD_FAN = Capability(
             # #137) -- this board has no auto-ventilation mode, unlike the
             # standalone range hood this capability was written for.
             exists_fn=lambda rep, resources: (
-                not rep or 'x.com.samsung.da.hood.autoOperation' in rep),
+                is_stub_rep(rep) or 'x.com.samsung.da.hood.autoOperation' in rep),
             value_fn=lambda value: str(value).lower() == 'on',
         ),
     ),

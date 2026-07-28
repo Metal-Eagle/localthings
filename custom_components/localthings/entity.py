@@ -8,6 +8,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.const import EntityCategory
 
 from .registry.adapter import _key
+from .registry.batch import is_stub_rep
 from .registry.discovery import BoundEntity, _snake_to_title
 
 from .const import DOMAIN
@@ -21,9 +22,17 @@ def _is_included(bound: BoundEntity, coordinator: 'LocalThingsCoordinator') -> b
     require that field to be present in the resource rep so that optional
     fields on shared resources don't create phantom entities.
 
-    An empty rep ({}) means /device/0 returned a stub for this resource —
-    the resource exists on the device but data hasn't been fetched yet.
-    In that case we include the entity so it can be populated by sub-polls.
+    A stub rep (is_stub_rep — /device/0's "resource exists, no data fetched
+    yet" marker) is included anyway so it can be populated by sub-polls. A
+    genuinely empty {} rep is included too by this default gate -- whether
+    empty means "not populated yet" or "permanently unsupported" needs
+    per-field domain knowledge this generic gate doesn't have: /alarms/vs/0's
+    {} is fridge.py's documented *normal* no-alarm state (see
+    _active_alarm_codes), not an absence signal, and it's far from the only
+    resource like that. Only a capability whose author has actually verified
+    a field is genuinely never populated on unsupported hardware opts into
+    stricter gating with its own is_stub_rep-based exists_fn (see
+    common.ENERGY_METER, issue #127) -- this default stays permissive.
     """
     rep = coordinator.last_resources.get(bound.href)
     if rep is None:
@@ -31,7 +40,7 @@ def _is_included(bound: BoundEntity, coordinator: 'LocalThingsCoordinator') -> b
     if bound.desc.exists_fn is not None:
         return bound.desc.exists_fn(rep, coordinator.last_resources)
     if bound.desc.field:
-        if not rep:  # stub — resource known to exist, data not yet fetched
+        if not rep or is_stub_rep(rep):
             return True
         return bound.desc.field in rep
     return True  # rep_fn or no-field entities (ButtonDesc) are always included
