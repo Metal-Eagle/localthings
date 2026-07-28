@@ -169,6 +169,14 @@ def _desc_coffee(key):
     return next(b.desc for b in bound if b.desc.key == key)
 
 
+def _desc_coffee_by_href(key, href):
+    """Like _desc_coffee, but disambiguates descriptors that share a key
+    across hrefs (hotwater_lock: LOCK's hotwaterLock field and
+    FAVORITE_HOTWATER's switchHotwater fallback, issue #144)."""
+    bound, _ = _bound_coffee()
+    return next(b.desc for b in bound if b.desc.key == key and b.href == href)
+
+
 def test_coffee_variant_no_unbound_hrefs():
     """Every resource in the issue #107 dump binds or is covered, including
     the four coffee-recipe hrefs not present in issue #90's dump."""
@@ -181,7 +189,7 @@ def test_coffee_variant_no_unbound_hrefs():
 def test_coffee_variant_expected_state_keys_present():
     state = _state_coffee()
     for key in ('favorite_coffee_enabled', 'coffee_brew_status',
-                'favorite_hotwater_enabled', 'favorite_hotwater_temperature'):
+                'hotwater_lock', 'favorite_hotwater_temperature'):
         assert key in state, key
 
 
@@ -193,12 +201,29 @@ def test_favorite_coffee_write_contract():
         ['favorite', 'coffee', 'vs', '0'], {'favorite.activate': 'Off'})
 
 
-def test_favorite_hotwater_write_contract():
-    enabled = _desc_coffee('favorite_hotwater_enabled')
-    assert enabled.write_fn('On', {}) == (
-        ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Unlocked'})
-    assert enabled.write_fn('Off', {}) == (
+def test_favorite_hotwater_switch_is_a_lock_not_an_enable_flag():
+    """issue #144: switchHotwater's value domain is Locked/Unlocked, not an
+    enable flag, and it's misspelled as "Favorite hot water" -- it's the same
+    hot-water lock as LOCK.hotwater_lock, just surfaced through this href on
+    boards (like this fixture's) that don't populate /status/lock/vs/0's
+    hotwaterLock field."""
+    lock = _desc_coffee_by_href('hotwater_lock', '/favorite/hotwater/vs/0')
+    assert lock.write_fn('On', {}) == (
         ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Locked'})
+    assert lock.write_fn('Off', {}) == (
+        ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Unlocked'})
+    assert lock.value_fn('Unlocked') is False
+    assert lock.value_fn('Locked') is True
+
+
+def test_favorite_hotwater_lock_fallback_only_activates_when_primary_absent():
+    """The switchHotwater-based lock and LOCK's hotwaterLock-based lock share
+    the 'hotwater_lock' key so only one entity is ever registered (issue
+    #144). This fixture has no hotwaterLock field, so the fallback must be
+    active; a board reporting both must not."""
+    lock = _desc_coffee_by_href('hotwater_lock', '/favorite/hotwater/vs/0')
+    assert lock.exists_fn({}, {'/status/lock/vs/0': {}}) is True
+    assert lock.exists_fn({}, {'/status/lock/vs/0': {'x.com.samsung.da.hotwaterLock': 'Unlocked'}}) is False
 
 
 def test_favorite_hotwater_temperature_options_come_from_live_supported_list():

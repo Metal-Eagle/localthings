@@ -1,6 +1,9 @@
 {
   "entity": {
     "binary_sensor": {
+      "after_run_active": {
+        "name": "Nadraaien actief"
+      },
       "any_burner_active": {
         "name": "Een brander actief"
       },
@@ -93,6 +96,9 @@
       }
     },
     "button": {
+      "after_run_cancel": {
+        "name": "Nadraaien annuleren"
+      },
       "diagnosis_start": {
         "name": "Diagnose starten"
       },
@@ -529,6 +535,9 @@
       }
     },
     "sensor": {
+      "after_run_progress": {
+        "name": "Nadraaien voortgang"
+      },
       "air_filter_usage": {
         "name": "Filterverbruik"
       },
@@ -885,9 +894,6 @@
       },
       "favorite_coffee_enabled": {
         "name": "Favoriete koffie"
-      },
-      "favorite_hotwater_enabled": {
-        "name": "Favoriet warm water"
       },
       "fridge_sound": {
         "name": "Geluid"

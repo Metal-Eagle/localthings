@@ -102,20 +102,30 @@ FAVORITE_CAPACITY = Capability(
     ),
 )
 
-# Coffee-capable variant (issue #107) -- same "favorite" enable-toggle +
-# supported-list select shape as FAVORITE_CAPACITY above, but for the hot
-# water dispensed alongside brewing rather than the pour capacity.
+# Coffee-capable variant (issue #107) -- a "favorite" supported-list select
+# for the hot water dispensed alongside brewing, same shape as
+# FAVORITE_CAPACITY above.
 FAVORITE_HOTWATER = Capability(
     href='/favorite/hotwater/vs/0',
     poll_tier='cold',
     entities=(
-        SwitchDesc(key='favorite_hotwater_enabled', field='x.com.samsung.da.switchHotwater',
-                   icon='mdi:star-outline',
+        # Despite the resource/field naming, switchHotwater's value domain is
+        # Locked/Unlocked, not an enable flag (issue #144) -- it's the same
+        # hot-water lock as LOCK.hotwater_lock below, just surfaced through
+        # this href on boards that don't populate /status/lock/vs/0's
+        # hotwaterLock field. Shares that descriptor's key so only one "Hot
+        # water lock" entity ever appears; exists_fn activates this fallback
+        # only when the primary field is absent, so a board reporting both
+        # can't collide.
+        SwitchDesc(key='hotwater_lock', field='x.com.samsung.da.switchHotwater',
+                   device_class='lock',
                    entity_category='config',
-                   value_fn=lambda v: v != 'Locked',
+                   value_fn=lambda v: v != 'Unlocked',
+                   exists_fn=lambda rep, resources: 'x.com.samsung.da.hotwaterLock' not in (
+                       resources.get('/status/lock/vs/0') or {}),
                    write_fn=lambda p, rep, href=None: (
                        ['favorite', 'hotwater', 'vs', '0'],
-                       {'x.com.samsung.da.switchHotwater': 'Unlocked' if p == 'On' else 'Locked'})),
+                       {'x.com.samsung.da.switchHotwater': 'Locked' if p == 'On' else 'Unlocked'})),
         SelectDesc(key='favorite_hotwater_temperature',
                    field='x.com.samsung.da.favorite.defaultTemperature',
                    icon='mdi:thermometer',

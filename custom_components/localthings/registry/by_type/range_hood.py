@@ -11,6 +11,7 @@ REGISTRY = DeviceRegistry(
         range_hood.HOOD_ALARMS,
         common.ENERGY_METER,
         common.FIRMWARE_UPDATE,
+        range_hood.AFTER_RUN,
         range_hood.HOOD_FAN,
         range_hood.HOOD_LAMP,
         range_hood.HOOD_FILTER,
