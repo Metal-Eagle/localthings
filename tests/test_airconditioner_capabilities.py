@@ -404,4 +404,14 @@ def test_current_temperature_vs_only_binds_when_ocf_href_absent():
 def test_humidity_reads_five_percent_field_not_stuck_humidity_field():
     desc = airconditioner.HUMIDITY.entities[0]
     rep = {'x.com.samsung.da.humidity': '0', 'x.com.samsung.da.fivepercentHumidity': '42'}
-    assert desc.value_fn(rep.get(desc.field)) == 42.0
+    assert desc.rep_fn(rep) == 42.0
+
+
+def test_humidity_falls_back_to_the_plain_field_where_five_percent_is_absent():
+    """ARTIK051 boards (issue #136) have no fivepercentHumidity field at all.
+    Their plain field is not stuck -- it carries a reading while Air monitoring
+    is on -- so 0 means "not measuring" on both generations, not 0% humidity."""
+    desc = airconditioner.HUMIDITY.entities[0]
+    assert desc.rep_fn({'x.com.samsung.da.humidity': '51'}) == 51.0
+    assert desc.rep_fn({'x.com.samsung.da.humidity': '0'}) is None
+    assert desc.rep_fn({}) is None

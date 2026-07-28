@@ -1,0 +1,18 @@
+{
+  "state_keys": [
+    "air_monitoring",
+    "alarm_code",
+    "auto_clean_legacy",
+    "buzzer_volume",
+    "climate",
+    "current_temperature_c",
+    "diagnosis_status",
+    "display_light",
+    "energy_kwh",
+    "filter_time",
+    "good_sleep",
+    "humidity",
+    "outdoor_temperature",
+    "spi"
+  ]
+}
