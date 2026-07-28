@@ -1,6 +1,9 @@
 {
   "entity": {
     "binary_sensor": {
+      "after_run_active": {
+        "name": "After run active"
+      },
       "any_burner_active": {
         "name": "Any burner active"
       },
@@ -93,6 +96,9 @@
       }
     },
     "button": {
+      "after_run_cancel": {
+        "name": "Cancel after run"
+      },
       "diagnosis_start": {
         "name": "Start diagnosis"
       },
@@ -560,6 +566,9 @@
       }
     },
     "sensor": {
+      "after_run_progress": {
+        "name": "After run progress"
+      },
       "air_filter_usage": {
         "name": "Filter usage"
       },
@@ -925,9 +934,6 @@
       },
       "favorite_coffee_enabled": {
         "name": "Favorite coffee"
-      },
-      "favorite_hotwater_enabled": {
-        "name": "Favorite hot water"
       },
       "fridge_sound": {
         "name": "Sound"

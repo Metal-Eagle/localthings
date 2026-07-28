@@ -1,5 +1,7 @@
 {
   "state_keys": [
+    "after_run_active",
+    "after_run_progress",
     "air_sensing_state",
     "alarm_code",
     "auto_ventilation_action",

@@ -61,6 +61,8 @@ def test_range_hood_fixture_values():
     assert state['periodic_air_sensing'] is False
     assert state['air_sensing_state'] == 'NonProcessing'
     assert state['last_air_sensing_level'] == 'Kr2'
+    assert state['after_run_active'] is False
+    assert state['after_run_progress'] == 0
 
 
 def test_one_composite_fan_is_bound():
@@ -114,3 +116,19 @@ def test_lamp_write_contract():
         ['hood', 'lamp', 'vs', '0'], {'x.com.samsung.lamp.current': '2'},
     )
     assert brightness.write_fn('Unsupported', rep) is None
+
+
+def test_after_run_cancel_write_contract():
+    """issue #147: /afterrun/vs/0 was previously unbound. runningCancel's
+    only observed value is the command name itself, so cancel is modeled as
+    a ButtonDesc that writes that value back."""
+    active, progress, cancel = range_hood.AFTER_RUN.entities
+    assert cancel.write_fn('Cancel', {}) == (
+        ['afterrun', 'vs', '0'], {'x.com.samsung.da.runningCancel': 'Cancel'},
+    )
+
+
+def test_after_run_active_reads_on_off():
+    active, progress, cancel = range_hood.AFTER_RUN.entities
+    assert active.value_fn('On') is True
+    assert active.value_fn('Off') is False

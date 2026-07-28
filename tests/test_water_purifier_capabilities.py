@@ -169,6 +169,14 @@ def _desc_coffee(key):
     return next(b.desc for b in bound if b.desc.key == key)
 
 
+def _desc_coffee_by_href(key, href):
+    """Like _desc_coffee, but disambiguates descriptors that share a key
+    across hrefs (hotwater_lock: LOCK's hotwaterLock field and
+    FAVORITE_HOTWATER's switchHotwater fallback, issue #144)."""
+    bound, _ = _bound_coffee()
+    return next(b.desc for b in bound if b.desc.key == key and b.href == href)
+
+
 def test_coffee_variant_no_unbound_hrefs():
     """Every resource in the issue #107 dump binds or is covered, including
     the four coffee-recipe hrefs not present in issue #90's dump."""
@@ -181,7 +189,7 @@ def test_coffee_variant_no_unbound_hrefs():
 def test_coffee_variant_expected_state_keys_present():
     state = _state_coffee()
     for key in ('favorite_coffee_enabled', 'coffee_brew_status',
-                'favorite_hotwater_enabled', 'favorite_hotwater_temperature'):
+                'hotwater_lock', 'favorite_hotwater_temperature'):
         assert key in state, key
 
 
@@ -193,12 +201,84 @@ def test_favorite_coffee_write_contract():
         ['favorite', 'coffee', 'vs', '0'], {'favorite.activate': 'Off'})
 
 
-def test_favorite_hotwater_write_contract():
-    enabled = _desc_coffee('favorite_hotwater_enabled')
-    assert enabled.write_fn('On', {}) == (
-        ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Unlocked'})
-    assert enabled.write_fn('Off', {}) == (
+def test_favorite_hotwater_switch_is_a_lock_not_an_enable_flag():
+    """issue #144: switchHotwater's value domain is Locked/Unlocked, not an
+    enable flag, and it's misspelled as "Favorite hot water" -- it's the same
+    hot-water lock as LOCK.hotwater_lock, just surfaced through this href on
+    boards (like this fixture's) that don't populate /status/lock/vs/0's
+    hotwaterLock field."""
+    lock = _desc_coffee_by_href('hotwater_lock', '/favorite/hotwater/vs/0')
+    assert lock.write_fn('On', {}) == (
         ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Locked'})
+    assert lock.write_fn('Off', {}) == (
+        ['favorite', 'hotwater', 'vs', '0'], {'x.com.samsung.da.switchHotwater': 'Unlocked'})
+    assert lock.value_fn('Unlocked') is False
+    assert lock.value_fn('Locked') is True
+
+
+def test_favorite_hotwater_lock_wins_in_flattened_state():
+    """adapter.flatten() -- the actual source of coordinator.data every
+    switch's is_on reads -- only honours exists_fn, never entity.py's
+    implicit own-field-presence default. So it's not enough for the
+    *registered* entity to resolve correctly (test_expected_state_keys_present
+    territory); the shared 'hotwater_lock' key in the flattened dict itself
+    must reflect the live switchHotwater value, not a stale phantom from
+    LOCK's ungated hotwaterLock read (issue #144). This fixture's
+    switchHotwater reads 'Unlocked'; without exists_fn on *both* sides of the
+    pair, LOCK's descriptor computes None != 'Unlocked' == True regardless,
+    and flatten() would pick whichever of the two entities happens to be
+    processed last."""
+    state = _state_coffee()
+    assert state['hotwater_lock'] is False
+
+
+def test_exactly_one_hotwater_lock_descriptor_exists_per_resource_state():
+    """Both LOCK.hotwater_lock and FAVORITE_HOTWATER's switchHotwater
+    fallback are always bound on this fixture (their hrefs are both always
+    present) -- discrimination happens entirely in exists_fn. Exactly one of
+    the two must ever pass, regardless of iteration order, or two switch
+    entities would be registered with the same unique_id."""
+    bound, resources = _bound_coffee()
+    candidates = [b for b in bound if b.desc.key == 'hotwater_lock']
+    assert len(candidates) == 2
+    included = [b for b in candidates
+                if b.desc.exists_fn(resources.get(b.href) or {}, resources)]
+    assert len(included) == 1
+    assert included[0].href == '/favorite/hotwater/vs/0'
+
+
+def test_hotwater_lock_fallback_gating_across_status_lock_states():
+    """The fallback (FAVORITE_HOTWATER's switchHotwater descriptor) must
+    activate only once /status/lock/vs/0 is confirmed to lack hotwaterLock --
+    never while that resource is an unfetched stub ({}), and never when it
+    does carry the field. LOCK's own descriptor is the mirror image."""
+    fallback = _desc_coffee_by_href('hotwater_lock', '/favorite/hotwater/vs/0')
+    primary = _desc_coffee_by_href('hotwater_lock', '/status/lock/vs/0')
+    own_rep = {'x.com.samsung.da.switchHotwater': 'Unlocked'}
+
+    # /status/lock/vs/0 absent entirely -- device genuinely lacks it.
+    assert fallback.exists_fn(own_rep, {}) is True
+
+    # /status/lock/vs/0 present but not yet fetched (a stub): outcome
+    # pending, so the fallback must defer to LOCK rather than assume absence.
+    stub_resources = {'/status/lock/vs/0': {}}
+    assert fallback.exists_fn(own_rep, stub_resources) is False
+    assert primary.exists_fn({}, stub_resources) is True
+
+    # /status/lock/vs/0 fetched and confirmed to lack hotwaterLock (this
+    # fixture's actual shape) -- the fallback wins.
+    absent_resources = {'/status/lock/vs/0': {'x.com.samsung.da.coldwaterLock': 'Unlocked'}}
+    assert fallback.exists_fn(own_rep, absent_resources) is True
+    assert primary.exists_fn(absent_resources['/status/lock/vs/0'], absent_resources) is False
+
+    # /status/lock/vs/0 fetched and does carry hotwaterLock -- primary wins.
+    present_resources = {'/status/lock/vs/0': {'x.com.samsung.da.hotwaterLock': 'Unlocked'}}
+    assert fallback.exists_fn(own_rep, present_resources) is False
+    assert primary.exists_fn(present_resources['/status/lock/vs/0'], present_resources) is True
+
+    # The fallback also re-asserts its own field, since it no longer gets
+    # that check for free once it shares LOCK's key (issue #144 review).
+    assert fallback.exists_fn({}, {}) is False
 
 
 def test_favorite_hotwater_temperature_options_come_from_live_supported_list():
