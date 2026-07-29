@@ -224,3 +224,19 @@ async def test_microwave_vent_fan_set_percentage_zero_turns_off():
     await entity.async_set_percentage(0)
 
     assert coordinator.commands[-1][1] == ('speed', '0')
+
+
+def test_microwave_vent_fan_missing_supported_fan_speed_falls_back_to_settable_min_max():
+    """Hardware omitting supportedFanSpeed (e.g. ME8000T / issue #172) falls back
+    to building speed codes from settableMinFanSpeed ('0') and settableMaxFanSpeed ('3')."""
+    resources = _load_device('microwave_me7500d')
+    resources['/hood/fanspeed/vs/0'].pop('x.com.samsung.da.hood.supportedFanSpeed', None)
+    resources['/hood/fanspeed/vs/0']['x.com.samsung.da.hood.settableMinFanSpeed'] = '0'
+    resources['/hood/fanspeed/vs/0']['x.com.samsung.da.hood.settableMaxFanSpeed'] = '3'
+
+    entity = _microwave_entity(resources)
+    assert entity._all_speed_codes() == ['0', '1', '2', '3']
+    assert entity._active_speed_codes() == ['1', '2', '3']
+    assert entity.speed_count == 3
+    assert entity.supported_features & 1  # FanEntityFeature.SET_SPEED is present
+
