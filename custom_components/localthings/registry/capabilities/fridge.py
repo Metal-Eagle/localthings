@@ -109,6 +109,37 @@ TEMP_SETPOINT = Capability(
 )
 
 # ---------------------------------------------------------------------------
+# Discrete cooler setpoint (issue #186) -- some single-door ("cooler only")
+# fridges report no /temperature/current|desired/* pair at all (this href
+# doesn't match TEMP_CURRENT_GENERIC/TEMP_SETPOINT's '/temperature/current/'
+# or '/temperature/desired/' prefixes), only this one vendor resource that
+# bundles the live desired value together with the *specific* values the
+# unit accepts. That supportedList (e.g. ['1','2','3','4','7'] on the issue
+# #186 dump) is not a contiguous range -- 5 and 6 genuinely aren't valid
+# setpoints on this model -- so a NumberDesc with a min/max/step would let a
+# user pick an unsupported value; modeled as a select reading its own live
+# options list instead, same shape as BEVERAGE_ZONE/PANTRY_ZONE above.
+# ---------------------------------------------------------------------------
+
+def _definite_cooler_write(p, rep, href=None):
+    return (['temperature', 'definite', 'cooler', 'vs', '0'],
+            {'x.com.samsung.da.definite.desired': p})
+
+
+DEFINITE_TEMPERATURE_COOLER = Capability(
+    href='/temperature/definite/cooler/vs/0',
+    poll_tier='warm',
+    entities=(
+        SelectDesc(key='cooler_temperature_setpoint',
+                   field='x.com.samsung.da.definite.desired',
+                   icon='mdi:thermometer',
+                   entity_category='config',
+                   options_field='x.com.samsung.da.definite.supportedList',
+                   write_fn=_definite_cooler_write),
+    ),
+)
+
+# ---------------------------------------------------------------------------
 # Icemaker nighttime quiet mode
 # ---------------------------------------------------------------------------
 

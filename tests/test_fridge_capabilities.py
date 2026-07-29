@@ -230,6 +230,44 @@ class TestPantryZone:
         assert body == {'x.com.samsung.da.mode': 'FDR_WINE'}
 
 
+class TestDefiniteTemperatureCooler:
+    """Discrete cooler setpoint (RT42DG6630B1FZ, issue #186) -- a single-door
+    fridge whose /temperature/definite/cooler/vs/0 falls outside both
+    TEMP_CURRENT_GENERIC and TEMP_SETPOINT's href prefixes, so temperature
+    control was entirely unbound before this capability was added."""
+
+    def test_href(self):
+        assert fridge.DEFINITE_TEMPERATURE_COOLER.href == '/temperature/definite/cooler/vs/0'
+
+    def test_write(self):
+        desc = fridge.DEFINITE_TEMPERATURE_COOLER.entities[0]
+        path, body = desc.write_fn('3', {})
+        assert path == ['temperature', 'definite', 'cooler', 'vs', '0']
+        assert body == {'x.com.samsung.da.definite.desired': '3'}
+
+    def test_no_unbound_hrefs_and_discrete_options(self):
+        from custom_components.localthings.registry.adapter import flatten
+        from custom_components.localthings.registry.by_type import refrigerator
+        from custom_components.localthings.registry.discovery import discover
+        from tests.conftest import _load_device
+
+        resources = _load_device('refrigerator_definite_cooler')
+        unbound = []
+        bound = discover(
+            resources,
+            refrigerator.REGISTRY.capabilities,
+            refrigerator.REGISTRY.pattern_capabilities,
+            log=unbound.append,
+        )
+        assert unbound == []
+
+        state = flatten(bound, resources)
+        assert state['cooler_temperature_setpoint'] == '2'
+
+        rep = resources['/temperature/definite/cooler/vs/0']
+        assert rep['x.com.samsung.da.definite.supportedList'] == ['1', '2', '3', '4', '7']
+
+
 class TestKimchiZone:
     """Kimchi-refrigerator compartments (TP2X_REF_20K-class, issue #26) --
     top/middle/bottom each report an identically-shaped currentMode/

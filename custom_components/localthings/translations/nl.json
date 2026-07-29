@@ -214,6 +214,16 @@
           "100": "Hoog"
         }
       },
+      "cooler_temperature_setpoint": {
+        "name": "Koeler temperatuur",
+        "state": {
+          "1": "1 °C",
+          "2": "2 °C",
+          "3": "3 °C",
+          "4": "4 °C",
+          "7": "7 °C"
+        }
+      },
       "day_brightness": {
         "name": "Helderheid kast",
         "state": {
