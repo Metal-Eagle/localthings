@@ -259,6 +259,12 @@ def sensor_item_value(items, sensor_type, index=0):
 
 POWER_GENERIC = Capability(
     href='/power/0',
+    # Neither href of this pair carried a poll_tier before (issue #56's
+    # follow-up), so power state only ever refreshed on the once-per-30s
+    # summary poll instead of the subscribe/subpoll cadence 'warm' and 'hot'
+    # hrefs get -- the same "signal drives real-time state, but sat in the
+    # slow default tier" gap as REMOTE_CONTROL_GENERIC/VS_FALLBACK above.
+    poll_tier='warm',
     entities=(
         # Writable when firmware allows remote power; otherwise a read-only
         # binary_sensor with the same key keeps HA state without a dead switch.
@@ -277,6 +283,7 @@ POWER_GENERIC = Capability(
 POWER_VS_FALLBACK = Capability(
     href='/power/vs/0',
     match_fn=lambda rep, resources: '/power/0' not in resources,
+    poll_tier='warm',
     entities=(
         SwitchDesc(key='power_switch', field='x.com.samsung.da.power',
                    value_fn=lambda v: v == 'On',
