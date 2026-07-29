@@ -152,6 +152,14 @@ class TestPowerFallback:
         assert switch.exists_fn(resources['/power/0'], resources) is True
         assert sensor.exists_fn(resources['/power/0'], resources) is False
 
+    def test_polled_warm_so_power_state_reflects_quickly(self):
+        """issue #56 follow-up: neither href had a poll_tier, so power state
+        only ever refreshed on the once-per-30s summary poll instead of the
+        subscribe/subpoll cadence 'warm'/'hot' hrefs get -- same reasoning
+        as REMOTE_CONTROL_GENERIC/VS_FALLBACK's own 'warm' tier."""
+        assert common.POWER_GENERIC.poll_tier == 'warm'
+        assert common.POWER_VS_FALLBACK.poll_tier == 'warm'
+
 
 class TestWmSetinfoFlags:
     def test_washer_fixture_carries_setinfo_from_device0(self):

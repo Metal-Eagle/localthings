@@ -2,7 +2,7 @@
   "state_keys": [
     "alarm_code",
     "auto_clean_legacy",
-    "buzzer_volume",
+    "beep",
     "clean_level",
     "climate",
     "current_temperature_c",
@@ -18,7 +18,7 @@
     "super_fine_dust",
     "unit1_alarm_code",
     "unit1_auto_clean_legacy",
-    "unit1_buzzer_volume",
+    "unit1_beep",
     "unit1_climate",
     "unit1_current_temperature_c",
     "unit1_good_sleep",

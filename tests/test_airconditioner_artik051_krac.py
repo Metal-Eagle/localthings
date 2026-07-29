@@ -108,7 +108,7 @@ def test_token_entities_present_with_calibrated_values():
     assert state['filter_time'] == 171.5
     # token - 55 == 19 C, against a 19.4 C forecast at the time of the dump.
     assert state['outdoor_temperature'] == 19.0
-    assert state['buzzer_volume'] == 100.0
+    assert state['beep'] is True
     assert state['good_sleep'] == 0.0
     assert state['spi'] is False
     assert state['auto_clean_legacy'] is False
@@ -121,7 +121,7 @@ def test_token_entities_stay_off_newer_boards():
     token entities would duplicate them (auto clean) or apply a scale
     calibrated on another board generation (outdoor temperature)."""
     state = _state('airconditioner_tp1x_rac')
-    for key in ('spi', 'auto_clean_legacy', 'air_monitoring', 'buzzer_volume',
+    for key in ('spi', 'auto_clean_legacy', 'air_monitoring',
                 'good_sleep', 'outdoor_temperature', 'filter_time'):
         assert key not in state, key
 

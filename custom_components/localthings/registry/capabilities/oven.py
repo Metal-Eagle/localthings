@@ -24,6 +24,7 @@ but is effectively read-only in practice.
 """
 from datetime import datetime, timezone, timedelta
 
+from ..batch import is_stub_rep
 from ..capability import Capability
 from ..entities import (
     BinarySensorDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
@@ -130,6 +131,28 @@ def _option_value(options, prefix):
     return None
 
 
+def _has_option(prefix):
+    """exists_fn for an options-array switch: bind only when the device's own
+    options[] actually carries a `<prefix>_<value>` token.
+
+    fast_preheat/natural_steam were shipped unconditionally (no exists_fn) as
+    an unverified guess (see module docstring) -- issue #183's dump (model
+    NE6516A) reports neither `fastpreheat_*` nor `NaturalSteam_*` in its
+    options[] at all, so both switches were phantom controls: always read as
+    off, and toggling them wrote a token the firmware never recognized in
+    the first place, hence "does not appear to do anything."
+
+    `is_stub_rep(rep) or` keeps the same stub carve-out as cooktop.py's
+    identical per-token exists_fn on its own options[]-array href: a stub
+    /device/0 seed rep (not yet sub-polled) has no options[] at all, and
+    without this an entity whose token is genuinely present would never get
+    a first chance to bind, since exists_fn runs before that first real
+    fetch lands.
+    """
+    return lambda rep, resources: is_stub_rep(rep) or _option_value(
+        rep.get('x.com.samsung.da.options'), prefix) is not None
+
+
 def _option_write(prefix, new_value):
     """A one-token x.com.samsung.da.options write, mirroring
     laundry.option_write. NOT independently confirmed on an oven -- issue
@@ -199,44 +222,19 @@ def _oven_mode_write(p, rep, href=None):
     return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [p]}
 
 
-def _lamp_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
-        return None
-    if not rep.get('x.com.samsung.da.options'):
-        return None
-    return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': _option_write('UpperLamp', p),
-    }
-
-
-def _sound_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
-        return None
-    if not rep.get('x.com.samsung.da.options'):
-        return None
-    return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': _option_write('Sound', p),
-    }
-
-
-def _fastpreheat_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
-        return None
-    if not rep.get('x.com.samsung.da.options'):
-        return None
-    return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': _option_write('fastpreheat', p),
-    }
-
-
-def _naturalsteam_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
-        return None
-    if not rep.get('x.com.samsung.da.options'):
-        return None
-    return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': _option_write('NaturalSteam', p),
-    }
+def _option_switch_write(prefix):
+    """Factory for a single-token on/off options-array write -- lamp, sound,
+    fast_preheat, natural_steam, energy_saving, and cooktop_on_alert were all
+    a byte-for-byte copy of this same shape, one per prefix."""
+    def write(p, rep, href=None):
+        if p not in ('On', 'Off'):
+            return None
+        if not rep.get('x.com.samsung.da.options'):
+            return None
+        return ['mode', 'vs', '0'], {
+            'x.com.samsung.da.options': _option_write(prefix, p),
+        }
+    return write
 
 
 # ---------------------------------------------------------------------------
@@ -377,19 +375,38 @@ OVEN_MODE = Capability(
         SwitchDesc(key='lamp', field='x.com.samsung.da.options',
                    icon='mdi:track-light',
                    value_fn=lambda opts: _option_value(opts, 'UpperLamp') == 'On',
-                   write_fn=_lamp_write),
+                   write_fn=_option_switch_write('UpperLamp')),
         SwitchDesc(key='sound', field='x.com.samsung.da.options',
                    icon='mdi:volume-high',
                    entity_category='config',
                    value_fn=lambda opts: _option_value(opts, 'Sound') == 'On',
-                   write_fn=_sound_write),
+                   write_fn=_option_switch_write('Sound')),
         SwitchDesc(key='fast_preheat', field='x.com.samsung.da.options',
                    icon='mdi:fire',
+                   exists_fn=_has_option('fastpreheat'),
                    value_fn=lambda opts: _option_value(opts, 'fastpreheat') == 'On',
-                   write_fn=_fastpreheat_write),
+                   write_fn=_option_switch_write('fastpreheat')),
         SwitchDesc(key='natural_steam', field='x.com.samsung.da.options',
                    icon='mdi:kettle-steam',
+                   exists_fn=_has_option('NaturalSteam'),
                    value_fn=lambda opts: _option_value(opts, 'NaturalSteam') == 'On',
-                   write_fn=_naturalsteam_write),
+                   write_fn=_option_switch_write('NaturalSteam')),
+        # 120-hour energy-saving standby (issue #183): confirmed present in
+        # this unit's options[] (EnergySaving_On) and directly requested --
+        # unlike fast_preheat/natural_steam above, this token is real on this
+        # hardware, just previously unbound entirely.
+        SwitchDesc(key='energy_saving', field='x.com.samsung.da.options',
+                   icon='mdi:leaf', entity_category='config',
+                   exists_fn=_has_option('EnergySaving'),
+                   value_fn=lambda opts: _option_value(opts, 'EnergySaving') == 'On',
+                   write_fn=_option_switch_write('EnergySaving')),
+        # Cooktop-on alert (issue #183): also confirmed present
+        # (BurnerOnAlert_Off) though the reporter noted it mainly matters for
+        # the SmartThings app's own alerting, not local automation.
+        SwitchDesc(key='cooktop_on_alert', field='x.com.samsung.da.options',
+                   icon='mdi:alert-circle-outline', entity_category='config',
+                   exists_fn=_has_option('BurnerOnAlert'),
+                   value_fn=lambda opts: _option_value(opts, 'BurnerOnAlert') == 'On',
+                   write_fn=_option_switch_write('BurnerOnAlert')),
     ),
 )

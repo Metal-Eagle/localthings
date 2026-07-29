@@ -238,6 +238,19 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'airconditioner'
 
+    def test_airconditioner_via_cac_token(self):
+        """Issue #191: a cassette AC (TP1X_DA-AC-CAC-01001_0000) regressed to
+        'unknown'/common-caps in 0.16.0 when oneUiVersion detection was
+        dropped -- 'CAC' had never been added to the modelNum board-token
+        table, only reachable before via oneUiVersion's '7.0 Air conditioner'."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_DA-AC-CAC-01001_0000|10255541|60030748171811DF42005F2A00F2ED00',
+            'TP1X_DA-AC-CAC-01001_0000',
+        )
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
     def test_dehumidifier_via_dhm_token(self):
         """Issue #88: a dehumidifier (AY18CG7500GED) shares the DA_AC_ board
         family with the room-AC models but reports no oneUiVersion and

@@ -893,6 +893,26 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_artik051_dongl
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_cac():
+    """TP1X_DA-AC-CAC-01001_0000 (issue #191) -- fell back to 'unknown' in
+    0.16.0 when oneUiVersion detection was dropped, since 'CAC' had never
+    been added to the modelNum board-token table. Resolved via the new 'CAC'
+    token onto the existing airconditioner registry. Not fully covered yet --
+    ten hrefs remain unbound (edge lighting, PM1 filter, stateful light,
+    absence-clean, four sound-settings resources, smart-sensing-cooling, UV
+    LED), all genuinely new to this board generation and out of scope for
+    the routing fix; see test_airconditioner_cac.py for the documented gap."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_cac')
+    golden = json.loads((GOLDEN / 'airconditioner_cac.json').read_text())
+    state_keys = _new_state_keys('airconditioner_cac', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1():
     """jhkwon19's TP2X_FAC_BORA_21K (issue #177, Pattern B -- UUID-prefixed
     tree): device0/oic_res are real; the wall-mounted sub-unit's own
@@ -906,6 +926,83 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1(
     name = 'airconditioner_fac_bora_2in1'
     golden = json.loads((GOLDEN / f'{name}.json').read_text())
     state_keys = _new_sub_unit_aware_state_keys(name)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_air_purifier_avt_ww():
+    """AVT-WW-TP1-23-AXX500 (issue #190) -- next-gen BESPOKE Cube Air board;
+    reports device_type 'unknown' with empty oneUiVersion because 'VTWW' as a
+    whole token doesn't match this board's 'AVT'/'WW' split. Resolved via the
+    new 'AVT' modelNum board-token fallback into the existing air_purifier
+    registry. Binds cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_purifier_avt_ww')
+    golden = json.loads((GOLDEN / 'air_purifier_avt_ww.json').read_text())
+    state_keys = _new_state_keys('air_purifier_avt_ww', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_artik051_krac_energy():
+    """AR12NXWXCWKNEU/ARTIK051_KRAC_18K (issue #193) -- same legacy board
+    generation as the artik051_krac_18k fixture, but this dump has a nonzero
+    cumulativePower. Locks in state_keys; the actual /100000 scale fix is
+    asserted separately in test_airconditioner_capabilities.py since golden
+    only compares key sets, not values."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_artik051_krac_energy')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_artik051_krac_energy.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_artik051_krac_energy', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_refrigerator_definite_cooler():
+    """RT42DG6630B1FZ (issue #186) -- a single-door "cooler only" fridge whose
+    /temperature/definite/cooler/vs/0 doesn't match either
+    TEMP_CURRENT_GENERIC's '/temperature/current/' or TEMP_SETPOINT's
+    '/temperature/desired/' href prefix, so temperature control was entirely
+    unbound. Resolved via the new DEFINITE_TEMPERATURE_COOLER capability
+    (a select over the device's own discrete supportedList, not a
+    continuous NumberDesc range -- 5 and 6 aren't valid setpoints on this
+    model). Binds cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('refrigerator_definite_cooler')
+    golden = json.loads(
+        (GOLDEN / 'refrigerator_definite_cooler.json').read_text()
+    )
+    state_keys = _new_state_keys('refrigerator_definite_cooler', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_range_ne6516a():
+    """NE6516A-class range (issue #183) -- no /information/vs/0, resolved via
+    the same 'Bake'-in-supportedModes + /cooktopmonitoring/vs/0 signature as
+    the other no-info range fixtures. Its /mode/vs/0 options[] carries
+    EnergySaving_On and BurnerOnAlert_Off (previously unbound entirely) but
+    no fastpreheat_*/NaturalSteam_* tokens at all -- locks in that those two
+    switches now correctly stay unbound instead of binding as always-off,
+    does-nothing phantom controls."""
+    from tests.conftest import _load_device
+    resources = _load_device('range_ne6516a')
+    golden = json.loads((GOLDEN / 'range_ne6516a.json').read_text())
+    state_keys = _new_state_keys('range_ne6516a', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

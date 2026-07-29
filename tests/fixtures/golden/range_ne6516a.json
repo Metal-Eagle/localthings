@@ -1,12 +1,15 @@
 {
   "state_keys": [
     "alarm_code",
+    "cooktop_on_alert",
     "child_lock",
     "cloud_connected",
     "cook_time",
+    "cooktop_running_state",
     "current_temp_c",
     "cycle_active",
     "door_open",
+    "energy_saving",
     "finish_time",
     "firmware_update",
     "lamp",
@@ -18,6 +21,7 @@
     "power_switch",
     "progress_percentage",
     "remote_control",
-    "sound"
+    "sound",
+    "warming_center_state"
   ]
 }

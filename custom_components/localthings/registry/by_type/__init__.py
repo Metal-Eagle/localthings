@@ -75,17 +75,24 @@ _BOARD_TOKEN_TO_KEY: dict[str, str] = {
     # Air conditioners. Every one of these is a distinct board family with
     # the same resource surface: room (issues #37, #91), package, Korean
     # (#136), window (#87), 2-in-1 floor+wall (#150, #153), system/commercial
-    # (#52), and ARA-WW wall-mount (#115, #116, #117, #120).
+    # (#52), cassette (#191), and ARA-WW wall-mount (#115, #116, #117, #120).
     'RAC': 'airconditioner',
     'PRAC': 'airconditioner',
     'KRAC': 'airconditioner',
     'WAC': 'airconditioner',
     'FAC': 'airconditioner',
     'CAWW': 'airconditioner',
+    'CAC': 'airconditioner',        # issue #191 -- TP1X_DA-AC-CAC-01001_0000
     'ARA': 'airconditioner',
     'DHM': 'dehumidifier',          # issue #88 -- target humidity, no climate
     'TVTL': 'air_purifier',         # issue #56 (ARTIK051)
     'VTWW': 'air_purifier',         # issue #151 (BESPOKE Cube Air)
+    'AVT': 'air_purifier',          # issue #190 -- AVT-WW-TP1-23-AXX500, a
+                                     # next-gen BESPOKE Cube Air board; same
+                                     # lineage as VTWW above but the '-WW-'
+                                     # delimiter now falls one letter to the
+                                     # left ('A-VTWW-' -> 'AVT-WW-'), splitting
+                                     # into a token the existing entry can't see
     'AIR': 'air_purifier',          # issue #130 (TP1X_DA-AC-AIR)
     'WATERPURIFIER': 'water_purifier',   # issue #90
     'ADW': 'dishwasher',

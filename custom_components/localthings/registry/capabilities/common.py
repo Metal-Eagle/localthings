@@ -259,6 +259,12 @@ def sensor_item_value(items, sensor_type, index=0):
 
 POWER_GENERIC = Capability(
     href='/power/0',
+    # Neither href of this pair carried a poll_tier before (issue #56's
+    # follow-up), so power state only ever refreshed on the once-per-30s
+    # summary poll instead of the subscribe/subpoll cadence 'warm' and 'hot'
+    # hrefs get -- the same "signal drives real-time state, but sat in the
+    # slow default tier" gap as REMOTE_CONTROL_GENERIC/VS_FALLBACK above.
+    poll_tier='warm',
     entities=(
         # Writable when firmware allows remote power; otherwise a read-only
         # binary_sensor with the same key keeps HA state without a dead switch.
@@ -277,6 +283,7 @@ POWER_GENERIC = Capability(
 POWER_VS_FALLBACK = Capability(
     href='/power/vs/0',
     match_fn=lambda rep, resources: '/power/0' not in resources,
+    poll_tier='warm',
     entities=(
         SwitchDesc(key='power_switch', field='x.com.samsung.da.power',
                    value_fn=lambda v: v == 'On',
@@ -604,15 +611,22 @@ SELF_CHECK = Capability(
 # level: 2 of 6 families confirmed, blanket-added everywhere else).
 #
 # POWER is kept separate -- airconditioner is the one family that opts out
-# of it. Canonical reason (see by_type/airconditioner.py and its test for
-# pointers back here, not restatements): AC's climate entity already owns
-# /power/0 and /power/vs/0 via bare, no-entity Capability objects
-# (airconditioner.COVERAGE), and a second, real POWER_GENERIC/
+# of it entirely. Canonical reason (see by_type/airconditioner.py and its
+# test for pointers back here, not restatements): AC's climate entity
+# already owns /power/0 and /power/vs/0 via bare, no-entity Capability
+# objects (airconditioner.COVERAGE), and a second, real POWER_GENERIC/
 # POWER_VS_FALLBACK cap on the same href would make _build() raise (a href
 # with >1 cap must have every cap discriminated by rt_filter/match_fn, and
 # the bare COVERAGE cap has neither). Kids-lock/remote-control don't have
 # this conflict -- no AC dump has ever reported those hrefs -- so they stay
 # in UNIVERSAL.
+#
+# Airconditioner also partially opts out of UNIVERSAL itself, not just
+# POWER: issue #193 needs ENERGY_METER's cumulativePower scale to differ by
+# board generation, so by_type/airconditioner.py excludes just that one
+# member (`*[c for c in common.UNIVERSAL if c is not common.ENERGY_METER]`)
+# and substitutes airconditioner.ENERGY_METER_GENERIC/ENERGY_METER_LEGACY in
+# its place -- every other registry still unpacks UNIVERSAL wholesale.
 # ---------------------------------------------------------------------------
 
 UNIVERSAL = (

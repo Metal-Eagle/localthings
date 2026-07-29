@@ -1,0 +1,70 @@
+"""Tests for the TP1X_DA-AC-CAC-01001_0000 cassette AC (issue #191).
+
+0.16.0's device-type simplification dropped oneUiVersion detection on the
+assumption every device it typed was already reachable via a modelNum board
+token -- this board was the one exception (its oneUiVersion self-reports
+"7.0 Air conditioner", but 'CAC' had never been added to the board-token
+table), so it silently fell back to common caps and lost its climate entity.
+
+This dump is NOT fully covered yet -- ten hrefs remain unbound (edge
+lighting, PM1 filter, a second stateful light resource, absence-clean, four
+`/settings/sound/*` resources, smart-sensing-cooling, UV LED), all genuinely
+new to this board generation. That's a real device-support gap, left
+documented here rather than guessed at, per the 'don't guess' rule -- fixing
+the routing regression was the scope of #191.
+"""
+from custom_components.localthings.registry.adapter import flatten
+from custom_components.localthings.registry.by_type import for_device_by_model
+from custom_components.localthings.registry.discovery import discover
+
+from tests.conftest import _load_device
+
+_STILL_UNBOUND = frozenset({
+    '/edgelighting/vs/0',
+    '/filter/airdustPM1filter/vs/0',
+    '/light/stateful/vs/0',
+    '/mds/absenceclean/vs/0',
+    '/settings/sound/mode/vs/0',
+    '/settings/sound/optimization/vs/0',
+    '/settings/sound/output/vs/0',
+    '/settings/sound/volume/vs/0',
+    '/smartsensingcooling/vs/0',
+    '/uvled/vs/0',
+})
+
+
+def _resources():
+    return _load_device('airconditioner_cac')
+
+
+def _reg(resources):
+    info = resources['/information/vs/0']
+    return for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+
+
+def test_resolves_to_airconditioner_registry():
+    assert _reg(_resources()).name == 'airconditioner'
+
+
+def test_documented_coverage_gap_is_exactly_this_set():
+    """Locks in the current, known-incomplete coverage so a future fix to
+    any of these hrefs shows up as a golden-regression diff (extra keys) to
+    update here, rather than silently shrinking this list unnoticed."""
+    resources = _resources()
+    reg = _reg(resources)
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert set(unbound) == _STILL_UNBOUND
+
+
+def test_non_legacy_board_uses_the_generic_energy_scale():
+    """This board reports /wind/strength/vs/0 (not /airflow/vs/0), so
+    is_legacy_board() is False and it must use the plain wh_to_kwh scale,
+    not the /100000 correction added for the unrelated ARTIK051_KRAC-class
+    board in issue #193."""
+    resources = _resources()
+    reg = _reg(resources)
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    state = flatten(bound, resources)
+    assert state['energy_kwh'] == round(84044 / 1000.0, 2)
