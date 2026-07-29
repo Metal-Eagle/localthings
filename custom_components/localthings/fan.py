@@ -134,7 +134,7 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
 
     def _power_payload(self, enabled: bool) -> tuple[str, bool, str]:
         """Target whichever power resource this hood actually exposes."""
-        resources = self.coordinator.last_resources
+        resources = self._resources
         target = POWER_HREF if POWER_HREF in resources else POWER_VS_HREF
         return 'power', enabled, target
 
@@ -237,7 +237,7 @@ class LocalThingsAirPurifierFan(LocalThingsEntity, FanEntity):
         Writing a hardcoded href here would silently no-op on a board that
         only reports the other one, even though is_on already falls back
         correctly."""
-        resources = self.coordinator.last_resources
+        resources = self._resources
         target = POWER_VS_HREF if POWER_VS_HREF in resources else POWER_HREF
         return 'power', enabled, target
 
@@ -344,7 +344,7 @@ class LocalThingsAirflowFan(LocalThingsEntity, FanEntity):
         resources -- disagreeing until the next poll refreshes the other
         one (the same optimistic-apply lag coordinator.py's own comments
         warn about)."""
-        resources = self.coordinator.last_resources
+        resources = self._resources
         target = POWER_HREF if POWER_HREF in resources else POWER_VS_HREF
         return 'power', enabled, target
 

@@ -185,6 +185,17 @@ Samsung's firmware occasionally drops the DTLS session briefly — this is norma
 
 If reconnects become persistent (more than a handful per minute), something's actually wrong. Check the appliance's Wi-Fi link first, then look for a competing DTLS client on the LAN — only one active session per appliance is allowed at a time.
 
+### Multi-indoor-unit ("2-in-1") air conditioner systems
+
+Some Samsung installs run more than one indoor unit off a single outdoor unit, all reachable over the *one* IP/DTLS session your config entry connects to (a floor-standing + wall-mounted 2-in-1 is a common shape). The integration discovers any sibling units automatically, once, right after the first successful poll — there's nothing to configure. Each discovered unit gets its own HA device (linked to the main one via "via device") and its own `climate` card, so it lands in its own room in the dashboard instead of being invisible or mixed into the master unit's state.
+
+Two on-the-wire shapes are supported, both keyed off what the appliance itself reports:
+
+- **Indexed siblings** — the device answers a `/device/1`, `/device/2`, ... collection alongside its own `/device/0`, mirroring every resource at that index.
+- **UUID-prefixed tree** — the device reports a sibling's id in `x.com.samsung.da.subdeviceIdList`, and that id doubles as a literal href prefix for the sibling's own resource tree.
+
+A candidate that answers but never produces any real, user-facing state (an unused slot some installs report alongside a genuine second unit) is silently skipped rather than turned into a phantom entity — check diagnostics' `sub_units`/`sub_units_skipped` blocks if a unit you expect to see isn't showing up, and file an issue with that diagnostics download attached.
+
 ---
 
 ## Contributing

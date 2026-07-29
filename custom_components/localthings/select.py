@@ -104,7 +104,9 @@ class LocalThingsSelect(LocalThingsEntity, SelectEntity):
             # list decoded from a sibling resource. There is no static
             # fallback: when that resource isn't populated the callable
             # returns [] and the entity's exists_fn suppresses it entirely.
-            return list(desc.options(self.coordinator.last_resources) or [])
+            # This entity's own sub-unit's canonical view (issue #177), not
+            # the raw actual-href snapshot -- see LocalThingsEntity._resources.
+            return list(desc.options(self._resources) or [])
         if desc.options_field:
             rep = self.coordinator.last_resources.get(self._bound.href) or {}
             return list(rep.get(desc.options_field) or [])

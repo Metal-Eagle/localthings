@@ -14,6 +14,12 @@ class _FakeCoordinator:
     def __init__(self, last_resources):
         self.last_resources = last_resources
 
+    def canonical_resources(self, sub_unit):
+        # Every entity built by _make_select uses the default MAIN
+        # sub-unit, so the canonical view is just the raw snapshot
+        # (issue #177 -- see LocalThingsEntity._resources).
+        return self.last_resources
+
 
 def _make_select(desc, href, last_resources):
     capability = Capability(href=href, entities=(desc,))

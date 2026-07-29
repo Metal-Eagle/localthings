@@ -25,7 +25,10 @@ from custom_components.localthings.const import (
 )
 from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry.capabilities import laundry
+from custom_components.localthings.registry.capabilities.airconditioner import _climate_write
 from custom_components.localthings.registry.discovery import BoundEntity
+from custom_components.localthings.registry.entities import ClimateDesc
+from custom_components.localthings.registry.subunits import SubUnit
 
 ENTRY_DATA = {
     CONF_HOST: '10.0.0.199',
@@ -92,3 +95,86 @@ async def test_options_write_optimistic_cache_keeps_sibling_tokens(coordinator) 
     assert cached['x.com.samsung.da.options'] == [
         'DeviceType_0167', 'Course_1D', 'GMT_04',
     ]
+
+
+# ---------------------------------------------------------------------------
+# Sub-unit write translation (issue #177): a composite-entity write_fn (here
+# airconditioner._climate_write) returns *canonical* path_segs
+# (['power', 'vs', '0']) -- async_send_command must translate that through
+# bound_entity.sub_unit.to_actual before POSTing, applying the optimistic
+# value, and starting the settle guard, or a sub-unit's climate card would
+# write to (and read confirmation from) the master's resource instead of
+# its own.
+# ---------------------------------------------------------------------------
+
+def _climate_bound(href: str, sub_unit: SubUnit) -> BoundEntity:
+    desc = ClimateDesc(key='climate', translation_key='airconditioner',
+                        write_fn=_climate_write)
+    return BoundEntity(href=href, capability=None, desc=desc, sub_unit=sub_unit)
+
+
+async def test_indexed_sub_unit_write_posts_to_translated_path(coordinator) -> None:
+    """A power write from the bedroom unit's (indexed '1') climate entity
+    must POST to /power/vs/1, not the master's /power/vs/0."""
+    unit1 = SubUnit(kind='indexed', key='1', seed_path=('device', '1'))
+    bound = _climate_bound('/mode/vs/1', unit1)
+
+    await coordinator.async_send_command(bound, ('power', True))
+
+    posted_path, posted_bytes = coordinator._session.post_calls[0]
+    assert posted_path == ['power', 'vs', '1']
+    assert cbor2.loads(posted_bytes) == {'x.com.samsung.da.power': 'On'}
+
+
+async def test_indexed_sub_unit_write_applies_optimistic_value_to_translated_href(
+    coordinator,
+) -> None:
+    unit1 = SubUnit(kind='indexed', key='1', seed_path=('device', '1'))
+    bound = _climate_bound('/mode/vs/1', unit1)
+
+    await coordinator.async_send_command(bound, ('power', True))
+
+    # The optimistic apply + settle guard must land on /power/vs/1 -- the
+    # translated href a real device confirms this write against -- not on
+    # /mode/vs/1 (bound_entity.href) or /power/vs/0 (the master's resource).
+    assert coordinator._cache.get('/power/vs/1') == {'x.com.samsung.da.power': 'On'}
+    assert coordinator._cache.get('/power/vs/0') is None
+    # The settle guard is armed on that same translated href: a stale poll
+    # reporting the pre-write value must be dropped, not allowed to revert
+    # the optimistic 'On' (issue #27's regression, translated to a
+    # sub-unit's own resource).
+    applied = coordinator._observe.apply(
+        '/power/vs/1', {'x.com.samsung.da.power': 'Off'}, source='poll',
+    )
+    assert applied is False
+    assert coordinator._cache.get('/power/vs/1') == {'x.com.samsung.da.power': 'On'}
+
+
+async def test_prefixed_sub_unit_write_posts_to_translated_path(coordinator) -> None:
+    """A power write from a UUID-prefixed unit's climate entity must POST
+    to /<uuid>/power/vs/0, not the bare canonical href."""
+    sub_id = '6c2dff6d-ee5c-dad1-6a5e-000000000001'
+    unit = SubUnit(kind='prefixed', key=sub_id, seed_path=(sub_id, 'device', '0'))
+    bound = _climate_bound(f'/{sub_id}/mode/vs/0', unit)
+
+    await coordinator.async_send_command(bound, ('power', True))
+
+    posted_path, posted_bytes = coordinator._session.post_calls[0]
+    assert posted_path == [sub_id, 'power', 'vs', '0']
+    assert cbor2.loads(posted_bytes) == {'x.com.samsung.da.power': 'On'}
+    assert coordinator._cache.get(f'/{sub_id}/power/vs/0') == {
+        'x.com.samsung.da.power': 'On',
+    }
+
+
+async def test_main_climate_write_unaffected_by_sub_unit_translation(coordinator) -> None:
+    """MAIN's to_actual is the identity transform -- a device with no
+    sub-units must keep posting to the exact same path as before this
+    translation step existed."""
+    from custom_components.localthings.registry.subunits import MAIN
+    bound = _climate_bound('/mode/vs/0', MAIN)
+
+    await coordinator.async_send_command(bound, ('power', True))
+
+    posted_path, _ = coordinator._session.post_calls[0]
+    assert posted_path == ['power', 'vs', '0']

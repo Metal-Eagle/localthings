@@ -47,6 +47,12 @@ class _FakeCoordinator:
     def resource(self, href):
         return self.last_resources.get(href, {})
 
+    def canonical_resources(self, sub_unit):
+        # Every bound entity in this test uses the default MAIN
+        # sub-unit, so the canonical view is just the raw snapshot
+        # (issue #177 -- see LocalThingsEntity._resources).
+        return self.last_resources
+
     async def async_send_command(self, bound, payload):
         self.commands.append((bound, payload))
 

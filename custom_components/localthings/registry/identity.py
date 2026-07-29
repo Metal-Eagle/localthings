@@ -6,20 +6,6 @@ from typing import Optional
 
 import cbor2
 
-from .batch import parse_device0_batch
-
-# Speculative /device/<n> siblings to probe alongside the coordinator's own
-# /device/0 seed poll (issue #177). Confirmed against a real dump: /oic/res's
-# baseline-Interface response only lists resources with the discoverable
-# policy bit set, and /device/0's whole x.com.samsung.da.* tree is registered
-# without it -- so a second logical Device's Collection, if one exists, would
-# be just as invisible to /oic/res as /device/0 is. A direct GET is the only
-# way left to check, and it's a plain RETRIEVE (non-mutating, tolerated-404
-# already the norm throughout this module) -- not the kind of guess the
-# write-contract 'don't guess' rule is about. Bounded to a couple of indices;
-# widen only if a real Composite Device ever turns out to need more.
-_SPECULATIVE_DEVICE_INDICES = (1, 2)
-
 
 @dataclass(frozen=True)
 class DeviceIdentity:
@@ -56,24 +42,6 @@ def _get_links(sess, path) -> list:
     return []
 
 
-def _get_device_batch(sess, index: int) -> dict[str, dict]:
-    """GET /device/<index> and parse it the same way the coordinator parses
-    /device/0 -- a Samsung Collection RETRIEVE returns
-    [devcol-rep, {href, rep}, {href, rep}, ...], not a bare Property map or
-    Link array. Missing/malformed responses fall through to {} (via
-    parse_device0_batch on an empty/non-list body), same tolerated-absence
-    posture as _get/_get_links above."""
-    try:
-        code, pl = sess.get(['device', str(index)], timeout=10.0)
-        if code == 0x45 and pl:
-            body = cbor2.loads(pl)
-            if isinstance(body, list):
-                return parse_device0_batch(body)
-    except Exception:
-        pass
-    return {}
-
-
 def _device_types(d: dict) -> tuple[str, ...]:
     """/oic/d's `rt` -- the device's own OCF device-type declaration.
 
@@ -104,14 +72,13 @@ def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
     # Relevant for the OCF "Composite Device" model (issue #177: a single
     # physical unit -- one IP, one /oic/p -- exposing more than one logical
     # Device, each as its own Collection resource, same rt shape as our own
-    # /device/0). Nothing consumes this yet; captured so a report from a
-    # multi-unit device shows us whether its firmware actually implements
-    # that model before any code assumes it does.
+    # /device/0). This is what registry.subunits.enumerate_sub_units reads
+    # to find a board's `/device/<n>` siblings (Pattern A -- HJcom's
+    # ARTIK051_DONGLE_FAC_18K) -- that probing, plus the /device/1 and
+    # /device/2 speculative fallback it used to run right here on every
+    # _connect_session (including every reconnect), moved to that module so
+    # it only runs once, at first discovery, instead of on every reconnect.
     res = _get_links(sess, ['oic', 'res'])
-    extra_devices = {
-        f'/device/{n}': _get_device_batch(sess, n)
-        for n in _SPECULATIVE_DEVICE_INDICES
-    }
     return DeviceIdentity(
         manufacturer=p.get('mnmn') or 'Samsung',
         model=p.get('mnmo') or '',
@@ -121,8 +88,5 @@ def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
         # Kept whole rather than field-by-field: these resources are outside
         # the /device/0 dump diagnostics already captures, and we don't yet
         # know which of their fields will turn out to identify a device type.
-        # /device/1 and /device/2 are always present here (empty {} when the
-        # device didn't answer) so a diagnostics reader can tell "checked,
-        # nothing there" apart from "never checked".
-        raw={'/oic/p': p, '/oic/d': d, '/oic/res': res, **extra_devices},
+        raw={'/oic/p': p, '/oic/d': d, '/oic/res': res},
     )

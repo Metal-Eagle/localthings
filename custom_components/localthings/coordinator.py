@@ -30,10 +30,14 @@ from .registry.capabilities.common import (
     remote_control_enabled,
     remote_control_required_for_write,
 )
-from .registry.discovery import discover, BoundEntity
+from .registry.discovery import BoundEntity
 from .registry import CAPABILITIES
 from .registry.adapter import flatten
 from .registry.identity import read_identity, DeviceIdentity
+from .registry.subunits import (
+    MAIN, SubUnit, canonical_view, discover_partitioned, enumerate_sub_units,
+    normalize_seed_batch,
+)
 from .observe import ObserveManager, MODE_OBSERVE, MODE_POLL, GRACE_PERIOD_S
 
 from .const import (
@@ -161,6 +165,39 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._identity: DeviceIdentity | None = None
         self._discovered = False
         self.bound = []
+        # Sibling indoor units discovered on this connection (issue #177) --
+        # candidates set once, at first discovery, by
+        # _enumerate_sub_units_blocking; narrowed by _run_discovery to the
+        # ones that actually produced live primary state (see
+        # subunits.discover_partitioned). MAIN itself is never in this list
+        # (see subunits.canonical_view's docstring for why that's safe):
+        # it's the *other* units sharing this DTLS session, if any.
+        self.sub_units: list[SubUnit] = []
+        # Candidates _run_discovery's gate rejected (an unused SmartThings
+        # slot that still answers its seed, e.g. HJcom's /device/2) --
+        # surfaced in diagnostics alongside the materialized ones so a
+        # report shows what was found and why it didn't become an entity.
+        self._skipped_sub_units: list = []
+        # Those rejected candidates' raw reps, kept aside for diagnostics
+        # only (see _live_unit_resources). They are deliberately not in the
+        # state cache: nothing polls them again, so anything applied there
+        # would sit frozen at its first-discovery value while looking as
+        # live as every other href in `last_resources`.
+        self._skipped_sub_unit_resources: dict[str, dict] = {}
+        # /multidevice/vs/0's rep, if this board answers it -- a plain unit
+        # count that corroborates the liveness gate without deciding it.
+        # Deliberately outside `resources`; see _enumerate_sub_units_blocking.
+        self._multidevice: dict = {}
+        # What each sub-unit probe found, keyed by the seed href attempted --
+        # surfaced in diagnostics so a report can tell "checked, nothing
+        # there" apart from "never checked" (the same posture the
+        # speculative-probe code this replaced documented in identity.py).
+        self._sub_unit_probes: dict[str, bool] = {}
+        # canonical_resources() memo, keyed by (sub_unit.kind, sub_unit.key).
+        # Invalidated in _on_cache_changed -- climate.py reads this on every
+        # property access (is_legacy_board and friends), so it must not
+        # rebuild an O(hrefs) view from scratch on every single property.
+        self._canonical_cache: dict[tuple[str, str], dict] = {}
         self._cache = StateCache(_NoOpDescriptor())
         self._cache.set_on_change(self._on_cache_changed)
         self._observe = ObserveManager(self._cache, logger=self._log)
@@ -196,6 +233,69 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         tracked href's rep to build the snapshot dict, while this is a
         direct O(1) cache lookup."""
         return self._cache.get(href) or {}
+
+    def canonical_resources(self, sub_unit: SubUnit) -> dict[str, dict]:
+        """`sub_unit`'s own view of the live snapshot, rewritten into the
+        canonical hrefs (issue #177) the registry/platforms are written
+        against -- see subunits.canonical_view. A platform property that
+        needs the *whole* resources dict (as opposed to one href via
+        `resource()`/`last_resources.get(href)`) must use this instead of
+        `last_resources`, or a sibling unit's own `/mode/vs/1` would leak
+        into MAIN's canonical `/mode/vs/0` view (or vice versa) under
+        exists_fn/is_legacy_board-style checks that scan the whole dict.
+
+        Memoized per cache generation: climate.py calls this on every
+        property read (is_legacy_board and friends), and building it is
+        O(hrefs) -- _on_cache_changed clears the memo whenever the
+        snapshot actually changes, not on every property access.
+        """
+        view_key = (sub_unit.kind, sub_unit.key)
+        cached = self._canonical_cache.get(view_key)
+        if cached is not None:
+            return cached
+        view = canonical_view(sub_unit, self._cache.snapshot(), self.sub_units)
+        self._canonical_cache[view_key] = view
+        return view
+
+    def device_info_for(self, sub_unit: SubUnit) -> DeviceInfo:
+        """DeviceInfo for one logical unit sharing this connection (issue
+        #177) -- the master's own (unchanged) device_info for MAIN, or a
+        linked child device for a discovered sub-unit.
+
+        Identifiers derive from the *master's* serial (device_serial) plus
+        this unit's stable key, never from whatever serial the sub-unit
+        itself reports (or fails to) -- deterministic across reconnects
+        whether or not this unit's own identity resource
+        (/information/vs/<n>, or /<id>/information/vs/0) answered on the
+        poll that first created the HA device. `serial_number` is set from
+        that resource when present anyway -- it's informational, not an
+        identifier.
+        """
+        if sub_unit.kind == 'main':
+            return self.device_info
+        info = self.canonical_resources(sub_unit).get('/information/vs/0', {})
+        model_num = info.get('x.com.samsung.da.modelNum', '')
+        model = model_num.split('|', 1)[0] if model_num else ''
+        serial = info.get('x.com.samsung.da.serialNum') or None
+        base_name = self.device_info.get('name') or 'Samsung Appliance'
+        if model:
+            label = model.replace('_', ' ').title()
+        else:
+            # This poll never got (or never will get) the sub-unit's own
+            # identity resource -- fall back to a generic per-unit label
+            # rather than leaving the device unnamed. 'Unit <n>' only makes
+            # sense for an indexed unit (the key is a small ordinal);
+            # jhkwon19-pattern (prefixed) units are never more than one per
+            # connection today, so there's no ordinal to show.
+            label = f'Unit {sub_unit.key}' if sub_unit.kind == 'indexed' else 'Secondary Unit'
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"{self.device_serial}_{sub_unit.key}")},
+            via_device=(DOMAIN, self.device_serial),
+            name=f"{base_name} {label}",
+            manufacturer=self.device_info.get('manufacturer') or 'Samsung',
+            model=model or None,
+            serial_number=serial,
+        )
 
     @property
     def observe_mode(self) -> str:
@@ -245,6 +345,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         into a single push instead of one hass.add_job per href."""
         if not changed:
             return
+        self._canonical_cache.clear()
         with self._push_pending_lock:
             if self._push_pending:
                 return
@@ -292,7 +393,33 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             body = cbor2.loads(payload)
         except Exception as e:
             raise RuntimeError(f"poll cbor decode: {e}") from e
-        return parse_device0_batch(body) if isinstance(body, list) else {}
+        result = parse_device0_batch(body) if isinstance(body, list) else {}
+        # Refresh every already-enumerated sibling unit's seed collection on
+        # this same summary poll (issue #177) -- without this, a sub-unit's
+        # climate card would show only its enumeration-time snapshot forever.
+        for sub_unit in self.sub_units:
+            result.update(self._poll_sub_unit_seed(sub_unit))
+        return result
+
+    def _poll_sub_unit_seed(self, sub_unit: SubUnit) -> dict[str, dict]:
+        """GET one sub-unit's seed Collection and return its batch,
+        normalized to real hrefs. A sibling failing to answer is a debug
+        log, never a failed poll -- the master unit must not go unavailable
+        because a sibling timed out or dropped off (e.g. HJcom's
+        /device/2, a SmartThings-unused component that may not always
+        respond). Blocking -- called from _poll_once, already in executor."""
+        sess = self._session
+        if sess is None:
+            return {}
+        try:
+            code, payload = sess.get(list(sub_unit.seed_path), timeout=10.0)
+            if code == 0x45 and payload:
+                body = cbor2.loads(payload)
+                if isinstance(body, list):
+                    return normalize_seed_batch(sub_unit, parse_device0_batch(body))
+        except Exception as e:
+            self._log.debug("sub-unit %s seed poll failed: %s", sub_unit.key, e)
+        return {}
 
     def _poll_hrefs_blocking(self, hrefs: list[str]) -> dict[str, dict]:
         """GET individual hrefs sequentially. Does not reconnect on failure. Blocking."""
@@ -351,6 +478,71 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # Discovery (runs once on first successful poll)
     # ------------------------------------------------------------------
 
+    def _enumerate_sub_units_blocking(self, resources: dict[str, dict]) -> dict[str, dict]:
+        """One-time (first discovery only) probe for sibling indoor units
+        sharing this connection (issue #177) -- see
+        registry.subunits.enumerate_sub_units for the two detection
+        patterns. Blocking -- runs in executor, under the session lock
+        (shares the same DTLS session _poll_once just used this cycle).
+
+        Sets self.sub_units to every *candidate* the probes turned up
+        (self._sub_unit_probes as a side effect too) and returns `resources`
+        merged with whatever each candidate's seed returned, so this cycle's
+        _run_discovery sees every candidate's state without a second poll
+        round trip. `_run_discovery` is what narrows self.sub_units down to
+        the ones that are actually live (see discover_partitioned) -- this
+        method doesn't know how to tell an unused SmartThings slot (HJcom's
+        /device/2) from a real sibling, only that something answered.
+        """
+        if self._session is None:
+            self._connect_session()
+        sess = self._session
+        if sess is None:
+            return resources
+        oic_res = self._identity.raw.get('/oic/res', []) if self._identity else []
+        probes: dict[str, bool] = {}
+        sub_units, extra = enumerate_sub_units(
+            sess, resources, oic_res,
+            probe_log=lambda href, found: probes.__setitem__(href, found),
+        )
+        self.sub_units = sub_units
+        self._sub_unit_probes = probes
+        # /multidevice/vs/0 is corroborating metadata, not appliance state,
+        # and it is probed on *every* device -- so it must not join the
+        # returned resources dict. Two things go wrong if it does. It would
+        # reach discovery on families whose registry doesn't ignore that
+        # href (only the AC one does), binding to nothing and raising a
+        # spurious "incomplete capability coverage" repair for every washer
+        # or fridge whose firmware happens to answer it. And it is fetched
+        # once here and never polled again, so applying it to the state
+        # cache would freeze it there exactly like a rejected candidate's
+        # reps (see _live_unit_resources). Kept aside for diagnostics and
+        # for the numofsubdevice cross-check in _run_discovery instead.
+        self._multidevice = extra.pop('/multidevice/vs/0', {})
+        return {**resources, **extra}
+
+    def _live_unit_resources(self, resources: dict[str, dict]) -> dict[str, dict]:
+        """`resources` minus every href belonging to a candidate sub-unit the
+        liveness gate rejected (issue #177).
+
+        Called once, between _run_discovery and the first cache apply, so a
+        rejected slot's reps are seen by the gate and then dropped rather
+        than frozen into the cache forever -- see the call site. The reps
+        themselves are kept in _skipped_sub_unit_resources for diagnostics,
+        which is the only thing that still wants them.
+        """
+        if not self._skipped_sub_units:
+            return resources
+        kept: dict[str, dict] = {}
+        skipped: dict[str, dict] = {}
+        for href, rep in resources.items():
+            bucket = skipped if any(
+                skip.sub_unit.owns(href) for skip in self._skipped_sub_units
+            ) else kept
+            bucket[href] = rep
+        self._skipped_sub_unit_resources = skipped
+        return kept
+
     def _run_discovery(self, resources: dict[str, dict]) -> None:
         # Reported for diagnostics only -- it names the firmware generation
         # ('7.0 Air conditioner' is Tizen Lite), which is useful when triaging
@@ -360,7 +552,6 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                .get('swVersionInfo', {})
                                .get('oneUiVersion', ''))
         info = resources.get('/information/vs/0', {})
-        reg = resolve_registry(resources)
         unbound: list[str] = []
         hot, warm = set(), set()
 
@@ -372,11 +563,53 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         model_num = info.get('x.com.samsung.da.modelNum', '')
         description = info.get('x.com.samsung.da.description', '')
-        if reg is not None:
-            self._log.debug("device type: %s (modelNum=%r)", reg.name, model_num)
-            bound = discover(resources, reg.capabilities, reg.pattern_capabilities,
-                              log=unbound.append, tier_log=_tier_log)
-            self.device_type_name = reg.name
+
+        # Partitioned discovery (issue #177): the main pass binds every href
+        # owned by no sub-unit; one further pass per *candidate* sub-unit
+        # binds its own canonical view, resolving its own device type from
+        # its own /information/vs/0 when it reports one and falling back to
+        # the master's registry otherwise. See subunits.discover_partitioned
+        # -- it also gates each candidate down to whether it actually
+        # produced live primary state (HJcom's /device/2, an unused
+        # SmartThings slot, answers its seed but never does), so
+        # self.sub_units below is narrowed to the ones that passed, not
+        # every candidate _enumerate_sub_units_blocking found. For a device
+        # with no candidates (self.sub_units == []) this is exactly the
+        # single discover() call this method used to make.
+        bound, device_type_name, materialized, skipped = discover_partitioned(
+            resources, self.sub_units, resolve_registry, CAPABILITIES,
+            log=unbound.append, tier_log=_tier_log,
+        )
+        self.sub_units = materialized
+        self._skipped_sub_units = skipped
+        for skip in skipped:
+            self._log.info(
+                "sub-unit %s (%s) answered its seed but produced no live "
+                "primary state; not materialized (hrefs=%s)",
+                skip.sub_unit.key, skip.sub_unit.kind, list(skip.hrefs),
+            )
+        # Corroborating signal, not a gate (DESIGN-177.md section 4):
+        # /multidevice/vs/0's numofsubdevice is a plain count HJcom's board
+        # reports independently of the liveness gate above. Log, don't
+        # raise, on a disagreement -- only this one board family is known to
+        # expose the resource at all, so a mismatch is a "look into this"
+        # signal for triage, not proof either side is wrong.
+        numofsubdevice = self._multidevice.get(
+            'x.com.samsung.da.numofsubdevice')
+        if numofsubdevice is not None:
+            try:
+                reported = int(numofsubdevice)
+            except (TypeError, ValueError):
+                reported = None
+            unit_count = len(materialized) + 1  # +1 for the master itself
+            if reported is not None and reported != unit_count:
+                self._log.debug(
+                    "/multidevice/vs/0 reports numofsubdevice=%r but %d "
+                    "unit(s) materialized (including the master)",
+                    numofsubdevice, unit_count,
+                )
+        if device_type_name is not None:
+            self._log.debug("device type: %s (modelNum=%r)", device_type_name, model_num)
         else:
             # Both fields: detection reads each of them (board token, then
             # consumer-model code), and this line is what a user pastes into
@@ -385,8 +618,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "unknown device type modelNum=%r description=%r; using common caps",
                 model_num, description,
             )
-            bound = discover(resources, CAPABILITIES, log=unbound.append, tier_log=_tier_log)
-            self.device_type_name = None
+        self.device_type_name = device_type_name
         self.bound = bound
         self._unbound_hrefs = unbound
 
@@ -396,7 +628,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_serial = serial
 
         ident = self._identity
-        device_type = reg.name.replace('_', ' ').title() if reg else 'Appliance'
+        device_type = device_type_name.replace('_', ' ').title() if device_type_name else 'Appliance'
         model = model_num.split('|', 1)[0] if model_num else (ident.model if ident else '')
         name  = f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
         mfr   = (ident.manufacturer if ident else '') or 'Samsung'
@@ -407,15 +639,16 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             manufacturer=mfr,
             model=model,
         )
-        self._update_coverage_gap_issue(reg is None, unbound, name)
+        self._update_coverage_gap_issue(device_type_name is None, unbound, name)
 
         self._hot_hrefs = sorted(hot)
         self._warm_hrefs = sorted(warm)
 
         self._discovered = True
         self._log.info(
-            "discovered %d entities (serial=%s) hot=%s warm=%s",
+            "discovered %d entities (serial=%s) hot=%s warm=%s sub_units=%s",
             len(bound), serial, self._hot_hrefs, self._warm_hrefs,
+            [su.key for su in self.sub_units],
         )
 
     def _update_coverage_gap_issue(
@@ -568,7 +801,37 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._observe.downgrade_to_poll()
                         just_downgraded_from_observe = True
 
+        if not self._discovered:
+            # One-time (issue #177): find out whether this connection has
+            # sibling indoor units before the first discovery pass, and fold
+            # their seed resources into this cycle's snapshot so discovery
+            # sees every unit's state on the very first poll rather than
+            # waiting a cycle. Runs under its own session-lock scope (the
+            # poll above already released the lock) since it shares the same
+            # DTLS session.
+            async with self._session_lock:
+                resources = await self.hass.async_add_executor_job(
+                    self._enumerate_sub_units_blocking, resources
+                )
+
         source = 'sweep' if self._discovered else 'poll'
+        first_cycle = not self._discovered
+        if first_cycle:
+            # Discovery runs *before* the apply loop below, not after it, so
+            # a rejected candidate's resources never reach the state cache
+            # at all (issue #177). Enumeration has to fetch every candidate's
+            # seed to evaluate the liveness gate, but only the units that
+            # pass it are ever polled again -- applying the rest would freeze
+            # ~14 hrefs per rejected slot into the cache on this one cycle
+            # and leave them there forever, indistinguishable from live
+            # state in `last_resources` and in the diagnostics dump built
+            # from it. StateCache has no eviction, so the only way to keep
+            # them out is to not put them in. Safe to reorder: _run_discovery
+            # reads the dict passed to it and never the cache, and
+            # log_sweep_discrepancies below can't fire on a first cycle
+            # (observe mode is only ever attempted after discovery).
+            self._run_discovery(resources)
+            resources = self._live_unit_resources(resources)
         sweep_mismatch = False
         if self._observe.mode == MODE_OBSERVE:
             # A sweep/cache mismatch never tears down a still-live OBSERVE
@@ -584,8 +847,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for href, rep in resources.items():
             self._observe.apply(href, rep, source=source)
 
-        if not self._discovered:
-            self._run_discovery(resources)
+        if first_cycle:
             await self._attempt_observe_mode()
         elif just_downgraded_from_observe:
             await self._attempt_observe_mode()
@@ -671,7 +933,17 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # state until the next real read of that resource -- the 20-60s lag
         # in issues #17/#53, which survived the earlier optimistic-apply fix
         # (issue #27) because that fix applied to the wrong href too.
-        write_href = '/' + '/'.join(path_segs)
+        #
+        # write_fn's path_segs are canonical (issue #177) -- a sub-unit's
+        # ClimateDesc is bound to its own *actual* /mode/vs/1 (or
+        # /<id>/mode/vs/0) href, but _climate_write only knows the canonical
+        # sibling hrefs (e.g. ['power', 'vs', '0']). Translate through this
+        # bound entity's own sub_unit so the optimistic apply, the settle
+        # guard and the POST below all target that unit's real resource --
+        # to_actual is the identity transform for MAIN, so a device with no
+        # sub-units writes exactly where it always did.
+        write_href = bound_entity.sub_unit.to_actual('/' + '/'.join(path_segs))
+        path_segs = [s for s in write_href.strip('/').split('/') if s]
 
         # Apply the write optimistically before starting the settle guard,
         # not after -- mark_write_pending gates every source (poll, sweep,

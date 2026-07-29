@@ -33,12 +33,19 @@ def _is_included(bound: BoundEntity, coordinator: 'LocalThingsCoordinator') -> b
     a field is genuinely never populated on unsupported hardware opts into
     stricter gating with its own is_stub_rep-based exists_fn (see
     common.ENERGY_METER, issue #127) -- this default stays permissive.
+
+    `bound.href` is already the *actual* href (issue #177 -- see
+    BoundEntity/SubUnit), so the direct cache lookup below is correct as-is;
+    `exists_fn` gets `bound`'s own sub-unit's *canonical* view instead of the
+    raw snapshot, same rule as everywhere else a whole-resources-dict scan
+    happens (coordinator.canonical_resources) -- this is a free function, not
+    an LocalThingsEntity method, so it can't use self._resources.
     """
     rep = coordinator.last_resources.get(bound.href)
     if rep is None:
         return False
     if bound.desc.exists_fn is not None:
-        return bound.desc.exists_fn(rep, coordinator.last_resources)
+        return bound.desc.exists_fn(rep, coordinator.canonical_resources(bound.sub_unit))
     if bound.desc.field:
         if not rep or is_stub_rep(rep):
             return True
@@ -122,9 +129,21 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
         """
         tk = self._bound.desc.translation_key
         if callable(tk):
-            return tk(self.coordinator.last_resources)
+            return tk(self._resources)
         return tk if tk is not None else self._bound.desc.key
 
     @property
+    def _resources(self) -> dict:
+        """This entity's own sub-unit's canonical resources view (issue
+        #177) -- see coordinator.canonical_resources. Every platform
+        property that needs the *whole* resources dict, as opposed to one
+        href via `coordinator.resource(href)`, must read through this
+        instead of `coordinator.last_resources`, or a sibling unit's own
+        actual hrefs would leak into (or be missing from) this entity's
+        view. For MAIN (every device with no sub-units) this is exactly
+        `coordinator.last_resources`."""
+        return self.coordinator.canonical_resources(self._bound.sub_unit)
+
+    @property
     def device_info(self) -> DeviceInfo:
-        return self.coordinator.device_info
+        return self.coordinator.device_info_for(self._bound.sub_unit)
