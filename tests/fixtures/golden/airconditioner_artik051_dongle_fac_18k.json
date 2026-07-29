@@ -1,0 +1,27 @@
+{
+  "state_keys": [
+    "alarm_code",
+    "auto_clean_legacy",
+    "buzzer_volume",
+    "clean_level",
+    "climate",
+    "current_temperature_c",
+    "diagnosis_status",
+    "dust",
+    "energy_kwh",
+    "fine_dust",
+    "good_sleep",
+    "humidity",
+    "odor",
+    "power_energy_kwh",
+    "power_watts",
+    "super_fine_dust",
+    "unit1_alarm_code",
+    "unit1_auto_clean_legacy",
+    "unit1_buzzer_volume",
+    "unit1_climate",
+    "unit1_current_temperature_c",
+    "unit1_good_sleep",
+    "unit1_humidity"
+  ]
+}

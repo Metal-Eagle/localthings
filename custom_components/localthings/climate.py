@@ -254,8 +254,7 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
     def _legacy_convenient(self) -> dict:
         """A /mode/convenient/vs/0-shaped rep built from the Comode_* token in
         /mode/vs/0's options, for boards that have no convenient resource."""
-        options = (self.coordinator.resource(MODE_HREF) or {}).get(
-            'x.com.samsung.da.options') or []
+        options = self._rep(MODE_HREF).get('x.com.samsung.da.options') or []
         for option in options:
             if isinstance(option, str) and option.startswith('Comode_'):
                 return {_MODES_FIELD: [option.split('_', 1)[1]],
@@ -268,18 +267,26 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
         Delegates the board-generation test to is_legacy_board (the same
         test capabilities/airconditioner.py's token entities are gated on)
-        instead of re-implementing it. Uses last_resources rather than a
-        two-key presence dict built from coordinator.resource()'s truthiness
-        -- resource() collapses "href absent" and "href present with an
-        empty {} rep" to the same falsy value, while is_legacy_board (and
-        discover()'s own binding) test key membership, not truthiness. A
+        instead of re-implementing it. Uses self._resources (this unit's own
+        canonical view, issue #177 -- see LocalThingsEntity._resources)
+        rather than a two-key presence dict built from coordinator.resource()'s
+        truthiness -- resource() collapses "href absent" and "href present
+        with an empty {} rep" to the same falsy value, while is_legacy_board
+        (and discover()'s own binding) test key membership, not truthiness. A
         presence dict built from truthiness alone would disagree with the
         token entities on a board reporting a genuinely empty /airflow/vs/0,
         silently reintroducing the drift this delegation exists to prevent.
+
+        Reads the actual href through self._rep rather than
+        coordinator.resource() directly -- on a sub-unit (a legacy-board
+        sibling has its own /airflow/vs/1, or /<id>/airflow/vs/0), the
+        canonical AIRFLOW_HREF must be translated through this bound
+        entity's own sub_unit first, exactly like every other sibling read
+        below.
         """
-        if not is_legacy_board(self.coordinator.last_resources):
+        if not is_legacy_board(self._resources):
             return {}
-        return self.coordinator.resource(AIRFLOW_HREF) or {}
+        return self._rep(AIRFLOW_HREF)
 
     def _legacy_preset(self) -> bool:
         """Whether presets come from the Comode_* token rather than a resource.
@@ -288,12 +295,25 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         rep being empty alone: newer boards carry Comode tokens too, so a
         momentarily empty /mode/convenient/vs/0 there must not silently switch
         the preset read (and write) over to the token path.
+
+        Deliberately reads the *raw* href (translated through this bound
+        entity's own sub_unit, not through self._rep) rather than going
+        through _rep's own CONVENIENT_HREF fallback branch -- that fallback
+        is exactly the legacy_convenient() rep this method is deciding
+        whether to use, so routing through it here would make the resource
+        never look empty and this always resolve to the wrong side.
         """
-        return (not self.coordinator.resource(CONVENIENT_HREF)
+        convenient_href = self._bound.sub_unit.to_actual(CONVENIENT_HREF)
+        return (not self.coordinator.resource(convenient_href)
                 and bool(self._legacy_airflow()))
 
     def _rep(self, href: str) -> dict:
-        rep = self.coordinator.resource(href) or {}
+        """`href` is one of this module's canonical HREF_* constants --
+        translated through this bound entity's own sub_unit (issue #177) to
+        the real, on-the-wire href before the single-href cache lookup
+        (identity for MAIN, so a device with no sub-units reads exactly the
+        href it always did)."""
+        rep = self.coordinator.resource(self._bound.sub_unit.to_actual(href)) or {}
         if not rep and href == CONVENIENT_HREF and self._legacy_airflow():
             return self._legacy_convenient()
         return rep

@@ -907,6 +907,15 @@ _AC_IGNORED = [
     # Undocumented single int (runningMode: 0 on every dump seen), no
     # supported-values list to interpret it against -- 'don't guess'.
     '/runn/vs/0',
+    # 2-in-1/multi-indoor-unit systems (issue #177, HJcom's
+    # ARTIK051_DONGLE_FAC_18K): x.com.samsung.da.numofsubdevice, a plain
+    # corroborating count of indoor units on this connection. Confirmed
+    # read-only (a write attempt returned CoAP 4.00). Absent from
+    # /device/0's batch entirely -- registry.subunits.enumerate_sub_units
+    # fetches it with its own RETRIEVE and folds it into the resources dict
+    # for diagnostics, which is why it needs an entry here rather than
+    # surfacing as an unbound-href gap on every board that has it.
+    '/multidevice/vs/0',
 ]
 
 # Built as bare no-entity caps; folded into the AC registry (not global).

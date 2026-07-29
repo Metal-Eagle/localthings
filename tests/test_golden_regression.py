@@ -859,6 +859,60 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora():
     )
 
 
+def _new_sub_unit_aware_state_keys(name):
+    """Like _new_state_keys, but runs the full sub-unit-aware pipeline
+    (enumerate_sub_units + discover_partitioned, issue #177) instead of a
+    single discover() call, so the golden for a composite-device fixture
+    captures every materialized unit's keys (unit1_-/sub_<uuid>_-prefixed),
+    not just the master's."""
+    from custom_components.localthings.registry.adapter import flatten
+    from tests.conftest import _discover_full, _load_device_full
+    resources, oic_res, seeds = _load_device_full(name)
+    bound, _materialized, _skipped, full_resources, _device_type_name = _discover_full(
+        resources, oic_res, seeds,
+    )
+    state = flatten(bound, full_resources)
+    return sorted(state.keys())
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_artik051_dongle_fac_18k():
+    """HJcom's ARTIK051_DONGLE_FAC_18K (issue #177, Pattern A -- indexed
+    siblings): a real v0.16.0 dump with a genuine second indoor unit at
+    `/device/1` (unit1_-prefixed keys below) and an unused SmartThings slot
+    at `/device/2` that answers its seed but never produces a materialized
+    unit (see DESIGN-177.md section 4 and test_subdevice_discovery.py's
+    explicit "/device/2 produces no entities" assertion) -- so this golden
+    has no `unit2_`-prefixed keys at all, which is the point."""
+    name = 'airconditioner_artik051_dongle_fac_18k'
+    golden = json.loads((GOLDEN / f'{name}.json').read_text())
+    state_keys = _new_sub_unit_aware_state_keys(name)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1():
+    """jhkwon19's TP2X_FAC_BORA_21K (issue #177, Pattern B -- UUID-prefixed
+    tree): device0/oic_res are real; the wall-mounted sub-unit's own
+    /information/vs/0 is real (confirmed live by the reporter), the rest of
+    its seed tree is constructed (see the fixture's own seeds_note) -- just
+    enough to bind a real climate card under the
+    `sub_6c2dff6dee5cdad16a5e000000000001_` prefix below. Distinct from
+    tests/fixtures/airconditioner_fac_bora_device.json, which is
+    deliberately left unchanged as the redacted-subdeviceIdList regression
+    case (zero sub-units)."""
+    name = 'airconditioner_fac_bora_2in1'
+    golden = json.loads((GOLDEN / f'{name}.json').read_text())
+    state_keys = _new_sub_unit_aware_state_keys(name)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

@@ -106,6 +106,11 @@ def test_fac_bora_wind_strength_codes_fit_the_standard_scale():
         def resource(self, href):
             return self.last_resources.get(href, {})
 
+        def canonical_resources(self, sub_unit):
+            # This test's entity uses the default MAIN sub-unit, so the
+            # canonical view is just the raw snapshot (issue #177).
+            return self.last_resources
+
     resources = _load_device('airconditioner_fac_bora')
     info = resources['/information/vs/0']
     reg = by_type.for_device_by_model(

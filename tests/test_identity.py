@@ -32,10 +32,7 @@ def test_read_identity_tolerates_missing_resources():
     assert ident.model == ''
     assert ident.serial is None
     assert ident.device_types == ()
-    assert ident.raw == {
-        '/oic/p': {}, '/oic/d': {}, '/oic/res': [],
-        '/device/1': {}, '/device/2': {},
-    }
+    assert ident.raw == {'/oic/p': {}, '/oic/d': {}, '/oic/res': []}
 
 
 def test_read_identity_captures_oic_d_device_types():
@@ -111,32 +108,3 @@ def test_read_identity_tolerates_malformed_oic_res():
         FakeSession({('oic', 'res'): {'not': 'a list'}}), serial=None
     )
     assert ident.raw['/oic/res'] == []
-
-
-def test_read_identity_probes_device_1_and_2():
-    """/oic/res won't reveal a second logical Device's Collection on this
-    firmware family (see test_read_identity_captures_oic_res_links), so
-    /device/1 and /device/2 are probed directly -- same [devcol-rep,
-    {href, rep}, ...] batch shape /device/0 itself returns, parsed the same
-    way (parse_device0_batch)."""
-    sess = FakeSession({
-        ('device', '1'): [
-            {'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
-            {'href': '/power/vs/0', 'rep': {'x.com.samsung.da.power': 'On'}},
-        ],
-    })
-    ident = read_identity(sess, serial=None)
-    assert ident.raw['/device/1'] == {
-        '/power/vs/0': {'x.com.samsung.da.power': 'On'},
-    }
-    # /device/2 was never in the table -> 4.04 -> tolerated absence.
-    assert ident.raw['/device/2'] == {}
-
-
-def test_read_identity_tolerates_malformed_device_probe():
-    """A bare Property map instead of a batch array (or anything else
-    non-list-shaped) must not explode."""
-    ident = read_identity(
-        FakeSession({('device', '1'): {'not': 'a batch'}}), serial=None
-    )
-    assert ident.raw['/device/1'] == {}
