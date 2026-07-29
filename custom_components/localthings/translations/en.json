@@ -158,9 +158,6 @@
       }
     },
     "number": {
-      "buzzer_volume": {
-        "name": "Beep volume"
-      },
       "cook_time": {
         "name": "Cook time"
       },

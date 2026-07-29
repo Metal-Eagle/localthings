@@ -486,14 +486,19 @@ CLIMATE = Capability(
                    icon='mdi:led-on', entity_category='config'),
         # Beep on/off from the `Volume_*` option token (Volume_Mute/Volume_100).
         # Single-token option_write; a full options RMW reverts on ARTIK051_PRAC.
-        # Gated off the legacy ARTIK051 board generation (see is_legacy_board):
-        # that generation's own Volume_ token is already modeled as the
-        # buzzer_volume Number below, and both reading the same options[] slot
-        # into two entities would be redundant.
+        #
+        # Applies uniformly across board generations, including legacy
+        # ARTIK051 boards -- issue #136: this token was originally modeled as
+        # a 0-100 buzzer_volume Number for legacy boards on the assumption it
+        # was a real graduated volume level, but every unit confirmed on
+        # hardware (three units across two reporters) only ever carries
+        # Volume_100 or Volume_Mute, never an intermediate value, and the
+        # Number's write path (a plain integer string) could never produce
+        # the literal 'Mute' token needed to actually turn it off -- writing
+        # '0' is simply not a token this firmware recognizes. A switch is
+        # both the correct model and the actual fix.
         SwitchDesc(key='beep', rep_fn=_beep_on,
-                   exists_fn=lambda rep, resources: (
-                       not is_legacy_board(resources)
-                       and _option_token(rep, 'Volume') is not None),
+                   exists_fn=lambda rep, resources: _option_token(rep, 'Volume') is not None,
                    write_fn=_beep_write,
                    icon='mdi:volume-high', entity_category='config'),
         # Tropical night mode level (0-16) from the `Sleep_<N>` option token.
@@ -539,11 +544,6 @@ CLIMATE = Capability(
                    exists_fn=_has_option_token('AirMonitoring'),
                    write_fn=_option_switch_write('AirMonitoring'),
                    icon='mdi:air-filter', entity_category='config'),
-        NumberDesc(key='buzzer_volume', rep_fn=_option_token_num('Volume'),
-                   exists_fn=_has_option_token('Volume'),
-                   write_fn=_option_number_write('Volume'),
-                   native_min=0, native_max=100, step=10,
-                   icon='mdi:volume-high', entity_category='config'),
         # "Good Sleep" timer. 0 = off; the upper bound is a guess (the token
         # carries no range hint and only 0 has been observed on hardware), so a
         # write above 0 is unverified.

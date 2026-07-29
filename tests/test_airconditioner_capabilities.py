@@ -814,16 +814,43 @@ def test_sensor_item_value_picks_first_value():
 
 def test_beep_and_tropical_night_stay_off_legacy_krac_board():
     """ARTIK051_KRAC_18K (issue #136) reports both a Volume_ and a Sleep_
-    option token, but they're already modeled as buzzer_volume/good_sleep
-    (see airconditioner.CLIMATE) -- beep/tropical_night_mode must not also
-    bind there, or the same options[] slot would surface as two entities."""
+    option token. Volume_ is modeled as the shared 'beep' switch (issue #136's
+    buzzer_volume Number never correctly modeled this board -- see
+    test_legacy_krac_board_beep_is_a_switch_not_a_volume_number below);
+    Sleep_ is still good_sleep, not tropical_night_mode, on this board (see
+    airconditioner.CLIMATE)."""
     reg, resources = _resolve('airconditioner_artik051_krac_18k')
     state = flatten(
         discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
-    assert 'beep' not in state
+    assert 'buzzer_volume' not in state
     assert 'tropical_night_mode' not in state
-    assert state['buzzer_volume'] == 100.0
+    assert state['beep'] is True
     assert state['good_sleep'] == 0.0
+
+
+def test_legacy_krac_board_beep_is_a_switch_not_a_volume_number():
+    """Issue #136: three real units across two reporters only ever reported
+    Volume_100 or Volume_Mute -- never an intermediate value -- and the old
+    buzzer_volume Number's write path (a plain integer string) could never
+    produce the literal 'Mute' token needed to turn it off. 'beep' now
+    applies uniformly across board generations instead of being gated off
+    the legacy board."""
+    reg, resources = _resolve('airconditioner_artik051_krac_18k')
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['beep'] is True
+
+    resources['/mode/vs/0']['x.com.samsung.da.options'] = [
+        o.replace('Volume_100', 'Volume_Mute')
+        for o in resources['/mode/vs/0']['x.com.samsung.da.options']
+    ]
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['beep'] is False
+
+    path, body = airconditioner._beep_write('Off', resources['/mode/vs/0'])
+    assert path == ['mode', 'vs', '0']
+    assert body == {'x.com.samsung.da.options': ['Volume_Mute']}
 
 
 def test_legacy_krac_board_energy_kwh_uses_centiwatt_hour_scale():

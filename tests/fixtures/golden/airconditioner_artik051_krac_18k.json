@@ -3,7 +3,7 @@
     "air_monitoring",
     "alarm_code",
     "auto_clean_legacy",
-    "buzzer_volume",
+    "beep",
     "climate",
     "current_temperature_c",
     "diagnosis_status",
