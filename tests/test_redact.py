@@ -72,3 +72,34 @@ def test_redact_resources_does_not_mutate_input():
     redact_resources(resources)
 
     assert resources['/information/vs/0']['x.com.samsung.da.serialNum'] == original_serial
+
+
+def test_redacts_bare_ocf_identity_keys():
+    """/oic/d and /oic/p identify the unit with two-letter keys ('di', 'pi')
+    that the substring rules can't see."""
+    redacted = redact_resources({
+        '/oic/d': {'di': 'ab-cd-ef', 'n': 'Family Hub'},
+        '/oic/p': {'pi': '12-34-56', 'mnmo': 'RF9000B'},
+    })
+
+    assert redacted['/oic/d']['di'] == REDACTED
+    assert redacted['/oic/p']['pi'] == REDACTED
+    # Non-identifying neighbours in the same payloads survive.
+    assert redacted['/oic/d']['n'] == 'Family Hub'
+    assert redacted['/oic/p']['mnmo'] == 'RF9000B'
+
+
+def test_bare_key_redaction_does_not_leak_into_substring_matching():
+    """'di'/'pi' are whole-key matches only -- plenty of ordinary appliance
+    fields contain those two letters and must survive untouched."""
+    redacted = redact_resources({
+        '/x': {
+            'condition': 'Normal', 'display': 'On', 'dispenser': 'Cubed',
+            'humidity': '45', 'spinSpeed': '1200',
+        },
+    })
+
+    assert redacted['/x'] == {
+        'condition': 'Normal', 'display': 'On', 'dispenser': 'Cubed',
+        'humidity': '45', 'spinSpeed': '1200',
+    }

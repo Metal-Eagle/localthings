@@ -38,6 +38,55 @@ async def test_diagnostics_shape_and_redaction(
     assert resources['/status/lock/vs/0']['x.com.samsung.da.ado.devicecontrol'] == 'On'
 
 
+async def test_diagnostics_include_ocf_identity(
+    hass: HomeAssistant, mock_entry, mock_coordinator_session
+) -> None:
+    """/oic/p and /oic/d are outside the /device/0 batch, so diagnostics is
+    the only place an issue report can carry them -- and `rt` there is OCF's
+    own device-type declaration."""
+    from custom_components.localthings.registry.identity import DeviceIdentity
+
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    coordinator._identity = DeviceIdentity(
+        manufacturer='Samsung Electronics',
+        model='RF9000B',
+        name='Family Hub',
+        serial=None,
+        device_types=('oic.wk.d', 'oic.d.refrigerator'),
+        raw={
+            '/oic/p': {'mnmn': 'Samsung Electronics', 'pi': '12-34-56'},
+            '/oic/d': {'n': 'Family Hub', 'di': 'ab-cd-ef'},
+        },
+    )
+
+    diag = await async_get_config_entry_diagnostics(hass, mock_entry)
+
+    identity = diag['identity']
+    assert identity['model'] == 'RF9000B'
+    assert identity['device_types'] == ['oic.wk.d', 'oic.d.refrigerator']
+    # The raw payloads ride along redacted -- we don't yet know which of
+    # their fields identify a device type, so none are dropped up front.
+    assert identity['resources']['/oic/p']['mnmn'] == 'Samsung Electronics'
+    assert identity['resources']['/oic/d']['di'] == REDACTED
+    assert identity['resources']['/oic/p']['pi'] == REDACTED
+
+
+async def test_diagnostics_identity_none_when_unavailable(
+    hass: HomeAssistant, mock_entry, mock_coordinator_session
+) -> None:
+    """read_identity is best-effort: a device that answers neither resource
+    (or a session that never connected) must not break the download."""
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    diag = await async_get_config_entry_diagnostics(hass, mock_entry)
+
+    assert diag['identity'] is None
+
+
 async def test_diagnostics_include_observe_mode_fields(
     hass: HomeAssistant, mock_entry, mock_coordinator_session
 ) -> None:

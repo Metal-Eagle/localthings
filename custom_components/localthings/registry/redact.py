@@ -19,9 +19,18 @@ _SENSITIVE_SUBSTRINGS = (
     'userid', 'deviceid', 'uuid', 'duid', 'password', 'secret',
 )
 
+# Matched whole, not as substrings. OCF's /oic/d and /oic/p identify the unit
+# with bare two-letter keys -- 'di' (device UUID) and 'pi' (platform UUID) --
+# which are as identifying as the serial number above but far too short to
+# match on: 'di' alone is a substring of 'condition', 'display', 'dispenser'
+# and plenty of other perfectly ordinary appliance fields.
+_SENSITIVE_EXACT = frozenset({'di', 'pi'})
+
 
 def _is_sensitive_key(key: str) -> bool:
     lowered = key.lower()
+    if lowered in _SENSITIVE_EXACT:
+        return True
     return any(s in lowered for s in _SENSITIVE_SUBSTRINGS)
 
 

@@ -31,3 +31,41 @@ def test_read_identity_tolerates_missing_resources():
     assert ident.manufacturer == 'Samsung'
     assert ident.model == ''
     assert ident.serial is None
+    assert ident.device_types == ()
+    assert ident.raw == {'/oic/p': {}, '/oic/d': {}}
+
+
+def test_read_identity_captures_oic_d_device_types():
+    """/oic/d's `rt` is OCF's own device-type declaration -- captured so
+    diagnostics can show whether real hardware populates it usefully."""
+    sess = FakeSession({
+        ('oic', 'd'): {
+            'n': 'Living Room AC',
+            'rt': ['oic.wk.d', 'oic.d.airconditioner'],
+        },
+    })
+    ident = read_identity(sess, serial=None)
+    assert ident.device_types == ('oic.wk.d', 'oic.d.airconditioner')
+
+
+def test_read_identity_normalizes_scalar_and_malformed_rt():
+    """Firmware that reports a bare string, or a non-list, must not explode."""
+    assert read_identity(
+        FakeSession({('oic', 'd'): {'rt': 'oic.d.refrigerator'}}), None
+    ).device_types == ('oic.d.refrigerator',)
+    assert read_identity(
+        FakeSession({('oic', 'd'): {'rt': 42}}), None
+    ).device_types == ()
+    assert read_identity(
+        FakeSession({('oic', 'd'): {'rt': ['oic.wk.d', 7, None]}}), None
+    ).device_types == ('oic.wk.d',)
+
+
+def test_read_identity_keeps_raw_payloads_for_diagnostics():
+    sess = FakeSession({
+        ('oic', 'p'): {'mnmn': 'Samsung Electronics', 'mnmo': 'RF9000B'},
+        ('oic', 'd'): {'n': 'Family Hub', 'di': 'abc-123'},
+    })
+    ident = read_identity(sess, serial=None)
+    assert ident.raw['/oic/p']['mnmo'] == 'RF9000B'
+    assert ident.raw['/oic/d']['di'] == 'abc-123'
