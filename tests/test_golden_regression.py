@@ -859,6 +859,23 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_air_purifier_avt_ww():
+    """AVT-WW-TP1-23-AXX500 (issue #190) -- next-gen BESPOKE Cube Air board;
+    reports device_type 'unknown' with empty oneUiVersion because 'VTWW' as a
+    whole token doesn't match this board's 'AVT'/'WW' split. Resolved via the
+    new 'AVT' modelNum board-token fallback into the existing air_purifier
+    registry. Binds cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_purifier_avt_ww')
+    golden = json.loads((GOLDEN / 'air_purifier_avt_ww.json').read_text())
+    state_keys = _new_state_keys('air_purifier_avt_ww', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_airconditioner_artik051_krac_energy():
     """AR12NXWXCWKNEU/ARTIK051_KRAC_18K (issue #193) -- same legacy board
     generation as the artik051_krac_18k fixture, but this dump has a nonzero

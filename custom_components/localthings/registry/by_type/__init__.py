@@ -87,6 +87,12 @@ _BOARD_TOKEN_TO_KEY: dict[str, str] = {
     'DHM': 'dehumidifier',          # issue #88 -- target humidity, no climate
     'TVTL': 'air_purifier',         # issue #56 (ARTIK051)
     'VTWW': 'air_purifier',         # issue #151 (BESPOKE Cube Air)
+    'AVT': 'air_purifier',          # issue #190 -- AVT-WW-TP1-23-AXX500, a
+                                     # next-gen BESPOKE Cube Air board; same
+                                     # lineage as VTWW above but the '-WW-'
+                                     # delimiter now falls one letter to the
+                                     # left ('A-VTWW-' -> 'AVT-WW-'), splitting
+                                     # into a token the existing entry can't see
     'AIR': 'air_purifier',          # issue #130 (TP1X_DA-AC-AIR)
     'WATERPURIFIER': 'water_purifier',   # issue #90
     'ADW': 'dishwasher',
