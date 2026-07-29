@@ -10,7 +10,9 @@ description: >-
   OCF-standard vs vendor hrefs, the diagnostic/config/normal entity taxonomy,
   preferring dynamic (device-reported) select options over hardcoded lists,
   ensuring every href is bound or ignored, and locking it in with a fixture +
-  golden + test.
+  golden + test. Also covers multi-unit ("composite") appliances that expose
+  several logical indoor units over one IP — triaging a missing second unit,
+  and why registry hrefs stay canonical rather than indexed.
 ---
 
 # Adding device support
@@ -25,10 +27,24 @@ dump into coverage.
 A user's diagnostics download (`config_entry-localthings-*.json`) has, under
 `data`:
 - `resources`: `{href: rep}` — the parsed `/device/0` snapshot. **This is the
-  source of truth**, not code comments.
+  source of truth**, not code comments. On a multi-unit appliance this is the
+  unit the config entry connects to and *only* that unit; siblings report
+  their own (see below).
 - `unbound_hrefs`: resources that bound to no capability. The
   "incomplete capability coverage" repair fires whenever this is **non-empty or
   the device type is unrecognized** (`coordinator._update_coverage_gap_issue`).
+
+Multi-unit appliances (one IP, one DTLS session, several logical indoor
+units — issue #177) add four more, all absent/empty on an ordinary device:
+- `sub_units`: one entry per materialized sibling — `kind`/`key`/`seed_path`,
+  its own `model`, its bound hrefs, and its own `resources`.
+- `sub_units_skipped`: candidates whose seed answered but that produced no
+  live primary state, with the reps the gate actually judged. An unused
+  SmartThings slot lands here, not in `sub_units`.
+- `sub_unit_probes`: `{seed_href: found}` for every seed attempted — tells
+  "checked, nothing there" apart from "never checked".
+- `multidevice`: `/multidevice/vs/0`'s rep if the board answers it. Its
+  `numofsubdevice` is a corroborating count, not a gate.
 
 Goal: make `unbound_hrefs` empty by **binding** the useful resources and
 **ignoring** the noise — and surface every genuinely useful sensor/select/switch
@@ -60,6 +76,12 @@ print('state_keys:', sorted(state))
 `discover()` binds caps (applies `rt_filter`/`match_fn`); `flatten()` applies
 `exists_fn` and produces the final entity values. Use the same routine to
 regenerate a golden.
+
+**A sibling unit's block runs through this unchanged.** `sub_units[i].resources`
+(and `sub_units_skipped[i].resources`) are keyed by *canonical* hrefs —
+`/mode/vs/0`, never the `/mode/vs/1` or `/<uuid>/mode/vs/0` that unit actually
+answers on — precisely so you can paste one into `resources` above and read the
+result exactly like the master's. No de-indexing by hand.
 
 ## 3. Route the device to a registry — add a row, never a branch
 
@@ -192,6 +214,15 @@ sub-polled between summary polls. Pick descriptor types from `entities.py`
 as a gap for a human, or ignore it with a documented reason — never invent an
 entity on a hunch (`ignored.py`'s rule).
 
+This is a rule about **writes and entities**, not about reading. A speculative
+`GET` of an href a dump doesn't contain is fine and the codebase already relies
+on it: `read_identity` reads `/oic/p`, `/oic/d` and `/oic/res`, and
+`subunits.enumerate_sub_units` probes `/device/<n>`, `/<uuid>/device/0` and
+`/multidevice/vs/0` on every device. A RETRIEVE is non-mutating and a 4.04 is
+tolerated everywhere in that path, so the cost of a wrong guess is one wasted
+round trip. Guessing a *write* against live hardware is the thing this rule
+forbids — as is materializing an entity from a field you can't explain.
+
 ## 6. Select options: read them from the device, don't hardcode
 
 A `SelectDesc`'s `options` should come from the device's own advertised list
@@ -275,6 +306,17 @@ friendlier href**.
   ignored because washers bind it. When only one family should ignore an href
   that another binds, scope the ignore to that family's registry.
 
+- **Registry hrefs are always canonical — never index or prefix one.** On a
+  multi-unit appliance, `unbound_hrefs` reports the *real* href a gap was seen
+  on, so a sibling's gap shows up as `/foo/vs/1` or
+  `/<uuid>/foo/vs/0`. Do **not** write `Capability(href='/foo/vs/1')` for it.
+  Binding runs against each unit's canonical view, so an indexed or prefixed
+  href in a registry matches nothing on any device and fails silently — no
+  error, no entity, and the gap stays open. Fix it on the `/foo/vs/0` form and
+  every unit gets it at once. (`registry/subunits.py` owns the canonical ⇄
+  actual translation; nothing under `capabilities/` or `by_type/` should ever
+  mention a unit index.)
+
 ## 9. Reuse before writing new code
 
 Check `common.py` (generic OCF: power, energy, alarms, water) and `laundry.py`
@@ -289,8 +331,26 @@ shared module rather than copying.
 1. Add a **scrubbed** fixture `tests/fixtures/<type>_device.json`
    (`{"device0": [ {devcol rep}, {href, rep}, ... ]}`) — replace serials, MACs,
    and other PII with placeholders.
+
+   A multi-unit dump (issue #177) may carry three more top-level keys, all
+   optional and defaulted for every other fixture — load them with
+   `conftest._load_device_full` rather than `_load_device`:
+   - `oic_res`: the raw `/oic/res` link array, which is what enumeration reads
+     to find `/device/<n>` siblings.
+   - `seeds`: `{seed_href: raw_batch_list}` — each sibling's own collection
+     response, in the same `[devcol rep, {href, rep}, ...]` shape as `device0`.
+   - `probes`: `{href: rep}` for plain Property-map resources belonging to no
+     batch (e.g. a hand-read `/multidevice/vs/0`).
+
+   Add a `seeds_note` saying which parts are verbatim captures and which were
+   constructed. A fixture that quietly mixes the two is worse than no fixture:
+   the whole point of the corpus is that it records what hardware actually did.
 2. Generate `tests/fixtures/golden/<type>.json` (`{"state_keys": [...]}`) with
-   the harness in §2.
+   the harness in §2. A multi-unit fixture's golden carries a sibling's keys
+   under a prefix (`unit1_climate`, `sub_<uuid>_climate`) alongside the
+   unprefixed master keys — that's the entity-ID namespacing, not a bug.
+   The master's keys are unprefixed *by design* and must never gain one:
+   that's what keeps every pre-#177 device's `unique_id` stable.
 3. Add the type to `test_golden_regression.py` and write a
    `test_<type>_capabilities.py` asserting **zero unbound hrefs** and that the
    expected entities exist (and any misleading ones are gated).
@@ -303,7 +363,40 @@ The new fixture is picked up automatically by the corpus-wide checks (the
 board token fails the build rather than silently mistyping someone's
 appliance.
 
+## 11. Triage: "one of my units is missing"
+
+For an appliance that exposes several logical indoor units over one IP —
+a 2-in-1 air conditioner, plausibly a multi-drum washer (#19). Work down
+the dump in this order; each step rules out a different cause.
+
+1. **`sub_unit_probes`** — did we even look? Every seed attempted appears
+   here with what it returned. An absent seed means enumeration never tried
+   that path; a `false` means it tried and got nothing.
+2. **`sub_units_skipped`** — did we find it and reject it? A candidate lands
+   here when its seed answered but it produced no *primary* (non-diagnostic)
+   entity with a populated value. Its `resources` block holds the exact reps
+   the gate judged, so you can check the call yourself. If every
+   power/mode/temperature rep is `{}`, the unit is an unused slot and the
+   skip is correct. If they're populated, the gate is wrong — that's a bug
+   worth a fixture.
+3. **`multidevice.numofsubdevice`** — the board's own count, where it
+   reports one. Disagreement with `len(sub_units) + 1` is a strong hint,
+   not proof; only one board family is known to expose it.
+4. **Which pattern is this board?** `identity.resources['/oic/res']` listing
+   `/device/1`, `/device/2` means indexed siblings. `resources['/subdevices/
+   vs/0']` carrying a `subdeviceIdList` means a UUID-prefixed tree, and that
+   same UUID usually shows up as an href prefix in `/oic/res` too. Neither
+   present, on a device the owner insists has two units, is the interesting
+   case — that's a third mechanism and needs a new dump, not a code guess.
+
+Two things that are *not* the fix: adding a capability for an indexed href
+(see §8), and loosening the liveness gate to "any populated entity" — a
+rejected slot routinely reports a non-`None` *diagnostic* value off an empty
+resource, which is exactly what the primary-entity filter exists to ignore.
+
 ## Key files
+- `registry/subunits.py` — `SubUnit`, enumeration, canonical ⇄ actual href
+  translation, and the materialization gate for multi-unit appliances.
 - `registry/discovery.py` — `discover()`, unbound reporting, pattern caps.
 - `registry/capability.py`, `registry/entities.py` — the `Capability` and
   descriptor shapes (`rt_filter`, `match_fn`, `exists_fn`, `rep_fn`, `write_fn`).
