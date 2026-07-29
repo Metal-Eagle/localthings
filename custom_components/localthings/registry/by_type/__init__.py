@@ -1,4 +1,5 @@
 """Per-device-type registries."""
+import re
 from typing import Optional
 
 from ._base import DeviceRegistry
@@ -9,17 +10,17 @@ from . import (
 )
 
 __all__ = [
-    'DeviceRegistry', '_type_key', 'for_device', 'for_device_by_model',
-    'for_device_by_resources',
+    'DeviceRegistry', 'resolve', 'for_device_by_model',
+    'for_device_by_resources', '_board_tokens',
 ]
 
 
+# One entry per registry, no aliases: every key here is reachable from
+# `_BOARD_TOKEN_TO_KEY`, `_CONSUMER_PREFIX_TO_KEY`, or `for_device_by_resources`.
 _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'air_dresser': air_dresser.REGISTRY,
     'air_purifier': air_purifier.REGISTRY,
-    'airpurifier': air_purifier.REGISTRY,
     'airconditioner': airconditioner.REGISTRY,
-    'air_conditioner': airconditioner.REGISTRY,
     'cooktop': cooktop.REGISTRY,
     'dehumidifier': dehumidifier.REGISTRY,
     'dishwasher': dishwasher.REGISTRY,
@@ -27,7 +28,6 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'induction_cooktop': induction_cooktop.REGISTRY,
     'microwave': microwave.REGISTRY,
     'oven': oven.REGISTRY,
-    'hood': range_hood.REGISTRY,
     'range': _range.REGISTRY,
     'range_hood': range_hood.REGISTRY,
     'refrigerator': refrigerator.REGISTRY,
@@ -35,48 +35,6 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'washer': washer.REGISTRY,
     'water_purifier': water_purifier.REGISTRY,
 }
-
-
-def _type_key(one_ui_version: str) -> str:
-    """Convert oneUiVersion string to registry key.
-
-    Args:
-        one_ui_version: String like '7.0 Dishwasher' or 'Oven'.
-
-    Returns:
-        Lowercase key with version prefix stripped and spaces/hyphens converted to underscores.
-
-    Examples:
-        '7.0 Dishwasher' -> 'dishwasher'
-        '7.0 French Door Refrigerator' -> 'french_door_refrigerator'
-        'Oven' -> 'oven'
-    """
-    if ' ' in one_ui_version:
-        # Strip version prefix: everything before and including the first space
-        suffix = one_ui_version.split(' ', 1)[-1]
-    else:
-        suffix = one_ui_version
-
-    return suffix.lower().replace(' ', '_').replace('-', '_')
-
-
-def for_device(one_ui_version: str) -> Optional[DeviceRegistry]:
-    """Return the DeviceRegistry for the given oneUiVersion string, or None if unknown.
-
-    Args:
-        one_ui_version: Device's oneUiVersion string (e.g., '7.0 Dishwasher').
-
-    Returns:
-        DeviceRegistry if a matching registry exists, None otherwise.
-    """
-    key = _type_key(one_ui_version)
-    if key in _REGISTRY_BY_KEY:
-        return _REGISTRY_BY_KEY[key]
-    # Suffix fallback: e.g. "french_door_refrigerator" ends with "_refrigerator"
-    for rkey, reg in _REGISTRY_BY_KEY.items():
-        if key.endswith(f'_{rkey}'):
-            return reg
-    return None
 
 
 # Consumer-model prefix (first two letters of the '_'-delimited token in
@@ -94,21 +52,89 @@ _CONSUMER_PREFIX_TO_KEY: dict[str, str] = {
     'DW': 'dishwasher',
 }
 
+# Board-family token -> registry key, matched against whole tokens of
+# `modelNum`/`description` (see `_board_tokens`).
+#
+# Tokenizing instead of substring-matching is what keeps this a table rather
+# than a ladder of hand-written rules. Samsung spells the same board family
+# with either delimiter -- 'TP1X_DA-AC-RAC-01001' and 'TP2X_RAC_20K' are the
+# same RAC family -- so a substring rule has to be written once per spelling
+# ('_RAC_' *and* '-RAC-'), and a token that lands at the end of the
+# pipe-prefix with no trailing delimiter ('ARTIK051_DONGLE_REF', issues #77
+# and #83) matches no '_TOKEN_' spelling at all. Whole-token matching sees
+# every one of those as a single entry.
+#
+# Entries must name the *specific* device type, never the board family that
+# contains it: 'DA-AC-' prefixes RAC/WAC/DHM/AIR alike, so a bare 'AC' entry
+# would swallow the dehumidifier and the air purifier. Where two families
+# genuinely share a resource surface they share a registry (all the
+# air-conditioner spellings below), which is a statement about the hardware,
+# not a shortcut.
+_BOARD_TOKEN_TO_KEY: dict[str, str] = {
+    'REF': 'refrigerator',
+    # Air conditioners. Every one of these is a distinct board family with
+    # the same resource surface: room (issues #37, #91), package, Korean
+    # (#136), window (#87), 2-in-1 floor+wall (#150, #153), system/commercial
+    # (#52), and ARA-WW wall-mount (#115, #116, #117, #120).
+    'RAC': 'airconditioner',
+    'PRAC': 'airconditioner',
+    'KRAC': 'airconditioner',
+    'WAC': 'airconditioner',
+    'FAC': 'airconditioner',
+    'CAWW': 'airconditioner',
+    'ARA': 'airconditioner',
+    'DHM': 'dehumidifier',          # issue #88 -- target humidity, no climate
+    'TVTL': 'air_purifier',         # issue #56 (ARTIK051)
+    'VTWW': 'air_purifier',         # issue #151 (BESPOKE Cube Air)
+    'AIR': 'air_purifier',          # issue #130 (TP1X_DA-AC-AIR)
+    'WATERPURIFIER': 'water_purifier',   # issue #90
+    'ADW': 'dishwasher',
+    'AHD': 'range_hood',
+    'RANGE': 'range',               # issue #44 -- cooktop+oven combo
+    'OVEN': 'oven',                 # issue #55 -- wall oven, no burners
+    'MICROWAVE': 'microwave',       # issues #66, #121
+    'COOKTOP': 'induction_cooktop',  # issue #86 -- standalone, no oven
+    # Legacy ARTIK051 gas cooktops ('ARTIK051_GB_CT_001'), whose burner state
+    # lives in /mode/vs/0's options array. Deliberately a bare two-letter
+    # token, and so the loosest entry in this table -- it is only ever
+    # reached by a device that matched nothing more specific, and its
+    # `description` ('ARTIK051_GLOBAL_COOKTOP') would otherwise read as an
+    # induction cooktop via the COOKTOP entry above. See `for_device_by_model`
+    # for the field ordering that makes that resolve correctly.
+    'CT': 'cooktop',
+    'VSKR': 'vacuum_station',       # issue #131 -- stick-vacuum clean station
+    'DF': 'air_dresser',            # issue #162
+}
 
-def _model_num_segments(model_num: str) -> list[str]:
-    """Underscore-delimited segments of modelNum's pipe-prefix.
+_TOKEN_SPLIT_RE = re.compile(r'[^A-Z0-9]+')
 
-    Most boards wrap a token in underscores on both sides ('..._REF_...'),
-    which a plain substring check catches fine. But the ARTIK051_DONGLE_REF
-    family (issues #77, #83) reports modelNum as
-    '<board>_DONGLE_REF|<rest...>' -- REF is the *last* segment before the
-    pipe, with no trailing underscore, so '_REF_' never matches and the
-    device silently fell back to 'unknown'. Splitting on '_' and checking
-    segment membership catches both shapes without caring which side (if
-    either) has a delimiter.
+
+def _board_tokens(value: str, cut_at: str) -> list[str]:
+    """Whole, upper-cased tokens of `value` up to the first `cut_at`.
+
+    `cut_at` drops the trailing junk each field carries -- everything after
+    modelNum's first '|' (a board revision and a capability bitmap, which can
+    contain anything) and after description's first '/' (a '/DC92-...' board
+    part number).
     """
-    prefix = (model_num or '').split('|', 1)[0]
-    return prefix.split('_')
+    head = (value or '').split(cut_at, 1)[0].upper()
+    return [t for t in _TOKEN_SPLIT_RE.split(head) if t]
+
+
+def _board_family_key(value: str, cut_at: str) -> Optional[str]:
+    """First `_BOARD_TOKEN_TO_KEY` hit among `value`'s tokens, or None.
+
+    No known modelNum or description yields two *conflicting* board keys, so
+    which token is found first doesn't matter within one field -- the table is
+    a flat lookup, not a priority list. Adding an entry that could co-occur
+    with another (a family token, or one short enough to collide by accident)
+    would break that property; see this table's comment.
+    """
+    for token in _board_tokens(value, cut_at):
+        key = _BOARD_TOKEN_TO_KEY.get(token)
+        if key is not None:
+            return key
+    return None
 
 
 def _consumer_model_key(description: str) -> Optional[str]:
@@ -123,12 +149,18 @@ def _consumer_model_key(description: str) -> Optional[str]:
     segments from the end and take the first one that resolves, rather
     than assuming the last segment is always it.
 
+    Splits on '_' only, unlike `_board_tokens` above: these are two-letter
+    prefixes matched against the *start* of a segment, so widening the split
+    to '-' as well would start reading board-family segments as consumer
+    models -- the dishwasher's 'ADW-WW-RTL-24-AILITE' would offer up a bare
+    'WW' segment and route to washer.
+
     Only a 2-letter *prefix* match -- e.g. 'WAC' (the Window Air Conditioner
     board-family token, issue #87) also starts with 'WA' (the top-load-washer
-    prefix, issue #106) at this granularity. for_device_by_model() calls the
-    board-family modelNum checks first and this function only as a fallback,
-    so that ambiguity resolves correctly without this function needing to
-    know about unrelated device families.
+    prefix, issue #106) at this granularity. for_device_by_model() consults
+    the board-family table first and this function only as a fallback, so
+    that ambiguity resolves correctly without this function needing to know
+    about unrelated device families.
     """
     segments = (description or '').split('/', 1)[0].split('_')
     for segment in reversed(segments):
@@ -139,176 +171,52 @@ def _consumer_model_key(description: str) -> Optional[str]:
 
 
 def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegistry]:
-    """Fallback device-type detection for hardware that never reports
-    oneUiVersion (confirmed for washers -- their /otninformation/vs/0 has
-    no swVersionInfo key at all).
+    """Device-type detection from /information/vs/0's model strings.
+
+    The primary path: the board named in `modelNum` determines the resource
+    surface, which is what a registry describes.
+
+    Three passes, narrowest evidence first:
+
+    1. Board-family tokens in `modelNum`. The most reliable signal -- it names
+       the board, which determines the resource surface.
+    2. The same tokens in `description`. Some units carry the board token only
+       there (a scrubbed or placeholder modelNum, e.g. description
+       'TP1X_REF_21K'). This runs second so that a device whose two fields
+       disagree is typed by its modelNum: the legacy gas cooktop reports
+       'ARTIK051_GB_CT_001' (CT -> gas cooktop) alongside
+       'ARTIK051_GLOBAL_COOKTOP' (COOKTOP -> induction cooktop), and the
+       board is right.
+    3. The consumer-model prefix in `description` (washer/dryer/dishwasher).
+       Last, because a bare two-letter prefix is the fuzziest evidence here
+       and would otherwise shadow the specific board tokens above.
 
     Args:
         model_num: x.com.samsung.da.modelNum from /information/vs/0.
         description: x.com.samsung.da.description from /information/vs/0.
 
     Returns:
-        DeviceRegistry if the consumer-model code or modelNum resolves to a
+        DeviceRegistry if the modelNum or consumer-model code resolves to a
         known type, None otherwise.
     """
-    # Board-family modelNum tokens are checked first, and the fuzzier
-    # 2-letter consumer-model prefix from `description` only as a fallback
-    # (see the bottom of this function) -- some board tokens are themselves
-    # only 2-3 letters long ('WAC', issue #87) and would otherwise collide
-    # with an unrelated consumer prefix at that granularity ('WA', issue #106).
-    key = None
-    if key is None and 'REF' in _model_num_segments(model_num):
-        key = 'refrigerator'
-    # Room air conditioners (e.g. ARTIK051_PRAC_20K) report no oneUiVersion and
-    # a modelNum carrying the '_PRAC_' (Package Room Air Conditioner) token.
-    if key is None and '_PRAC_' in (model_num or ''):
-        key = 'airconditioner'
-    # Other RAC boards carry a bare 'RAC' (Room Air Conditioner) token in the
-    # modelNum, in one of two spellings: the underscore form '_RAC_' (e.g.
-    # TP2X_RAC_20K, issue #37) or the hyphenated form '-RAC-' (e.g.
-    # TP1X_DA-AC-RAC-01001, a cool-only global variant, issue #91). Both are
-    # distinct from '_PRAC_' above ('P' sits before 'RAC' with no delimiter)
-    # and from range ('-RANGE-') / oven ('-OVEN-') tokens. Most TP1X boards
-    # self-report oneUiVersion and resolve via for_device() upstream of this
-    # fallback; the hyphenated match is what rescues variants whose
-    # /otninformation/vs/0 ships no swVersionInfo block at all, so
-    # oneUiVersion is empty.
-    if key is None and ('_RAC_' in (model_num or '')
-                        or '-RAC-' in (model_num or '').upper()):
-        key = 'airconditioner'
-    # System air conditioners (multi-indoor-unit commercial installs, e.g.
-    # A-CAWW-TP2-20-COMMON, issue #52) report no oneUiVersion either and
-    # carry the '-CAWW-' board-family token instead of '_RAC_'/'_PRAC_'.
-    # Same TP1X/TP2X-class resource surface as the room-AC models above
-    # (confirmed by the issue #52 dump binding cleanly against the existing
-    # airconditioner registry once routed here), plus one new SAC-specific
-    # resource (see airconditioner.py's _AC_IGNORED).
-    if key is None and '-CAWW-' in (model_num or '').upper():
-        key = 'airconditioner'
-    # Dehumidifiers (e.g. TP1X_DA_AC_DHM_01001_0000, issue #88) share the
-    # DA_AC_ board family with the room-AC models above but carry the
-    # '_DHM_' (DeHuMidifier) token instead of '_RAC_'/'_PRAC_'. Distinct
-    # registry: target humidity, not temperature, is the primary control,
-    # and there's no climate composite.
-    if key is None and '_DHM_' in (model_num or ''):
-        key = 'dehumidifier'
-    # Window air conditioners (e.g. TP1X_DA_AC_WAC_01001_0000, issue #87)
-    # report no oneUiVersion and carry the '_WAC_' (Window Air Conditioner)
-    # token instead of '_RAC_'/'_PRAC_'. Same TP1X-class resource surface
-    # as the room-AC models above (mode/convenient/wind/temperature/power/
-    # filter/humidity all confirmed against the issue #87 dump binding
-    # cleanly against the existing airconditioner registry once routed
-    # here) -- no WAC-specific resources needed.
-    if key is None and '_WAC_' in (model_num or ''):
-        key = 'airconditioner'
-    # Wind-Free 2-in-1 systems (floor-standing + wall-mounted indoor units
-    # sharing one outdoor unit and one local IP, e.g. TP2X_FAC_BORA_21K,
-    # issues #150/#153) report no oneUiVersion and carry the '_FAC_' token
-    # instead of '_RAC_'/'_PRAC_'. Same TP1X/TP2X-class resource surface as
-    # the room-AC models above.
-    if key is None and '_FAC_' in (model_num or ''):
-        key = 'airconditioner'
-    # ARA-WW-class wall-mount RACs (e.g. ARA-WW-TP1-22-COMMON, issues #115/
-    # #116/#117/#120) report no oneUiVersion and no '_RAC_'/'-RAC-' token at
-    # all -- the board family is spelled 'ARA-WW-' instead. Same resource
-    # surface as the other TP1X-class room ACs above (mode/convenient/wind/
-    # temperature/power/filter/humidity all confirmed against these dumps
-    # binding cleanly against the existing airconditioner registry once
-    # routed here) -- no ARA-WW-specific resources needed, so this reuses
-    # the same registry rather than adding a new device type.
-    if key is None and 'ARA-WW-' in (model_num or '').upper():
-        key = 'airconditioner'
-    # Air purifiers (e.g. ARTIK051_TVTL_18K, issue #56) report no
-    # oneUiVersion either, and carry the '_TVTL_' board-family token.
-    # Room air conditioners on the ARTIK051 board (e.g. ARTIK051_KRAC_18K,
-    # issue #136) report no oneUiVersion and carry a '_KRAC_' token. The '_RAC_'
-    # check above cannot see it -- the 'K' sits between the underscore and 'RAC' --
-    # and the consumer-prefix fallback only covers washers/dryers/dishwashers, so
-    # these units fell back to 'unknown' and exposed nothing but power. Same
-    # ARTIK051 board family as the '_TVTL_' air purifier below.
-    if key is None and '_KRAC_' in (model_num or ''):
-        key = 'airconditioner'
-    if key is None and '_TVTL_' in (model_num or ''):
-        key = 'air_purifier'
-    # BESPOKE Cube Air (e.g. A-VTWW-TP2-21-COMMON, issue #151) reports no
-    # oneUiVersion and carries the hyphenated '-VTWW-' board-family token
-    # (distinct from the underscore-delimited '_TVTL_' ARTIK051 family
-    # above). Its fan lives on /wind/strength/vs/0 rather than /mode/vs/0 --
-    # see capabilities/air_purifier.py's WIND_STRENGTH_FAN.
-    if key is None and '-VTWW-' in (model_num or '').upper():
-        key = 'air_purifier'
-    model_identity = f'{model_num} {description}'.upper()
-    if key is None and ('_COOKTOP' in model_identity or '_GB_CT_' in model_identity):
-        key = 'cooktop'
-    # Water purifiers (e.g. TP2X_WATERPURIFIER_20K, issue #90) report no
-    # oneUiVersion and carry the 'WATERPURIFIER' board-family token.
-    if key is None and 'WATERPURIFIER' in model_identity:
-        key = 'water_purifier'
-    if key is None and model_identity.startswith('AHD-'):
-        key = 'range_hood'
-    # Range/cooktop-oven combos (e.g. TP1X_DA-KS-RANGE-0102X, issue #44) --
-    # like the RAC/PRAC air conditioners above, these report no oneUiVersion
-    # and don't match the washer/dryer/dishwasher consumer-prefix map either.
-    if key is None and '-RANGE-' in (model_num or '').upper():
-        key = 'range'
-    # Wall ovens (e.g. TP1X_DA-KS-OVEN-0107X, issue #55) -- same board-family
-    # naming as the range combo above, minus the burners; also reports no
-    # oneUiVersion and doesn't match the washer/dryer/dishwasher prefix map.
-    if key is None and '-OVEN-' in (model_num or '').upper():
-        key = 'oven'
-    # Microwaves, both combi (e.g. TP1X_DA-KS-MICROWAVE-01041, issue #121)
-    # and plain (e.g. TP2X_DA-KS-MICROWAVE-01011, issue #66) -- same board
-    # family as the wall oven above (an '/oven/vs/0' cavity resource, same
-    # /operational/state/vs/0 + /doors/vs/0 shape), but a distinct mode
-    # vocabulary (Convection/AirFryer/Grill/MicroWave*) and setpoint bounds
-    # from the oven registry, plus a powerLevel field ovens don't report --
-    # its own device type rather than folded into 'oven' (issue #121 shipped
-    # it onto the oven registry initially; split out per user feedback).
-    # Reports no oneUiVersion and doesn't match the washer/dryer/dishwasher
-    # prefix map either.
-    if key is None and '-MICROWAVE-' in (model_num or '').upper():
-        key = 'microwave'
-    # Standalone induction cooktops (e.g. TP1X_DA-KS-COOKTOP-01011, issue
-    # #86) -- same board family and '/cooktop/status/vs/0' resource shape
-    # as the range combo above, but no oven attached at all. Distinct from
-    # the '_COOKTOP'/'_GB_CT_' underscore-delimited check above: that one
-    # matches a different, older gas-cooktop family (cooktop.py's NA9300K
-    # class, burner state embedded in /mode/vs/0's options array) whose
-    # modelNum token is underscore-delimited, not hyphenated like this
-    # board family's.
-    if key is None and '-COOKTOP-' in (model_num or '').upper():
-        key = 'induction_cooktop'
-    # Stick-vacuum clean/auto-empty station (e.g. A-VSKR-TP1-22-VS9500AL,
-    # issue #131) -- reports no oneUiVersion and carries the '-VSKR-'
-    # board-family token. See capabilities/vacuum_station.py for why this
-    # is its own device type: the resource set (dustbag/dustbin/UV-sanitize
-    # station state) shares no hrefs with anything else already modeled.
-    if key is None and '-VSKR-' in (model_num or '').upper():
-        key = 'vacuum_station'
-    # AirDresser (e.g. DA_DF_A51_20_COMMON, issue #162) -- reports no
-    # oneUiVersion and carries the '_DF_' (Dresser Function) board-family
-    # token. Every resource it exposes (course select, wrinkle-prevent
-    # setting, diagnosis) is already handled by the shared laundry
-    # machinery; it needs its own device type only because none of the
-    # washer/dryer/dishwasher consumer-model prefixes below match it.
-    if key is None and '_DF_' in (model_num or ''):
-        key = 'air_dresser'
-    # Consumer-model prefix from `description` (washer/dryer/dishwasher) --
-    # last, since it's the fuzziest match (a bare 2-letter prefix) and would
-    # otherwise shadow the more specific board-family tokens above.
-    if key is None:
-        key = _consumer_model_key(description)
+    key = (
+        _board_family_key(model_num, '|')
+        or _board_family_key(description, '/')
+        or _consumer_model_key(description)
+    )
     return _REGISTRY_BY_KEY.get(key) if key else None
 
 
 def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
     """Detect a device family from a distinctive local-resource signature.
 
-    Some newer cooktops omit both ``oneUiVersion`` and
-    ``/information/vs/0``.  Their mode resource still identifies them: it
-    contains a DeviceType option and multiple per-burner OperationState
-    options.  Require both shapes so an oven's unrelated ``/mode/vs/0`` is
-    not misclassified.
+    For boards that ship no ``/information/vs/0`` at all, leaving
+    `for_device_by_model` nothing to read. Some newer cooktops are the
+    original case: their mode resource still identifies them, carrying a
+    DeviceType option and multiple per-burner OperationState options.
+
+    Require two independent shapes for every signature here, never one, so
+    an unrelated family's ``/mode/vs/0`` isn't misclassified.
     """
     mode = resources.get('/mode/vs/0', {})
     options = mode.get('x.com.samsung.da.options') or ()
@@ -344,3 +252,28 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
                 return _REGISTRY_BY_KEY['range']
             return _REGISTRY_BY_KEY['oven']
     return None
+
+
+def resolve(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
+    """Device type for a parsed /device/0 dump, or None if unrecognized.
+
+    The single entry point for detection -- the coordinator, the config
+    flow's probe and the golden-regression harness all call this, so the
+    order can't drift between what ships and what the tests assert.
+
+    Model strings first (`for_device_by_model`), then a distinctive resource
+    signature (`for_device_by_resources`) for boards that report no
+    /information/vs/0 at all.
+
+    `/otninformation/vs/0`'s oneUiVersion is deliberately not consulted. It
+    reads like the obvious signal -- the device naming its own type, e.g.
+    '7.0 Dishwasher' -- but only a minority of hardware populates it, every
+    device that does is already typed by its modelNum board token, and no
+    device-support issue has ever been fixed by adding a mapping for it. It
+    is still reported in diagnostics as a firmware-generation marker.
+    """
+    info = resources.get('/information/vs/0', {})
+    return for_device_by_model(
+        info.get('x.com.samsung.da.modelNum', ''),
+        info.get('x.com.samsung.da.description', ''),
+    ) or for_device_by_resources(resources)

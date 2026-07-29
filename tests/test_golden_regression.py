@@ -7,22 +7,10 @@ GOLDEN = Path(__file__).parent / 'fixtures' / 'golden'
 
 
 def _new_state_keys(name, resources):
-    from custom_components.localthings.registry.by_type import (
-        for_device, for_device_by_model, for_device_by_resources,
-    )
+    from custom_components.localthings.registry.by_type import resolve
     from custom_components.localthings.registry.discovery import discover
     from custom_components.localthings.registry.adapter import flatten
-    otn = resources.get('/otninformation/vs/0', {})
-    one_ui = otn.get('swVersionInfo', {}).get('oneUiVersion', '')
-    info = resources.get('/information/vs/0', {})
-    reg = for_device(one_ui) if one_ui else None
-    if reg is None:
-        reg = for_device_by_model(
-            info.get('x.com.samsung.da.modelNum', ''),
-            info.get('x.com.samsung.da.description', ''),
-        )
-    if reg is None:
-        reg = for_device_by_resources(resources)
+    reg = resolve(resources)
     if reg is None:
         from custom_components.localthings.registry.registry import CAPABILITIES
         caps, pats = CAPABILITIES, []
@@ -422,7 +410,7 @@ def test_registry_reproduces_golden_state_keys_for_tp1x_rac():
 def test_registry_reproduces_golden_state_keys_for_tp1x_rac_coolonly():
     """TP1X_DA-AC-RAC-01001 cool-only global variant (issue #91) whose
     /otninformation/vs/0 ships no swVersionInfo block -- resolves via the
-    hyphenated '-RAC-' modelNum fallback rather than for_device()."""
+    'RAC' board token in its modelNum."""
     from tests.conftest import _load_device
     resources = _load_device('airconditioner_tp1x_rac_coolonly')
     golden = json.loads((GOLDEN / 'airconditioner_tp1x_rac_coolonly.json').read_text())
@@ -692,7 +680,8 @@ def test_registry_reproduces_golden_state_keys_for_microwave_me7500d_lamp_high()
 
 def test_registry_reproduces_golden_state_keys_for_air_purifier_tp1x_da_ac_air():
     """TP1X_DA-AC-AIR-01031_0000 (issue #130) self-reports oneUiVersion
-    '7.0 Air purifier' and resolves via for_device() onto the existing
+    '7.0 Air purifier' (unused for routing) and resolves via its 'AIR'
+    board token onto the existing
     air_purifier registry (shared with the older ARTIK051_TVTL family via
     per-href match_fn discrimination -- see capabilities/air_purifier.py).
     Its /mode/vs/0 reports modes/supportedModes directly (Smart/Max/Mid/

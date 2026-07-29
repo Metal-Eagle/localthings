@@ -214,9 +214,7 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
     import cbor2
     from smartthings_local.protocol.dtls_session import DtlsCoapSession
     from .registry.batch import parse_device0_batch
-    from .registry.by_type import (
-        for_device, for_device_by_model, for_device_by_resources,
-    )
+    from .registry.by_type import resolve as resolve_registry
 
     _LOGGER.debug("Fetching Samsung cloud UUID from %s", _SAMSUNG_CLOUD_HOST)
     try:
@@ -275,25 +273,12 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
             )
             if not serial or _is_placeholder_serial(serial):
                 serial = f"{host}:{port}"
-            one_ui_version = (
-                resources
-                .get('/otninformation/vs/0', {})
-                .get('swVersionInfo', {})
-                .get('oneUiVersion', '')
-            )
-            info_resource = resources.get('/information/vs/0', {})
-            recognized_registry = (
-                for_device(one_ui_version) if one_ui_version else None
-            ) or for_device_by_model(
-                info_resource.get('x.com.samsung.da.modelNum', ''),
-                info_resource.get('x.com.samsung.da.description', ''),
-            ) or for_device_by_resources(resources)
+            recognized_registry = resolve_registry(resources)
             return {
                 "port": port,
                 "serial": serial,
                 "leaf_cert_pem": fullchain_pem,
                 "leaf_key_pem": leaf_key_pem,
-                "one_ui_version": one_ui_version,
                 "device_type_recognized": recognized_registry is not None,
             }
         except CannotConnect:
@@ -407,26 +392,8 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Shown only when the probe already knows the device type is unrecognized."""
         if user_input is not None:
             return self._create_entry(self._pending_info)
-
-        if not self._pending_info["one_ui_version"]:
-            return await self.async_step_confirm_unknown_type_no_version()
-
         return self.async_show_form(
             step_id="confirm_unknown_type",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "one_ui_version": self._pending_info["one_ui_version"],
-            },
-        )
-
-    async def async_step_confirm_unknown_type_no_version(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Confirm an unknown appliance that did not report oneUiVersion."""
-        if user_input is not None:
-            return self._create_entry(self._pending_info)
-        return self.async_show_form(
-            step_id="confirm_unknown_type_no_version",
             data_schema=vol.Schema({}),
         )
 

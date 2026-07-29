@@ -23,7 +23,7 @@ from smartthings_local.protocol.dtls_session import DtlsCoapSession
 from smartthings_local.ocf.state_cache import StateCache
 
 from .registry.batch import parse_device0_batch
-from .registry.by_type import for_device, for_device_by_model, for_device_by_resources
+from .registry.by_type import resolve as resolve_registry
 from .registry.capabilities.common import (
     merge_items_field,
     merge_options_field,
@@ -352,19 +352,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     def _run_discovery(self, resources: dict[str, dict]) -> None:
-        one_ui = (resources.get('/otninformation/vs/0', {})
-                  .get('swVersionInfo', {})
-                  .get('oneUiVersion', ''))
-        self.one_ui_version = one_ui
+        # Reported for diagnostics only -- it names the firmware generation
+        # ('7.0 Air conditioner' is Tizen Lite), which is useful when triaging
+        # an issue. It does not route: only a minority of hardware reports it
+        # at all, and every device that does is already typed by its modelNum.
+        self.one_ui_version = (resources.get('/otninformation/vs/0', {})
+                               .get('swVersionInfo', {})
+                               .get('oneUiVersion', ''))
         info = resources.get('/information/vs/0', {})
-        reg = for_device(one_ui) if one_ui else None
-        if reg is None:
-            reg = for_device_by_model(
-                info.get('x.com.samsung.da.modelNum', ''),
-                info.get('x.com.samsung.da.description', ''),
-            )
-        if reg is None:
-            reg = for_device_by_resources(resources)
+        reg = resolve_registry(resources)
         unbound: list[str] = []
         hot, warm = set(), set()
 
@@ -374,13 +370,21 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             elif tier == 'warm':
                 warm.add(href)
 
+        model_num = info.get('x.com.samsung.da.modelNum', '')
+        description = info.get('x.com.samsung.da.description', '')
         if reg is not None:
-            self._log.debug("device type: %s (oneUiVersion=%r)", reg.name, one_ui)
+            self._log.debug("device type: %s (modelNum=%r)", reg.name, model_num)
             bound = discover(resources, reg.capabilities, reg.pattern_capabilities,
                               log=unbound.append, tier_log=_tier_log)
             self.device_type_name = reg.name
         else:
-            self._log.warning("unknown device type oneUiVersion=%r; using common caps", one_ui)
+            # Both fields: detection reads each of them (board token, then
+            # consumer-model code), and this line is what a user pastes into
+            # an issue -- modelNum alone doesn't identify a washer or dryer.
+            self._log.warning(
+                "unknown device type modelNum=%r description=%r; using common caps",
+                model_num, description,
+            )
             bound = discover(resources, CAPABILITIES, log=unbound.append, tier_log=_tier_log)
             self.device_type_name = None
         self.bound = bound
@@ -393,7 +397,6 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         ident = self._identity
         device_type = reg.name.replace('_', ' ').title() if reg else 'Appliance'
-        model_num = info.get('x.com.samsung.da.modelNum', '')
         model = model_num.split('|', 1)[0] if model_num else (ident.model if ident else '')
         name  = f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
         mfr   = (ident.manufacturer if ident else '') or 'Samsung'

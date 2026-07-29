@@ -5,6 +5,8 @@ description: >-
   /device/0 diagnostics dump. Use when a device-support issue lands, a device
   raises the "incomplete capability coverage" repair, a diagnostics JSON needs
   triaging, or you're mapping OCF resources to HA entities. Covers reading dumps,
+  routing an unrecognized board family to a registry (modelNum board tokens,
+  resource signatures),
   OCF-standard vs vendor hrefs, the diagnostic/config/normal entity taxonomy,
   preferring dynamic (device-reported) select options over hardcoded lists,
   ensuring every href is bound or ignored, and locking it in with a fixture +
@@ -47,9 +49,7 @@ discovery = importlib.import_module('custom_components.localthings.registry.disc
 adapter   = importlib.import_module('custom_components.localthings.registry.adapter')
 
 resources = json.load(open('dump.json'))['data']['resources']
-info = resources['/information/vs/0']
-reg = by_type.for_device_by_model(info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
-# or: by_type.for_device(one_ui_version)  when /otninformation has swVersionInfo.oneUiVersion
+reg = by_type.resolve(resources)      # the same entry point the coordinator uses
 unbound = []
 bound = discovery.discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
 state = adapter.flatten(bound, resources)   # {entity_key: value}
@@ -61,7 +61,95 @@ print('state_keys:', sorted(state))
 `exists_fn` and produces the final entity values. Use the same routine to
 regenerate a golden.
 
-## 3. OCF-standard vs vendor hrefs (`/x/0` vs `/x/vs/0`)
+## 3. Route the device to a registry — add a row, never a branch
+
+If detection returns `None`, the device falls back to common capabilities and
+loses roughly **half** its entities (measured across the fixture corpus: 843 of
+1510 bound entities survive). So routing is the first thing to fix, and
+`registry/by_type/__init__.py` is deliberately kept boring.
+
+`resolve(resources)` is the only entry point — the coordinator, the config
+flow's probe and the golden-regression harness all call it, so the order can't
+drift between what ships and what the tests assert. Two stages:
+
+1. **`for_device_by_model(model_num, description)`** — the primary path. Both
+   fields come from `/information/vs/0`. Board-family tokens are matched
+   against `modelNum` first, then `description`, then the fuzzy two-letter
+   consumer-model prefix.
+2. **`for_device_by_resources(resources)`** — for boards that report no
+   `/information/vs/0` at all. Needs a *distinctive* signature.
+
+**`oneUiVersion` is not consulted.** It looks like the obvious signal — the
+device naming its own type, `'7.0 Dishwasher'` — and it used to be stage one.
+But only a minority of hardware reports it, every device that does is already
+typed by its modelNum board token (`TestOneUiVersionIsNotConsulted` checks that
+against the whole corpus), and no device-support issue was ever fixed by adding
+a mapping for it. Don't reintroduce it as a detection stage; it stays in
+diagnostics as a firmware-generation marker (`'7.0 Air conditioner'` means
+Tizen Lite), which is useful when triaging.
+
+### Adding a board family
+
+Almost always a one-line addition to `_BOARD_TOKEN_TO_KEY`:
+
+```python
+'VSKR': 'vacuum_station',   # issue #131 -- stick-vacuum clean station
+```
+
+Matching is on **whole tokens** of the model string, split on any run of
+non-alphanumerics and upper-cased. That is what keeps this a table, and it
+carries rules:
+
+- **Never add a delimiter spelling.** `'_RAC_'` and `'-RAC-'` are the same
+  entry, `RAC`. If you find yourself adding a second row for punctuation, the
+  tokenizer already handled it.
+- **Name the specific type, never the board family.** `DA-AC-` prefixes
+  RAC/WAC/DHM/AIR alike — a bare `'AC'` row would swallow the dehumidifier
+  and the air purifier. Same for `DA`, `KS`, `WM`, `TP1X`, `ARTIK051`.
+  `TestBoardTokenTable` asserts these stay out.
+- **Never add a token that can co-occur with another.** `_board_family_key`
+  returns the first hit, which is only safe while no real model string
+  contains two tokens naming different types.
+  `TestBoardTokenAmbiguity` checks that invariant against every fixture, so a
+  new dump exercises it automatically — if it fails, the answer is a narrower
+  token, not a reordering.
+- **Two-letter tokens are a last resort.** `'CT'` (legacy gas cooktop) is the
+  only one, and it is loose enough to collide by accident.
+
+Reach past the table only when the evidence isn't a board token:
+
+- **Consumer-model prefix** (`_CONSUMER_PREFIX_TO_KEY`) — for washers, dryers
+  and dishwashers, whose `modelNum` is the shared `DA_WM_` laundry board and
+  whose real type is only in `description`'s trailing model code
+  (`..._WA8000T`). Deliberately split on `_` only: widening it to `-` would
+  read the dishwasher's `ADW-WW-RTL-24-AILITE` board segment as a `WW`
+  washer. Consulted last because a two-letter prefix is the weakest evidence
+  here — `WAC` (window AC) starts with `WA` (top-load washer).
+- **Resource signature** (`for_device_by_resources`) — only when
+  `/information/vs/0` is absent entirely. Require **two** independent shapes
+  (e.g. `/oven/vs/0` present *and* a `MicroWave*` entry in `supportedModes`),
+  never one, or an unrelated family's `/mode/vs/0` will match.
+
+### If the model string identifies nothing
+
+Check the diagnostics `identity` block before inventing a rule: it carries
+`/oic/p` and `/oic/d`, which sit outside the `/device/0` dump.
+`identity.device_types` is `/oic/d`'s `rt` — OCF's own device-type
+declaration (`oic.d.airconditioner`). Nothing routes on it yet because no
+captured dump has ever included it; if real hardware turns out to populate it,
+it beats parsing board part numbers and this whole section shrinks. Note in
+the issue when a dump has it.
+
+### Sharing a registry vs adding one
+
+Route a new family to an **existing** registry when its resource surface
+matches (most AC board families do — verify by checking the dump binds with
+zero unbound hrefs). Add a **new** registry only when the resources genuinely
+differ: `vacuum_station` earned one because it shares no hrefs with anything
+modelled; `microwave` split from `oven` over a distinct mode vocabulary,
+setpoint bounds, and a `powerLevel` field.
+
+## 4. OCF-standard vs vendor hrefs (`/x/0` vs `/x/vs/0`)
 
 Samsung appliances run RT-OCF and often expose the **same state twice**:
 - `/x/vs/0` — **vendor** resource, `x.com.samsung.da.*` fields.
@@ -83,7 +171,7 @@ resource from the populated dump:
 Course/cycle is **not** an OCF question — there's no standard course resource, so
 `/course/vs/0` (and the `/st/*course/vs/0` re-encoding) are both vendor.
 
-## 4. Entity taxonomy — the judgement call
+## 5. Entity taxonomy — the judgement call
 
 For each field worth exposing, decide the entity kind and category
 (`entity_category` on the descriptor):
@@ -104,7 +192,7 @@ sub-polled between summary polls. Pick descriptor types from `entities.py`
 as a gap for a human, or ignore it with a documented reason — never invent an
 entity on a hunch (`ignored.py`'s rule).
 
-## 5. Select options: read them from the device, don't hardcode
+## 6. Select options: read them from the device, don't hardcode
 
 A `SelectDesc`'s `options` should come from the device's own advertised list
 whenever the resource carries one, not from a Python tuple typed in from a
@@ -134,7 +222,7 @@ permanent design choice: migrate it to `options_field`/a callable the moment
 a dump with a real supported-values list surfaces, instead of just adding
 the new values to the static tuple.
 
-## 6. Names and enum labels live in translations, never in Python
+## 7. Names and enum labels live in translations, never in Python
 
 Descriptors have **no `name` field**. Every entity is named from the shipped
 catalog, keyed by `translation_key` — which defaults to the descriptor's own
@@ -173,7 +261,7 @@ no `[%key:...%]` resolution (that's Core build tooling). Every other language
 must mirror `en.json` key for key — also enforced by
 `tests/test_translations.py`.
 
-## 7. Coverage discipline: bound or ignored
+## 8. Coverage discipline: bound or ignored
 
 Every href in the dump must resolve, or the repair fires. If a resource isn't
 worth an entity, add it to `capabilities/ignored.py` (a no-entity `Capability`)
@@ -187,7 +275,7 @@ friendlier href**.
   ignored because washers bind it. When only one family should ignore an href
   that another binds, scope the ignore to that family's registry.
 
-## 8. Reuse before writing new code
+## 9. Reuse before writing new code
 
 Check `common.py` (generic OCF: power, energy, alarms, water) and `laundry.py`
 (shared washer/dryer/dishwasher: buzzer, job status, `cycle_select` + course
@@ -196,7 +284,7 @@ registry uses `fridge.FIRMWARE_UPDATE`; all three laundry families share
 `laundry.cycle_select`. If two families hand-roll the same helper, hoist it to a
 shared module rather than copying.
 
-## 9. Lock it in
+## 10. Lock it in
 
 1. Add a **scrubbed** fixture `tests/fixtures/<type>_device.json`
    (`{"device0": [ {devcol rep}, {href, rep}, ... ]}`) — replace serials, MACs,
@@ -208,6 +296,12 @@ shared module rather than copying.
    expected entities exist (and any misleading ones are gated).
 4. Run `pytest tests/ -q` — and re-run the golden tests for **other** device
    types after any change to `common.py`/`laundry.py`, since they share those.
+
+The new fixture is picked up automatically by the corpus-wide checks (the
+`all_device_fixtures` conftest fixture), including
+`TestBoardTokenAmbiguity` — so a model string that collides with an existing
+board token fails the build rather than silently mistyping someone's
+appliance.
 
 ## Key files
 - `registry/discovery.py` — `discover()`, unbound reporting, pattern caps.

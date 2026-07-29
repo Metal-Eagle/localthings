@@ -1,8 +1,8 @@
 """Capabilities specific to the AirDresser family (Samsung DA_DF-class,
 issues #162/#157).
 
-This board family reports no oneUiVersion and no /information/vs/0 token
-any existing family routes on, so it gets its own device type -- but most
+This board family carried no /information/vs/0 token any existing family
+routed on, so it gets its own device type (the 'DF' board token) -- but most
 of the resources it exposes are already handled by the shared laundry
 machinery:
 

@@ -31,9 +31,19 @@ async def async_get_config_entry_diagnostics(
     # detector when called inline here. Offload it to the executor.
     stl_version = await hass.async_add_executor_job(pkg_version, "smartthings-local")
 
+    # /oic/p and /oic/d sit outside the /device/0 batch captured below, so
+    # they'd otherwise never reach an issue report. /oic/d's `rt` is OCF's
+    # standard device-type declaration -- see registry/identity.py.
+    identity = coordinator._identity
     return {
         "device_type": coordinator.device_type_name or "unknown",
         "one_ui_version": coordinator.one_ui_version,
+        "identity": {
+            "manufacturer": identity.manufacturer,
+            "model": identity.model,
+            "device_types": list(identity.device_types),
+            "resources": redact_resources(identity.raw),
+        } if identity is not None else None,
         "unbound_hrefs": sorted(coordinator._unbound_hrefs),
         "resources": redact_resources(coordinator.last_resources),
         "integration_version": integration.version,

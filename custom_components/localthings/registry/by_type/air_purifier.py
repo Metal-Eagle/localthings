@@ -4,16 +4,16 @@ Spans three board generations sharing this one registry (see
 capabilities/air_purifier.py's module docstring for the per-href
 match_fn discriminators that keep them from colliding):
 
-- ARTIK051_TVTL-class (issue #56). Reports no oneUiVersion; resolved via
-  for_device_by_model's '_TVTL_' modelNum token (see registry.py).
-- TP1X_DA-AC-AIR-class (issue #130). Self-reports oneUiVersion "7.0 Air
-  purifier", resolved via for_device(). Adds real fan-mode control plus
+- ARTIK051_TVTL-class (issue #56). Resolved via the 'TVTL' modelNum board
+  token (see by_type/__init__.py).
+- TP1X_DA-AC-AIR-class (issue #130). Resolved via the 'AIR' board token.
+  Adds real fan-mode control plus
   display/HEPA-filter/pet-filter/sound resources the older family never
   reported; reuses airconditioner.DISPLAY_LIGHT and airconditioner.MUTE_ONCE
   for /light/vs/0 and /option/muteonce/vs/0, which are identical shapes on
   the shared DA-AC- board family.
-- A-VTWW-TP2-21-COMMON-class (issue #151). Reports no oneUiVersion and no
-  existing modelNum token; falls back to unknown until routed here. Its fan
+- A-VTWW-TP2-21-COMMON-class (issue #151). Resolved via the 'VTWW' board
+  token, added for it. Its fan
   is WIND_STRENGTH_FAN on /wind/strength/vs/0 rather than FAN on
   /mode/vs/0 -- see that capability's comment.
 
