@@ -105,6 +105,38 @@ def test_find_live_ports_detects_silent_port(socket_enabled) -> None:
     assert result == [live_port]
 
 
+def test_find_live_ports_rescues_preferred_ports_the_sweep_missed(
+    socket_enabled,
+) -> None:
+    """Issue #192: a segregated VLAN made the ICMP-based sweep call three
+    closed ports live while missing the one port (49154, a historically
+    confirmed DTLS port) that nmap showed as genuinely open|filtered. The
+    sweep's verdict on a preferred port shouldn't be trusted blindly --
+    it must always come back as a candidate even if the sweep marked it
+    dead, so the config flow gets a real handshake attempt against it."""
+    import socket
+
+    from custom_components.localthings.config_flow import _find_live_ports
+
+    # Bind and immediately close a socket on 49154 so loopback refuses
+    # datagrams to it -- standing in for the sweep wrongly ruling out a
+    # port we have strong prior evidence for.
+    reserved = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    reserved.bind(('127.0.0.1', 49154))
+    reserved.close()
+
+    live_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    live_sock.bind(('127.0.0.1', 0))
+    live_port = live_sock.getsockname()[1]
+
+    try:
+        result = _find_live_ports('127.0.0.1', [49154, live_port], 0.8)
+    finally:
+        live_sock.close()
+
+    assert set(result) == {49154, live_port}
+
+
 async def test_probe_uses_discovered_low_port(hass: HomeAssistant, monkeypatch) -> None:
     """A device that only answers on 49153 — outside the historical
     49154/49155 pair — is found by the liveness sweep and its port is stored

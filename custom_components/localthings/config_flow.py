@@ -194,7 +194,17 @@ def _find_live_ports(host: str, ports: list[int], timeout: float) -> list[int]:
             except OSError:
                 pass
 
-    return _order_candidates(live)
+    # The sweep's ICMP-based verdict isn't reliable on every network path --
+    # issue #192 captured a segregated-VLAN device where it called three
+    # ports live that a concurrent nmap scan showed as closed, while the
+    # port nmap found genuinely open|filtered (49154, one of our historically
+    # confirmed ports) never showed up as live at all. Rather than trust a
+    # wrong "not live" verdict on a port we already have strong prior
+    # evidence for, always give the historically-confirmed ports a real
+    # handshake attempt too. Bounded cost: at most len(PREFERRED_PROBE_PORTS)
+    # extra handshakes, only when the sweep disagrees with the prior.
+    rescued = [p for p in PREFERRED_PROBE_PORTS if p in ports and p not in live]
+    return _order_candidates(live + rescued)
 
 
 def _is_placeholder_serial(serial: str) -> bool:
