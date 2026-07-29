@@ -1,4 +1,4 @@
-"""Read device identity from standard OCF resources (/oic/p, /oic/d)."""
+"""Read device identity from standard OCF resources (/oic/p, /oic/d, /oic/res)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -28,6 +28,20 @@ def _get(sess, path) -> dict:
     return {}
 
 
+def _get_links(sess, path) -> list:
+    """Like _get, but for /oic/res: a baseline-Interface RETRIEVE on it
+    returns a CBOR array of Link objects (href/rt/if/di/...), not a single
+    Property map."""
+    try:
+        code, pl = sess.get(path, timeout=10.0)
+        if code == 0x45 and pl:
+            body = cbor2.loads(pl)
+            return body if isinstance(body, list) else []
+    except Exception:
+        pass
+    return []
+
+
 def _device_types(d: dict) -> tuple[str, ...]:
     """/oic/d's `rt` -- the device's own OCF device-type declaration.
 
@@ -52,6 +66,16 @@ def _device_types(d: dict) -> tuple[str, ...]:
 def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
     p = _get(sess, ['oic', 'p'])
     d = _get(sess, ['oic', 'd'])
+    # /oic/res is OCF's baseline resource-discovery endpoint: a unicast
+    # RETRIEVE on it returns every Resource/Collection href this endpoint
+    # hosts, not just the one /device/0 seed path the coordinator polls.
+    # Relevant for the OCF "Composite Device" model (issue #177: a single
+    # physical unit -- one IP, one /oic/p -- exposing more than one logical
+    # Device, each as its own Collection resource, same rt shape as our own
+    # /device/0). Nothing consumes this yet; captured so a report from a
+    # multi-unit device shows us whether its firmware actually implements
+    # that model before any code assumes it does.
+    res = _get_links(sess, ['oic', 'res'])
     return DeviceIdentity(
         manufacturer=p.get('mnmn') or 'Samsung',
         model=p.get('mnmo') or '',
@@ -61,5 +85,5 @@ def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
         # Kept whole rather than field-by-field: these resources are outside
         # the /device/0 dump diagnostics already captures, and we don't yet
         # know which of their fields will turn out to identify a device type.
-        raw={'/oic/p': p, '/oic/d': d},
+        raw={'/oic/p': p, '/oic/d': d, '/oic/res': res},
     )

@@ -80,6 +80,48 @@ async def test_diagnostics_include_ocf_identity(
     assert identity['resources']['/oic/d']['rt'] == ['oic.wk.d', 'oic.d.refrigerator']
 
 
+async def test_diagnostics_include_oic_res_links(
+    hass: HomeAssistant, mock_entry, mock_coordinator_session
+) -> None:
+    """/oic/res -- OCF's resource-discovery endpoint -- rides along in
+    identity.raw the same way /oic/p and /oic/d do. Its response is a list
+    of Link objects (one per href/Collection the endpoint hosts), not a
+    single Property map, so redaction has to walk into the list too."""
+    from custom_components.localthings.registry.identity import DeviceIdentity
+
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    coordinator._identity = DeviceIdentity(
+        manufacturer='Samsung Electronics',
+        model='RF9000B',
+        name='Family Hub',
+        serial=None,
+        device_types=('oic.wk.d', 'oic.d.refrigerator'),
+        raw={
+            '/oic/p': {'mnmn': 'Samsung Electronics'},
+            '/oic/d': {'rt': ['oic.wk.d', 'oic.d.refrigerator']},
+            '/oic/res': [
+                {'di': 'aaaa-1111', 'href': '/device/0',
+                 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+                {'di': 'bbbb-2222', 'href': '/device/1',
+                 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+            ],
+        },
+    )
+
+    diag = await async_get_config_entry_diagnostics(hass, mock_entry)
+
+    links = diag['identity']['resources']['/oic/res']
+    assert len(links) == 2
+    assert links[0]['di'] == REDACTED
+    assert links[0]['href'] == '/device/0'
+    assert links[1]['di'] == REDACTED
+    assert links[1]['href'] == '/device/1'
+    assert links[1]['rt'] == ['x.com.samsung.devcol', 'oic.wk.col']
+
+
 async def test_diagnostics_identity_none_when_unavailable(
     hass: HomeAssistant, mock_entry, mock_coordinator_session
 ) -> None:

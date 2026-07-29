@@ -31,9 +31,13 @@ async def async_get_config_entry_diagnostics(
     # detector when called inline here. Offload it to the executor.
     stl_version = await hass.async_add_executor_job(pkg_version, "smartthings-local")
 
-    # /oic/p and /oic/d sit outside the /device/0 batch captured below, so
-    # they'd otherwise never reach an issue report. /oic/d's `rt` is OCF's
-    # standard device-type declaration -- see registry/identity.py.
+    # /oic/p, /oic/d, and /oic/res sit outside the /device/0 batch captured
+    # below, so they'd otherwise never reach an issue report. /oic/d's `rt`
+    # is OCF's standard device-type declaration; /oic/res is OCF's
+    # discovery endpoint, listing every href/Collection the connection
+    # hosts -- relevant to the "Composite Device" model (issue #177) where
+    # a single physical unit exposes more than one logical Device. See
+    # registry/identity.py.
     identity = coordinator._identity
     return {
         "device_type": coordinator.device_type_name or "unknown",
