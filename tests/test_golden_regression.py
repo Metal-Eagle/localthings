@@ -859,6 +859,26 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_cac():
+    """TP1X_DA-AC-CAC-01001_0000 (issue #191) -- fell back to 'unknown' in
+    0.16.0 when oneUiVersion detection was dropped, since 'CAC' had never
+    been added to the modelNum board-token table. Resolved via the new 'CAC'
+    token onto the existing airconditioner registry. Not fully covered yet --
+    ten hrefs remain unbound (edge lighting, PM1 filter, stateful light,
+    absence-clean, four sound-settings resources, smart-sensing-cooling, UV
+    LED), all genuinely new to this board generation and out of scope for
+    the routing fix; see test_airconditioner_cac.py for the documented gap."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_cac')
+    golden = json.loads((GOLDEN / 'airconditioner_cac.json').read_text())
+    state_keys = _new_state_keys('airconditioner_cac', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier_avt_ww():
     """AVT-WW-TP1-23-AXX500 (issue #190) -- next-gen BESPOKE Cube Air board;
     reports device_type 'unknown' with empty oneUiVersion because 'VTWW' as a

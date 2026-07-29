@@ -106,35 +106,44 @@ def test_find_live_ports_detects_silent_port(socket_enabled) -> None:
 
 
 def test_find_live_ports_rescues_preferred_ports_the_sweep_missed(
-    socket_enabled,
+    socket_enabled, monkeypatch,
 ) -> None:
     """Issue #192: a segregated VLAN made the ICMP-based sweep call three
-    closed ports live while missing the one port (49154, a historically
-    confirmed DTLS port) that nmap showed as genuinely open|filtered. The
-    sweep's verdict on a preferred port shouldn't be trusted blindly --
-    it must always come back as a candidate even if the sweep marked it
-    dead, so the config flow gets a real handshake attempt against it."""
+    closed ports live while missing the one port (a historically confirmed
+    DTLS port) that nmap showed as genuinely open|filtered. The sweep's
+    verdict on a preferred port shouldn't be trusted blindly -- it must
+    always come back as a candidate even if the sweep marked it dead, so the
+    config flow gets a real handshake attempt against it.
+
+    Uses an OS-assigned port monkeypatched into PREFERRED_PROBE_PORTS rather
+    than the real 49154/49155, so this doesn't depend on those specific
+    system ports being free on whatever machine runs the suite.
+    """
     import socket
 
+    from custom_components.localthings import config_flow
     from custom_components.localthings.config_flow import _find_live_ports
 
-    # Bind and immediately close a socket on 49154 so loopback refuses
-    # datagrams to it -- standing in for the sweep wrongly ruling out a
-    # port we have strong prior evidence for.
+    # Bind an OS-assigned port and immediately close it, same technique
+    # test_find_live_ports_detects_silent_port uses for its "closed" ports --
+    # once closed, loopback refuses datagrams to it, standing in for the
+    # sweep wrongly ruling out a port we have strong prior evidence for.
     reserved = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    reserved.bind(('127.0.0.1', 49154))
+    reserved.bind(('127.0.0.1', 0))
+    preferred_port = reserved.getsockname()[1]
     reserved.close()
+    monkeypatch.setattr(config_flow, 'PREFERRED_PROBE_PORTS', [preferred_port])
 
     live_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     live_sock.bind(('127.0.0.1', 0))
     live_port = live_sock.getsockname()[1]
 
     try:
-        result = _find_live_ports('127.0.0.1', [49154, live_port], 0.8)
+        result = _find_live_ports('127.0.0.1', [preferred_port, live_port], 0.8)
     finally:
         live_sock.close()
 
-    assert set(result) == {49154, live_port}
+    assert set(result) == {preferred_port, live_port}
 
 
 async def test_probe_uses_discovered_low_port(hass: HomeAssistant, monkeypatch) -> None:

@@ -288,13 +288,17 @@ def _option_token(rep, prefix):
 def is_legacy_board(resources):
     """True for the board generation whose airflow lives in /airflow/vs/0.
 
-    Newer families carry several of the same option tokens (Volume, Sleep,
-    OutdoorTemp, Autoclean) *alongside* dedicated resources for those settings,
-    so an ungated token entity would either duplicate an existing one or apply a
-    scale calibrated elsewhere. Every AC dump on record has one shape or the
-    other: /airflow/vs/0 with no /wind/* at all, or /wind/strength/vs/0 with no
-    /airflow/vs/0. Same test as climate.py's _legacy_airflow(), so the entities
-    below and the climate entity can never disagree about the generation.
+    Newer families carry several of the same option tokens (Sleep, OutdoorTemp,
+    Autoclean) *alongside* dedicated resources for those settings, so an
+    ungated token entity would either duplicate an existing one or apply a
+    scale calibrated elsewhere. (Volume used to be in this list too, back when
+    it had its own gated buzzer_volume Number for this board generation --
+    issue #136 replaced that with the unified 'beep' switch, which applies
+    across every generation and isn't gated here at all.) Every AC dump on
+    record has one shape or the other: /airflow/vs/0 with no /wind/* at all,
+    or /wind/strength/vs/0 with no /airflow/vs/0. Same test as climate.py's
+    _legacy_airflow(), so the entities below and the climate entity can never
+    disagree about the generation.
     """
     return HREF_AIRFLOW in resources and HREF_WIND_STRENGTH not in resources
 
@@ -310,13 +314,18 @@ def is_legacy_board(resources):
 # 'energy_kwh' needs a replacement value_fn here; the rest pass through
 # unchanged in case a future legacy dump ever reports them.
 def _legacy_cumulative_power_kwh(v):
-    n = _int(v)
-    return round(n / 100000.0, 2) if n is not None else None
+    # float, not _int -- matches common.wh_to_kwh's own numeric parsing
+    # (float via _num) rather than this module's integer-only _int, so a
+    # decimal-formatted reading doesn't raise and silently go 'unknown'.
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    return round(n / 100000.0, 2)
 
 
-ENERGY_METER_LEGACY = Capability(
-    href=common.ENERGY_METER.href,
-    poll_tier=common.ENERGY_METER.poll_tier,
+ENERGY_METER_LEGACY = replace(
+    common.ENERGY_METER,
     match_fn=lambda rep, resources: is_legacy_board(resources),
     entities=tuple(
         replace(e, value_fn=_legacy_cumulative_power_kwh)

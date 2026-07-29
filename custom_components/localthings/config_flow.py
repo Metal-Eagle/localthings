@@ -248,14 +248,13 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
     candidates = _find_live_ports(
         host, PROBE_PORT_RANGE, LIVENESS_PROBE_TIMEOUT_S
     )
-    if not candidates:
-        # Every port in the range actively refused: there is no DTLS/CoAP
-        # listener on this host, so a handshake can't succeed. Fail now with a
-        # clear message instead of retrying doomed ports.
-        raise CannotConnect(
-            f"no live DTLS port found on {host} "
-            f"in {PROBE_PORT_RANGE[0]}-{PROBE_PORT_RANGE[-1]}"
-        )
+    # No early "every port refused" fast-fail here: _find_live_ports always
+    # rescues PREFERRED_PROBE_PORTS (issue #192), so candidates is never
+    # empty as long as that table is non-empty and within PROBE_PORT_RANGE --
+    # both true today, which made this branch permanently unreachable. A
+    # genuinely dead host now fails via the handshake loop's own error below,
+    # which carries the actual per-port timeout/refusal reason instead of a
+    # generic "no live port found" message.
     _LOGGER.debug("Live DTLS port candidates on %s: %s", host, candidates)
 
     last_exc = None
