@@ -669,6 +669,21 @@
           "powersaving": "Energiebesparing"
         }
       },
+      "absence_power_saving_mode": {
+        "name": "Modus energiebesparing bij afwezigheid",
+        "state": {
+          "eco": "Eco",
+          "normal": "Normaal",
+          "comfort": "Comfort"
+        }
+      },
+      "motion_detect_wind_mode": {
+        "name": "Modus luchtstroomvermijding",
+        "state": {
+          "direct": "Direct",
+          "indirect": "Indirect"
+        }
+      },
       "current_temp_c": {
         "name": "Temperatuur"
       },
@@ -898,6 +913,12 @@
       "auto_clean": {
         "name": "Automatisch reinigen"
       },
+      "absence_power_saving_active": {
+        "name": "Energiebesparing bij afwezigheid actief"
+      },
+      "motion_detect_wind_active": {
+        "name": "Bewegingsdetectie luchtstroomvermijding actief"
+      },
       "beep": {
         "name": "Piep"
       },
@@ -964,6 +985,9 @@
       "favorite_coffee_enabled": {
         "name": "Favoriete koffie"
       },
+      "filter_remind": {
+        "name": "Filterherinnering"
+      },
       "fridge_sound": {
         "name": "Geluid"
       },
@@ -1005,6 +1029,9 @@
       },
       "rapid_fridge": {
         "name": "Snelkoelen"
+      },
+      "remind_beep": {
+        "name": "Eindsignaal herinnering"
       },
       "sabbath_mode": {
         "name": "Sabbatmodus"

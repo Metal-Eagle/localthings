@@ -27,6 +27,8 @@ REGISTRY = DeviceRegistry(
         airconditioner.MUTE_ONCE,
         airconditioner.CURRENT_LIMIT,
         airconditioner.ANOMALY_LOAD,
+        airconditioner.ABSENCE_POWER_SAVING,
+        airconditioner.MOTION_DETECT_WIND,
         airconditioner.CURRENT_TEMPERATURE,
         airconditioner.CURRENT_TEMPERATURE_VS,
         airconditioner.HUMIDITY,

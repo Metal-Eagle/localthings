@@ -669,6 +669,21 @@
           "powersaving": "Power saving"
         }
       },
+      "absence_power_saving_mode": {
+        "name": "Absence power saving mode",
+        "state": {
+          "eco": "Eco",
+          "normal": "Normal",
+          "comfort": "Comfort"
+        }
+      },
+      "motion_detect_wind_mode": {
+        "name": "Motion-detect wind mode",
+        "state": {
+          "direct": "Direct",
+          "indirect": "Indirect"
+        }
+      },
       "current_temp_c": {
         "name": "Temperature"
       },
@@ -898,6 +913,12 @@
       "auto_clean": {
         "name": "Auto clean"
       },
+      "absence_power_saving_active": {
+        "name": "Absence power saving active"
+      },
+      "motion_detect_wind_active": {
+        "name": "Motion-detect wind avoidance active"
+      },
       "beep": {
         "name": "Beep"
       },
@@ -964,6 +985,9 @@
       "favorite_coffee_enabled": {
         "name": "Favorite coffee"
       },
+      "filter_remind": {
+        "name": "Filter reminder"
+      },
       "fridge_sound": {
         "name": "Sound"
       },
@@ -1005,6 +1029,9 @@
       },
       "rapid_fridge": {
         "name": "Rapid fridge"
+      },
+      "remind_beep": {
+        "name": "End signal reminder"
       },
       "sabbath_mode": {
         "name": "Sabbath mode"

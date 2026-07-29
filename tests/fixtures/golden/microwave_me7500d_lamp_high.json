@@ -10,6 +10,7 @@
     "door_open",
     "energy_kwh",
     "fan",
+    "filter_remind",
     "finish_time",
     "firmware_update",
     "lamp",
@@ -17,6 +18,7 @@
     "operation_time_minutes",
     "power_level",
     "progress_percentage",
+    "remind_beep",
     "sound"
   ]
 }

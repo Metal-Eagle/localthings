@@ -468,6 +468,87 @@ def test_fac_bora_subdevices_and_runningmode_are_ignored_not_guessed():
 
 
 # ---------------------------------------------------------------------------
+# TP1X_LNX-AC-RAC-01001_0000 -- Lennox-branded heat pump on the Samsung RAC
+# board family (issue #173). Routes via the existing '-RAC-' modelNum token,
+# same registry as the plain RAC family. Adds two AI-feature resources not
+# seen on prior AC dumps: /mds/absencepowersaving/vs/0 (absence-detection
+# power saving) and /option/motiondetectwind/stateful/vs/0 (avoid-direct-
+# wind-on-motion) -- both exposed read-only, same 'don't guess' precedent as
+# CURRENT_LIMIT/ANOMALY_LOAD.
+# ---------------------------------------------------------------------------
+
+def _ac_lnx_rac_heatpump():
+    resources = _load_device('airconditioner_lnx_rac_heatpump')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
+    )
+    return reg, resources
+
+
+def test_lnx_rac_heatpump_resolves_to_airconditioner_registry():
+    reg, _ = _ac_lnx_rac_heatpump()
+    assert reg is not None and reg.name == 'airconditioner'
+
+
+def test_lnx_rac_heatpump_no_unbound_hrefs():
+    reg, resources = _ac_lnx_rac_heatpump()
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
+def test_lnx_rac_heatpump_absence_power_saving_state():
+    reg, resources = _ac_lnx_rac_heatpump()
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    state = flatten(bound, resources)
+    assert state['absence_power_saving_active'] is False
+    assert state['absence_power_saving_mode'] == 'normal'
+
+
+def test_lnx_rac_heatpump_motion_detect_wind_state():
+    reg, resources = _ac_lnx_rac_heatpump()
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    state = flatten(bound, resources)
+    assert state['motion_detect_wind_active'] is False
+    assert state['motion_detect_wind_mode'] == 'indirect'
+
+
+def test_lnx_rac_heatpump_enable_switches_are_writable():
+    """status is a bare On/Off boolean, same shape already shipped writable
+    elsewhere in this file (MUTE_ONCE, AUTO_CLEAN) -- worst case a wrong
+    token no-ops. The paired mode selects stay read-only sensors."""
+    absence_keys = {e.key for e in airconditioner.ABSENCE_POWER_SAVING.entities}
+    motion_keys = {e.key for e in airconditioner.MOTION_DETECT_WIND.entities}
+    assert absence_keys == {'absence_power_saving_active', 'absence_power_saving_mode'}
+    assert motion_keys == {'motion_detect_wind_active', 'motion_detect_wind_mode'}
+    absence_mode = next(e for e in airconditioner.ABSENCE_POWER_SAVING.entities
+                         if e.key == 'absence_power_saving_mode')
+    motion_mode = next(e for e in airconditioner.MOTION_DETECT_WIND.entities
+                        if e.key == 'motion_detect_wind_mode')
+    assert not hasattr(absence_mode, 'write_fn') or absence_mode.write_fn is None
+    assert not hasattr(motion_mode, 'write_fn') or motion_mode.write_fn is None
+
+
+def test_lnx_rac_heatpump_absence_power_saving_write_target():
+    write = next(e for e in airconditioner.ABSENCE_POWER_SAVING.entities
+                 if e.key == 'absence_power_saving_active').write_fn
+    assert write('On', {}) == (
+        ['mds', 'absencepowersaving', 'vs', '0'], {'status': 'On'})
+    assert write('Off', {}) == (
+        ['mds', 'absencepowersaving', 'vs', '0'], {'status': 'Off'})
+
+
+def test_lnx_rac_heatpump_motion_detect_wind_write_target():
+    write = next(e for e in airconditioner.MOTION_DETECT_WIND.entities
+                 if e.key == 'motion_detect_wind_active').write_fn
+    assert write('On', {}) == (
+        ['option', 'motiondetectwind', 'stateful', 'vs', '0'], {'status': 'On'})
+    assert write('Off', {}) == (
+        ['option', 'motiondetectwind', 'stateful', 'vs', '0'], {'status': 'Off'})
+
+
+# ---------------------------------------------------------------------------
 # Additive entities layered on the ARTIK051_PRAC family on top of the upstream
 # registry: beep (Volume_* option), tropical night mode (Sleep_<N> option),
 # filter usage hours + alarm threshold (filterUsage / filterDesiredUsage),

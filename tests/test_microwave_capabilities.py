@@ -217,3 +217,69 @@ def test_lamp_reads_any_non_off_level_as_true():
     just a literal 'On'."""
     desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'lamp')
     assert desc.value_fn(['Lamp_High']) is True
+
+
+# ---------------------------------------------------------------------------
+# MICROWAVE_MODE — filter_remind/remind_beep options-array writes (issue #181)
+# ---------------------------------------------------------------------------
+
+def test_filter_remind_gated_absent_when_no_option():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'filter_remind')
+    rep = {'x.com.samsung.da.options': ['DeviceType_MW7300B-/EU1', 'Sound_Off']}
+    assert desc.exists_fn(rep, {}) is False
+
+
+def test_filter_remind_gated_present_when_option_reported():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'filter_remind')
+    rep = {'x.com.samsung.da.options': ['FilterRemind_Off']}
+    assert desc.exists_fn(rep, {}) is True
+
+
+def test_filter_remind_reads_on_off():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'filter_remind')
+    assert desc.value_fn(['FilterRemind_On']) is True
+    assert desc.value_fn(['FilterRemind_Off']) is False
+
+
+def test_filter_remind_write_is_single_token():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'filter_remind')
+    rep = {'x.com.samsung.da.options': ['FilterRemind_Off']}
+    path, body = desc.write_fn('On', rep)
+    assert path == ['mode', 'vs', '0']
+    assert body == {'x.com.samsung.da.options': ['FilterRemind_On']}
+
+
+def test_filter_remind_write_requires_existing_options():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'filter_remind')
+    assert desc.write_fn('On', {}) is None
+
+
+def test_remind_beep_gated_absent_when_no_option():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'remind_beep')
+    rep = {'x.com.samsung.da.options': ['DeviceType_MW7300B-/EU1', 'Sound_Off']}
+    assert desc.exists_fn(rep, {}) is False
+
+
+def test_remind_beep_gated_present_when_option_reported():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'remind_beep')
+    rep = {'x.com.samsung.da.options': ['RemindBeep_On']}
+    assert desc.exists_fn(rep, {}) is True
+
+
+def test_remind_beep_reads_on_off():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'remind_beep')
+    assert desc.value_fn(['RemindBeep_On']) is True
+    assert desc.value_fn(['RemindBeep_Off']) is False
+
+
+def test_remind_beep_write_is_single_token():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'remind_beep')
+    rep = {'x.com.samsung.da.options': ['RemindBeep_On']}
+    path, body = desc.write_fn('Off', rep)
+    assert path == ['mode', 'vs', '0']
+    assert body == {'x.com.samsung.da.options': ['RemindBeep_Off']}
+
+
+def test_remind_beep_write_requires_existing_options():
+    desc = next(e for e in microwave.MICROWAVE_MODE.entities if e.key == 'remind_beep')
+    assert desc.write_fn('On', {}) is None
