@@ -114,23 +114,60 @@ class TestWasherRegistry:
             assert href in registry.capabilities, f"{href} missing from washer registry"
 
 
-class TestModelNumSegments:
-    def test_splits_pipe_prefix_on_underscore(self):
-        from custom_components.localthings.registry.by_type import _model_num_segments
-        assert _model_num_segments('ARTIK051_DONGLE_REF|00127641|000800200014') == [
+class TestBoardTokens:
+    def test_splits_pipe_prefix_into_whole_tokens(self):
+        from custom_components.localthings.registry.by_type import _board_tokens
+        assert _board_tokens('ARTIK051_DONGLE_REF|00127641|000800200014', '|') == [
             'ARTIK051', 'DONGLE', 'REF',
         ]
 
-    def test_ignores_everything_after_first_pipe(self):
-        from custom_components.localthings.registry.by_type import _model_num_segments
-        assert _model_num_segments('TP2X_RAC_20K|abc|REF_should_not_appear') == [
+    def test_ignores_everything_after_the_cut(self):
+        from custom_components.localthings.registry.by_type import _board_tokens
+        assert _board_tokens('TP2X_RAC_20K|abc|REF_should_not_appear', '|') == [
             'TP2X', 'RAC', '20K',
         ]
 
+    def test_both_delimiters_produce_the_same_tokens(self):
+        """The whole point of tokenizing: Samsung spells one board family
+        with either delimiter, and both must reduce to the same tokens."""
+        from custom_components.localthings.registry.by_type import _board_tokens
+        assert (_board_tokens('TP1X_DA-AC-RAC-01001_0000', '|')
+                == _board_tokens('TP1X_DA_AC_RAC_01001_0000', '|')
+                == ['TP1X', 'DA', 'AC', 'RAC', '01001', '0000'])
+
+    def test_upper_cases_and_drops_empty_runs(self):
+        from custom_components.localthings.registry.by_type import _board_tokens
+        assert _board_tokens('a--b__c', '|') == ['A', 'B', 'C']
+
     def test_empty_for_none_or_empty_input(self):
-        from custom_components.localthings.registry.by_type import _model_num_segments
-        assert _model_num_segments('') == ['']
-        assert _model_num_segments(None) == ['']
+        from custom_components.localthings.registry.by_type import _board_tokens
+        assert _board_tokens('', '|') == []
+        assert _board_tokens(None, '|') == []
+
+
+class TestBoardTokenTable:
+    def test_no_board_family_token_shadows_a_specific_type(self):
+        """'DA-AC-' prefixes RAC/WAC/DHM/AIR alike -- a bare 'AC' entry would
+        type the dehumidifier and the air purifier as air conditioners."""
+        from custom_components.localthings.registry.by_type import _BOARD_TOKEN_TO_KEY
+        for family_token in ('AC', 'DA', 'KS', 'WM', 'TP1X', 'TP2X', 'ARTIK051'):
+            assert family_token not in _BOARD_TOKEN_TO_KEY
+
+    def test_every_token_resolves_to_a_real_registry(self):
+        from custom_components.localthings.registry.by_type import (
+            _BOARD_TOKEN_TO_KEY, _CONSUMER_PREFIX_TO_KEY, _REGISTRY_BY_KEY,
+        )
+        for token, key in _BOARD_TOKEN_TO_KEY.items():
+            assert key in _REGISTRY_BY_KEY, f"{token!r} -> unknown registry {key!r}"
+        for prefix, key in _CONSUMER_PREFIX_TO_KEY.items():
+            assert key in _REGISTRY_BY_KEY, f"{prefix!r} -> unknown registry {key!r}"
+
+    def test_tokens_are_upper_case(self):
+        """`_board_tokens` upper-cases before lookup, so a lower-case entry
+        would be dead."""
+        from custom_components.localthings.registry.by_type import _BOARD_TOKEN_TO_KEY
+        for token in _BOARD_TOKEN_TO_KEY:
+            assert token == token.upper()
 
 
 class TestConsumerModelKey:
@@ -451,6 +488,70 @@ class TestForDeviceByModel:
     def test_empty_inputs_return_none(self):
         from custom_components.localthings.registry.by_type import for_device_by_model
         assert for_device_by_model('', '') is None
+
+    @pytest.mark.parametrize('model_num', [
+        'TP1X_DA-AC-RAC-01001_0000',   # hyphenated (issue #91)
+        'TP1X_DA_AC_RAC_01001_0000',   # underscored
+        'TP2X_RAC_20K',                # bare, no board-family prefix (issue #37)
+        'TP2X-RAC-20K',
+    ])
+    def test_delimiter_spelling_does_not_change_the_answer(self, model_num):
+        """One board family, four spellings, one table entry."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(model_num, '')
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
+    def test_model_num_wins_when_the_two_fields_disagree(self):
+        """The legacy gas cooktop is the one known device whose fields
+        conflict: modelNum says CT (gas), description says COOKTOP (which
+        otherwise means induction). The board is right, so modelNum is
+        consulted first."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model('ARTIK051_GB_CT_001', 'ARTIK051_GLOBAL_COOKTOP')
+        assert reg is not None
+        assert reg.name == 'gas_cooktop'
+
+    def test_board_token_in_description_used_when_model_num_has_none(self):
+        """Some units report a placeholder modelNum and carry the board token
+        only in `description`."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model('TEST-MODEL', 'TP1X_REF_21K')
+        assert reg is not None
+        assert reg.name == 'refrigerator'
+
+    def test_board_token_beats_consumer_prefix(self):
+        """'WAC' (window AC, issue #87) starts with 'WA' (top-load washer,
+        issue #106). The board table runs first, so the AC wins."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model('TP1X_DA_AC_WAC_01001_0000', 'TP1X_DA_AC_WAC_01001_0000')
+        assert reg is not None
+        assert reg.name == 'airconditioner'
+
+
+class TestBoardTokenAmbiguity:
+    """`_board_family_key` returns the first matching token, which is only
+    safe while no real model string contains two tokens naming different
+    device types. Guard that against every dump we have."""
+
+    def test_no_fixture_model_string_yields_two_conflicting_keys(self, all_device_fixtures):
+        from custom_components.localthings.registry.by_type import (
+            _BOARD_TOKEN_TO_KEY, _board_tokens,
+        )
+        for name, resources in all_device_fixtures.items():
+            info = resources.get('/information/vs/0', {})
+            for field, cut in (
+                (info.get('x.com.samsung.da.modelNum', ''), '|'),
+                (info.get('x.com.samsung.da.description', ''), '/'),
+            ):
+                keys = {
+                    _BOARD_TOKEN_TO_KEY[t]
+                    for t in _board_tokens(field, cut)
+                    if t in _BOARD_TOKEN_TO_KEY
+                }
+                assert len(keys) <= 1, (
+                    f"{name}: {field!r} matches conflicting board tokens {keys}"
+                )
 
 
 class TestForDeviceByResources:

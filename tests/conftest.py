@@ -41,3 +41,18 @@ def fridge_resources() -> dict[str, dict]:
 @pytest.fixture
 def washer_resources() -> dict[str, dict]:
     return _load_device('washer')
+
+
+@pytest.fixture
+def all_device_fixtures() -> dict[str, dict[str, dict]]:
+    """Every scrubbed device dump, keyed by fixture name.
+
+    For invariants that must hold across the whole corpus rather than for one
+    device -- so a newly added dump exercises them automatically.
+    """
+    return {
+        path.name[:-len('_device.json')]: _resources_from_dump(
+            json.loads(path.read_text())
+        )
+        for path in sorted(FIXTURES.glob('*_device.json'))
+    }
