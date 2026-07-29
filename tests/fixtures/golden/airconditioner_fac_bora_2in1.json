@@ -15,8 +15,8 @@
     "humidity",
     "power_energy_kwh",
     "power_watts",
-    "sub_6c2dff6dee5cdad16a5e000000000001_climate",
-    "sub_6c2dff6dee5cdad16a5e000000000001_current_temperature_c",
+    "subdevice_6c2dff6dee5cdad16a5e000000000001_climate",
+    "subdevice_6c2dff6dee5cdad16a5e000000000001_current_temperature_c",
     "tropical_night_mode"
   ]
 }

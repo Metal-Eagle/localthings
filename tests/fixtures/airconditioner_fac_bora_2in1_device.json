@@ -727,7 +727,7 @@
         "rep": {
           "x.com.samsung.da.modelNum": "TP2X_FAC_BORA_RAC_21K|10233041|600001110015110006000C1200830000",
           "x.com.samsung.da.description": "TP2X_FAC_BORA_RAC_21K",
-          "x.com.samsung.da.serialNum": "TEST-SUBUNIT-SERIAL-0000"
+          "x.com.samsung.da.serialNum": "TEST-SUBDEVICE-SERIAL-0000"
         }
       },
       {
@@ -805,5 +805,5 @@
       }
     ]
   },
-  "seeds_note": "device0 and oic_res are real, captured from jhkwon19's diagnostics dump for the TP2X_FAC_BORA_21K board (issue #177, the same physical unit as tests/fixtures/airconditioner_fac_bora_device.json -- that fixture's redacted x.com.samsung.da.subdeviceIdList string is a deliberate, separate regression case and is NOT changed here). subdeviceIdList above is restored to the real ['6c2dff6d-ee5c-dad1-6a5e-000000000001'] reported in the issue thread (redacted in the raw capture the same way serialNum/otnDUID/deviceId are -- it matches redact.py's 'deviceid' substring rule, not because it's actually account data). The seed's /information/vs/0 rep is REAL, verbatim from the reporter's live debug-panel read of /6c2dff6d-.../information/vs/0 (serial replaced with a placeholder) -- modelNum TP2X_FAC_BORA_RAC_21K confirms this is the wall-mounted room unit, distinct from the master's floor-unit TP2X_FAC_BORA_21K. Every other href in this seed batch is CONSTRUCTED (never read from this unit) so the sub-unit's climate entity has a resource surface to bind -- per DESIGN-177.md section 4, retrieval for this pattern is batch-only, and confirming '/6c2dff6d-.../device/0' actually returns a full batch (as opposed to just answering the information probe the reporter tried by hand) is listed as a follow-up, not something this fixture can attest to."
+  "seeds_note": "device0 and oic_res are real, captured from jhkwon19's diagnostics dump for the TP2X_FAC_BORA_21K board (issue #177, the same physical device as tests/fixtures/airconditioner_fac_bora_device.json -- that fixture's redacted x.com.samsung.da.subdeviceIdList string is a deliberate, separate regression case and is NOT changed here). subdeviceIdList above is restored to the real ['6c2dff6d-ee5c-dad1-6a5e-000000000001'] reported in the issue thread (redacted in the raw capture the same way serialNum/otnDUID/deviceId are -- it matches redact.py's 'deviceid' substring rule, not because it's actually account data). The seed's /information/vs/0 rep is REAL, verbatim from the reporter's live debug-panel read of /6c2dff6d-.../information/vs/0 (serial replaced with a placeholder) -- modelNum TP2X_FAC_BORA_RAC_21K confirms this is the wall-mounted room subdevice, distinct from the master's floor subdevice TP2X_FAC_BORA_21K. Every other href in this seed batch is CONSTRUCTED (never read from this subdevice) so the subdevice's climate entity has a resource surface to bind -- per DESIGN-177.md section 4, retrieval for this pattern is batch-only, and confirming '/6c2dff6d-.../device/0' actually returns a full batch (as opposed to just answering the information probe the reporter tried by hand) is listed as a follow-up, not something this fixture can attest to."
 }

@@ -278,10 +278,10 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         silently reintroducing the drift this delegation exists to prevent.
 
         Reads the actual href through self._rep rather than
-        coordinator.resource() directly -- on a sub-unit (a legacy-board
+        coordinator.resource() directly -- on a subdevice (a legacy-board
         sibling has its own /airflow/vs/1, or /<id>/airflow/vs/0), the
         canonical AIRFLOW_HREF must be translated through this bound
-        entity's own sub_unit first, exactly like every other sibling read
+        entity's own subdevice first, exactly like every other sibling read
         below.
         """
         if not is_legacy_board(self._resources):
@@ -297,23 +297,23 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         the preset read (and write) over to the token path.
 
         Deliberately reads the *raw* href (translated through this bound
-        entity's own sub_unit, not through self._rep) rather than going
+        entity's own subdevice, not through self._rep) rather than going
         through _rep's own CONVENIENT_HREF fallback branch -- that fallback
         is exactly the legacy_convenient() rep this method is deciding
         whether to use, so routing through it here would make the resource
         never look empty and this always resolve to the wrong side.
         """
-        convenient_href = self._bound.sub_unit.to_actual(CONVENIENT_HREF)
+        convenient_href = self._bound.subdevice.to_actual(CONVENIENT_HREF)
         return (not self.coordinator.resource(convenient_href)
                 and bool(self._legacy_airflow()))
 
     def _rep(self, href: str) -> dict:
         """`href` is one of this module's canonical HREF_* constants --
-        translated through this bound entity's own sub_unit (issue #177) to
+        translated through this bound entity's own subdevice (issue #177) to
         the real, on-the-wire href before the single-href cache lookup
-        (identity for MAIN, so a device with no sub-units reads exactly the
+        (identity for MAIN, so a device with no subdevices reads exactly the
         href it always did)."""
-        rep = self.coordinator.resource(self._bound.sub_unit.to_actual(href)) or {}
+        rep = self.coordinator.resource(self._bound.subdevice.to_actual(href)) or {}
         if not rep and href == CONVENIENT_HREF and self._legacy_airflow():
             return self._legacy_convenient()
         return rep
