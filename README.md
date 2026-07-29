@@ -105,11 +105,12 @@ The `Dockerfile` builds on the official `home-assistant/home-assistant:stable` i
 ### Tests
 
 ```sh
-python3 -m venv .venv
+python3.13 -m venv .venv          # 3.13 or newer; see below
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/pip install pytest-homeassistant-custom-component homeassistant
 .venv/bin/pytest tests/ -q
 ```
+
+`requirements-dev.txt` already pulls in Home Assistant and pytest at matching versions, so there's nothing to install alongside it. Use Python 3.13 or newer: pip resolves the newest `pytest-homeassistant-custom-component` your interpreter supports, and on 3.12 or older nothing resolves and the install fails outright. CI runs 3.14.
 
 A large suite covering registry composition, discovery, entity descriptors, and golden-file regression against captured device dumps. `requirements-dev.txt` pins `smartthings-local` the same way `manifest.json` does, so tests exercise the real published protocol layer rather than a vendored copy.
 
@@ -139,7 +140,7 @@ custom_components/localthings/
     entities.py             Per-platform entity descriptor dataclasses
     discovery.py            Binds a device's live resources to registered capabilities
     adapter.py               Flattens bound entities into HA-ready state
-    identity.py              Reads device identity for type detection
+    identity.py              Reads /oic/p + /oic/d (manufacturer, model, OCF device type)
     redact.py                 Strips account/identity data before diagnostics leave HA
     capabilities/             Shared + per-family Capability definitions (common, airconditioner,
                                cooktop, range_hood, dryer, oven, dishwasher, fridge, washer,
@@ -169,7 +170,9 @@ support for hardware the maintainers don't have.
 1. Get a capture of the appliance's `/device/0` response. The easiest way: add the device to HA (type detection failing is fine) and pull its Diagnostics download from Settings > Devices & Services > the device > the menu > Download diagnostics — it already contains a redacted dump of the device's resources.
 2. Reuse existing `Capability` objects from `registry/capabilities/` wherever the resource matches one already declared. Most `common.py` capabilities (power, kids lock, remote control, alarms, energy/water meters) are shared verbatim across families; add new ones only for resources unique to the new type.
 3. Create `registry/by_type/<name>.py` with a `DeviceRegistry(name=..., capabilities=_build([...]))`. Use `pattern_capabilities` instead of `capabilities` for any resource whose `href` isn't fixed (for example per-compartment fridge resources); see `refrigerator.py` for the pattern.
-4. Register it in `_REGISTRY_BY_KEY` in `registry/by_type/__init__.py`, keyed on the lowercased, space/hyphen-to-underscore-converted suffix of the device's `oneUiVersion` string (see `_type_key()` in that file for the exact transform). If the device never reports `oneUiVersion`, add its consumer-model prefix to `_CONSUMER_PREFIX_TO_KEY` so `for_device_by_model()` can route it. If it also omits `/information/vs/0` (as the verified NA9300K cooktop does), add a distinctive, conservative resource-signature rule to `for_device_by_resources()`.
+4. Register it in `_REGISTRY_BY_KEY` in `registry/by_type/__init__.py`, then route devices to it by adding the board-family token from their `modelNum` to `_BOARD_TOKEN_TO_KEY` — a single row, e.g. `'VSKR': 'vacuum_station'`. Tokens are matched whole (the model string is upper-cased and split on any run of non-alphanumerics), so one entry covers every delimiter spelling Samsung uses: `TP1X_DA-AC-RAC-01001` and `TP2X_RAC_20K` both resolve on `RAC`. Name the specific type, never the board family that contains it — `DA-AC-` prefixes RAC/WAC/DHM/AIR alike, so a bare `AC` row would swallow the dehumidifier and the air purifier. If the board is shared across types (washers and dryers both report `DA_WM_`), add the consumer-model prefix from `description` to `_CONSUMER_PREFIX_TO_KEY` instead. If the device omits `/information/vs/0` entirely (as the verified NA9300K cooktop does), add a distinctive, conservative resource-signature rule to `for_device_by_resources()`.
+
+   `oneUiVersion` is deliberately not consulted — see `resolve()` in that file for why.
 5. Add golden-file coverage in `tests/` against a captured `/device/0` dump for the new type.
 
 No config-flow changes are needed. Device-type detection and entity wiring are fully driven by the registry.
