@@ -122,6 +122,42 @@ async def test_diagnostics_include_oic_res_links(
     assert links[1]['rt'] == ['x.com.samsung.devcol', 'oic.wk.col']
 
 
+async def test_diagnostics_include_speculative_device_probes(
+    hass: HomeAssistant, mock_entry, mock_coordinator_session
+) -> None:
+    """/device/1 and /device/2 (issue #177's Composite Device follow-up) ride
+    along in identity.raw the same {href: rep} shape as the main /device/0
+    dump under "resources" -- ordinary redaction, no special-casing needed."""
+    from custom_components.localthings.registry.identity import DeviceIdentity
+
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    coordinator._identity = DeviceIdentity(
+        manufacturer='Samsung Electronics',
+        model='RF9000B',
+        name='Family Hub',
+        serial=None,
+        device_types=('oic.wk.d', 'oic.d.refrigerator'),
+        raw={
+            '/oic/p': {}, '/oic/d': {}, '/oic/res': [],
+            '/device/1': {
+                '/information/vs/0': {'x.com.samsung.da.serialNum': 'SECRET123'},
+                '/power/vs/0': {'x.com.samsung.da.power': 'On'},
+            },
+            '/device/2': {},
+        },
+    )
+
+    diag = await async_get_config_entry_diagnostics(hass, mock_entry)
+
+    device1 = diag['identity']['resources']['/device/1']
+    assert device1['/information/vs/0']['x.com.samsung.da.serialNum'] == REDACTED
+    assert device1['/power/vs/0']['x.com.samsung.da.power'] == 'On'
+    assert diag['identity']['resources']['/device/2'] == {}
+
+
 async def test_diagnostics_identity_none_when_unavailable(
     hass: HomeAssistant, mock_entry, mock_coordinator_session
 ) -> None:

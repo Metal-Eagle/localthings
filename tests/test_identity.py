@@ -32,7 +32,10 @@ def test_read_identity_tolerates_missing_resources():
     assert ident.model == ''
     assert ident.serial is None
     assert ident.device_types == ()
-    assert ident.raw == {'/oic/p': {}, '/oic/d': {}, '/oic/res': []}
+    assert ident.raw == {
+        '/oic/p': {}, '/oic/d': {}, '/oic/res': [],
+        '/device/1': {}, '/device/2': {},
+    }
 
 
 def test_read_identity_captures_oic_d_device_types():
@@ -72,22 +75,31 @@ def test_read_identity_keeps_raw_payloads_for_diagnostics():
 
 
 def test_read_identity_captures_oic_res_links():
-    """/oic/res is OCF's discovery endpoint: a baseline RETRIEVE returns an
-    array of Link objects, one per Resource/Collection the endpoint hosts --
-    including, per the OCF 'Composite Device' model, a second logical
-    Device's Collection on a multi-unit system (issue #177). Nothing routes
-    on this yet; captured so a report from such a device shows us whether
-    its firmware actually exposes more than the one /device/0 seed href."""
+    """/oic/res is OCF's discovery endpoint. Real hardware (issue #177
+    follow-up, a TP1X_REF_21K fridge dump) groups the response by `di`: one
+    entry per logical Device, each carrying its own `links` array -- not a
+    flat array of individually-`di`-tagged links. Every entry that dump
+    returned had its discoverable policy bit set (`bm`'s bit 0); the whole
+    x.com.samsung.da.* tree (including /device/0 itself) did not appear at
+    all, meaning it's registered non-discoverable and simply invisible to
+    this endpoint -- see _SPECULATIVE_DEVICE_INDICES' docstring for why that
+    motivated probing /device/1 and /device/2 directly instead."""
     sess = FakeSession({
         ('oic', 'res'): [
-            {'di': 'aaaa', 'href': '/device/0', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
-            {'di': 'bbbb', 'href': '/device/1', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+            {'di': 'aaaa', 'links': [
+                {'href': '/oic/d', 'rt': ['oic.wk.d', 'oic.d.refrigerator'],
+                 'p': {'bm': 1}},
+                {'href': '/oic/sec/doxm', 'rt': ['oic.r.doxm'], 'p': {'bm': 1}},
+            ]},
         ],
     })
     ident = read_identity(sess, serial=None)
     assert ident.raw['/oic/res'] == [
-        {'di': 'aaaa', 'href': '/device/0', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
-        {'di': 'bbbb', 'href': '/device/1', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+        {'di': 'aaaa', 'links': [
+            {'href': '/oic/d', 'rt': ['oic.wk.d', 'oic.d.refrigerator'],
+             'p': {'bm': 1}},
+            {'href': '/oic/sec/doxm', 'rt': ['oic.r.doxm'], 'p': {'bm': 1}},
+        ]},
     ]
 
 
@@ -99,3 +111,32 @@ def test_read_identity_tolerates_malformed_oic_res():
         FakeSession({('oic', 'res'): {'not': 'a list'}}), serial=None
     )
     assert ident.raw['/oic/res'] == []
+
+
+def test_read_identity_probes_device_1_and_2():
+    """/oic/res won't reveal a second logical Device's Collection on this
+    firmware family (see test_read_identity_captures_oic_res_links), so
+    /device/1 and /device/2 are probed directly -- same [devcol-rep,
+    {href, rep}, ...] batch shape /device/0 itself returns, parsed the same
+    way (parse_device0_batch)."""
+    sess = FakeSession({
+        ('device', '1'): [
+            {'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+            {'href': '/power/vs/0', 'rep': {'x.com.samsung.da.power': 'On'}},
+        ],
+    })
+    ident = read_identity(sess, serial=None)
+    assert ident.raw['/device/1'] == {
+        '/power/vs/0': {'x.com.samsung.da.power': 'On'},
+    }
+    # /device/2 was never in the table -> 4.04 -> tolerated absence.
+    assert ident.raw['/device/2'] == {}
+
+
+def test_read_identity_tolerates_malformed_device_probe():
+    """A bare Property map instead of a batch array (or anything else
+    non-list-shaped) must not explode."""
+    ident = read_identity(
+        FakeSession({('device', '1'): {'not': 'a batch'}}), serial=None
+    )
+    assert ident.raw['/device/1'] == {}
