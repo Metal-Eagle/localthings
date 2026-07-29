@@ -16,6 +16,11 @@ match_fn discriminators that keep them from colliding):
   token, added for it. Its fan
   is WIND_STRENGTH_FAN on /wind/strength/vs/0 rather than FAN on
   /mode/vs/0 -- see that capability's comment.
+- AVT-WW-TP1-23-class (issue #190). A next-gen board in the same VTWW
+  lineage, resolved via its own 'AVT' board token since the '-WW-' delimiter
+  falls one letter to the left of 'VTWW's whole-token spelling. Same
+  resource surface as A-VTWW-TP2-21-COMMON above; no new capabilities
+  needed.
 
 Reuses dishwasher.DIAGNOSIS for /diagnosis/vs/0 (identical field/write
 contract).

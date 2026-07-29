@@ -7,6 +7,13 @@ this registry includes *common.UNIVERSAL but deliberately NOT common.POWER --
 on/off is the climate entity's HVACMode.OFF / TURN_ON/OFF. See common.POWER's
 own comment in capabilities/common.py for why it's excluded.
 
+common.ENERGY_METER itself is also excluded from UNIVERSAL here, replaced by
+the ENERGY_METER_GENERIC/ENERGY_METER_LEGACY pair -- the legacy ARTIK051 board
+generation (issue #193) reports cumulativePower in a different unit than
+every other AC family, so this registry needs two mutually-exclusive variants
+of that one capability instead of the single shared one every other registry
+uses unconditionally.
+
 Reuses dishwasher.DIAGNOSIS for /diagnosis/vs/0.
 """
 from ..capabilities import airconditioner, common, dishwasher, ignored
@@ -16,7 +23,9 @@ REGISTRY = DeviceRegistry(
     name='airconditioner',
     capabilities=_build([
         *ignored.IGNORED,
-        *common.UNIVERSAL,
+        *[c for c in common.UNIVERSAL if c is not common.ENERGY_METER],
+        airconditioner.ENERGY_METER_GENERIC,
+        airconditioner.ENERGY_METER_LEGACY,
         dishwasher.DIAGNOSIS,
         airconditioner.CLIMATE,
         airconditioner.AIR_PURIFY,

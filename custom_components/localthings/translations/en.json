@@ -158,9 +158,6 @@
       }
     },
     "number": {
-      "buzzer_volume": {
-        "name": "Beep volume"
-      },
       "cook_time": {
         "name": "Cook time"
       },
@@ -213,6 +210,9 @@
           "66": "Medium",
           "100": "High"
         }
+      },
+      "cooler_temperature_setpoint": {
+        "name": "Cooler temperature"
       },
       "day_brightness": {
         "name": "Cabinet brightness",
@@ -1017,6 +1017,12 @@
       },
       "natural_steam": {
         "name": "Natural steam"
+      },
+      "energy_saving": {
+        "name": "Energy saving"
+      },
+      "cooktop_on_alert": {
+        "name": "Cooktop-on alert"
       },
       "power_switch": {
         "name": "Power"

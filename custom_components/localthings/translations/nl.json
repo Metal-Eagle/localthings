@@ -158,9 +158,6 @@
       }
     },
     "number": {
-      "buzzer_volume": {
-        "name": "Zoemervolume"
-      },
       "cook_time": {
         "name": "Bereidingstijd"
       },
@@ -213,6 +210,9 @@
           "66": "Gemiddeld",
           "100": "Hoog"
         }
+      },
+      "cooler_temperature_setpoint": {
+        "name": "Koeler temperatuur"
       },
       "day_brightness": {
         "name": "Helderheid kast",
@@ -1017,6 +1017,12 @@
       },
       "natural_steam": {
         "name": "Natuurlijke stoom"
+      },
+      "energy_saving": {
+        "name": "Energiebesparing"
+      },
+      "cooktop_on_alert": {
+        "name": "Waarschuwing kookplaat aan"
       },
       "power_switch": {
         "name": "Voeding"
