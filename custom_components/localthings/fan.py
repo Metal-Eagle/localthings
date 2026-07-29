@@ -89,11 +89,13 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
     """
 
     _enable_turn_on_off_backwards_compatibility = False
-    _attr_supported_features = (
-        FanEntityFeature.SET_SPEED
-        | FanEntityFeature.TURN_ON
-        | FanEntityFeature.TURN_OFF
-    )
+
+    @property
+    def supported_features(self) -> FanEntityFeature:
+        features = FanEntityFeature.TURN_ON | FanEntityFeature.TURN_OFF
+        if self.speed_count > 0:
+            features |= FanEntityFeature.SET_SPEED
+        return features
 
     def __init__(self, coordinator: LocalThingsCoordinator, bound) -> None:
         super().__init__(coordinator, bound)
@@ -119,7 +121,18 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
 
     def _all_speed_codes(self) -> list[str]:
         rep = self._rep(self._bound.href)
-        return [str(value) for value in rep.get(_SUPPORTED_FAN_SPEED_FIELD, ())]
+        supported = rep.get(_SUPPORTED_FAN_SPEED_FIELD)
+        if supported:
+            return [str(value) for value in supported]
+        min_s = rep.get(_MIN_FAN_SPEED_FIELD)
+        max_s = rep.get('x.com.samsung.da.hood.settableMaxFanSpeed')
+        if min_s is not None and max_s is not None:
+            try:
+                mn, mx = int(min_s), int(max_s)
+                return [str(i) for i in range(mn, mx + 1)]
+            except (ValueError, TypeError):
+                pass
+        return []
 
     def _active_speed_codes(self) -> list[str]:
         codes = self._all_speed_codes()
