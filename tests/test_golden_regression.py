@@ -859,6 +859,25 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_artik051_krac_energy():
+    """AR12NXWXCWKNEU/ARTIK051_KRAC_18K (issue #193) -- same legacy board
+    generation as the artik051_krac_18k fixture, but this dump has a nonzero
+    cumulativePower. Locks in state_keys; the actual /100000 scale fix is
+    asserted separately in test_airconditioner_capabilities.py since golden
+    only compares key sets, not values."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_artik051_krac_energy')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_artik051_krac_energy.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_artik051_krac_energy', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
     dump = {

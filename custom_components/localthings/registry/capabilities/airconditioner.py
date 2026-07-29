@@ -14,10 +14,13 @@ None of these caps may go into the global `ALL`/`CAPABILITIES`: `/mode/vs/0`,
 different schema (see capabilities/__init__.py). They live only in the AC
 by_type registry.
 """
+from dataclasses import replace
+
 from ..capability import Capability
 from ..entities import (
     BinarySensorDesc, ClimateDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
 )
+from . import common
 from .common import filter_usage_percent, normalize_temp_unit
 from .laundry import option_write
 
@@ -294,6 +297,44 @@ def is_legacy_board(resources):
     below and the climate entity can never disagree about the generation.
     """
     return HREF_AIRFLOW in resources and HREF_WIND_STRENGTH not in resources
+
+
+# This legacy ARTIK051 board generation (issue #193, model AR12NXWXCWKNEU /
+# ARTIK051_KRAC_18K) reports /energy/consumption/vs/0's cumulativePower in
+# centiwatt-hours -- raw value 100x the plain Wh every other AC board family
+# (and common.wh_to_kwh's assumed unit) reports. Confirmed against the
+# reporter's own SmartThings-app reading: raw '117430000' vs the app's
+# authoritative 1,174.30 kWh is exactly a /100000 factor (i.e. /100 on top of
+# wh_to_kwh's own /1000), not wh_to_kwh's plain /1000 alone. No other field in
+# ENERGY_METER's entities is present on this board's dump, so only
+# 'energy_kwh' needs a replacement value_fn here; the rest pass through
+# unchanged in case a future legacy dump ever reports them.
+def _legacy_cumulative_power_kwh(v):
+    n = _int(v)
+    return round(n / 100000.0, 2) if n is not None else None
+
+
+ENERGY_METER_LEGACY = Capability(
+    href=common.ENERGY_METER.href,
+    poll_tier=common.ENERGY_METER.poll_tier,
+    match_fn=lambda rep, resources: is_legacy_board(resources),
+    entities=tuple(
+        replace(e, value_fn=_legacy_cumulative_power_kwh)
+        if e.key == 'energy_kwh' else e
+        for e in common.ENERGY_METER.entities
+    ),
+)
+
+# The non-legacy counterpart to ENERGY_METER_LEGACY above -- identical to
+# common.ENERGY_METER, just excluding the legacy board generation so the two
+# capabilities can share /energy/consumption/vs/0 in this registry without
+# the 'multiple caps need a discriminator' build check tripping (common.
+# ENERGY_METER itself has no match_fn, since every *other* registry includes
+# it unconditionally and alone).
+ENERGY_METER_GENERIC = replace(
+    common.ENERGY_METER,
+    match_fn=lambda rep, resources: not is_legacy_board(resources),
+)
 
 
 def _has_option_token(prefix):

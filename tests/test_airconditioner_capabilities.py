@@ -824,3 +824,24 @@ def test_beep_and_tropical_night_stay_off_legacy_krac_board():
     assert 'tropical_night_mode' not in state
     assert state['buzzer_volume'] == 100.0
     assert state['good_sleep'] == 0.0
+
+
+def test_legacy_krac_board_energy_kwh_uses_centiwatt_hour_scale():
+    """Issue #193: this legacy ARTIK051 board reports cumulativePower in
+    centiwatt-hours (raw '117430000'), not the plain Wh common.wh_to_kwh
+    assumes -- confirmed against the reporter's own SmartThings-app reading
+    of 1,174.30 kWh. ENERGY_METER_LEGACY's /100000 scale must produce that
+    exact value, not the /1000-only 117430.0 the generic capability would."""
+    reg, resources = _resolve('airconditioner_artik051_krac_energy')
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['energy_kwh'] == 1174.3
+
+
+def test_non_legacy_board_energy_kwh_still_uses_plain_wh_scale():
+    """The ENERGY_METER_GENERIC/LEGACY split must not change behavior for
+    every other AC board generation -- same value as plain wh_to_kwh."""
+    reg, resources = _ac()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['energy_kwh'] == round(1686632 / 1000.0, 2)
