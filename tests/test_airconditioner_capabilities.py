@@ -468,6 +468,65 @@ def test_fac_bora_subdevices_and_runningmode_are_ignored_not_guessed():
 
 
 # ---------------------------------------------------------------------------
+# TP1X_LNX-AC-RAC-01001_0000 -- Lennox-branded heat pump on the Samsung RAC
+# board family (issue #173). Routes via the existing '-RAC-' modelNum token,
+# same registry as the plain RAC family. Adds two AI-feature resources not
+# seen on prior AC dumps: /mds/absencepowersaving/vs/0 (absence-detection
+# power saving) and /option/motiondetectwind/stateful/vs/0 (avoid-direct-
+# wind-on-motion) -- both exposed read-only, same 'don't guess' precedent as
+# CURRENT_LIMIT/ANOMALY_LOAD.
+# ---------------------------------------------------------------------------
+
+def _ac_lnx_rac_heatpump():
+    resources = _load_device('airconditioner_lnx_rac_heatpump')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
+    )
+    return reg, resources
+
+
+def test_lnx_rac_heatpump_resolves_to_airconditioner_registry():
+    reg, _ = _ac_lnx_rac_heatpump()
+    assert reg is not None and reg.name == 'airconditioner'
+
+
+def test_lnx_rac_heatpump_no_unbound_hrefs():
+    reg, resources = _ac_lnx_rac_heatpump()
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
+def test_lnx_rac_heatpump_absence_power_saving_state():
+    reg, resources = _ac_lnx_rac_heatpump()
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    state = flatten(bound, resources)
+    assert state['absence_power_saving_active'] is False
+    assert state['absence_power_saving_mode'] == 'normal'
+
+
+def test_lnx_rac_heatpump_motion_detect_wind_state():
+    reg, resources = _ac_lnx_rac_heatpump()
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    state = flatten(bound, resources)
+    assert state['motion_detect_wind_active'] is False
+    assert state['motion_detect_wind_mode'] == 'indirect'
+
+
+def test_lnx_rac_heatpump_new_capabilities_are_read_only():
+    """Nothing in the dump confirms write safety on live HVAC hardware for
+    either feature -- exposed as sensors, not switches/selects."""
+    absence_keys = {e.key for e in airconditioner.ABSENCE_POWER_SAVING.entities}
+    motion_keys = {e.key for e in airconditioner.MOTION_DETECT_WIND.entities}
+    assert absence_keys == {'absence_power_saving_active', 'absence_power_saving_mode'}
+    assert motion_keys == {'motion_detect_wind_active', 'motion_detect_wind_mode'}
+    for entity in (*airconditioner.ABSENCE_POWER_SAVING.entities,
+                   *airconditioner.MOTION_DETECT_WIND.entities):
+        assert not hasattr(entity, 'write_fn') or entity.write_fn is None
+
+
+# ---------------------------------------------------------------------------
 # Additive entities layered on the ARTIK051_PRAC family on top of the upstream
 # registry: beep (Volume_* option), tropical night mode (Sleep_<N> option),
 # filter usage hours + alarm threshold (filterUsage / filterDesiredUsage),

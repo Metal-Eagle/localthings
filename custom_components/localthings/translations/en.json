@@ -34,6 +34,12 @@
       "overload_protection_active": {
         "name": "Overload protection active"
       },
+      "absence_power_saving_active": {
+        "name": "Absence power saving active"
+      },
+      "motion_detect_wind_active": {
+        "name": "Motion-detect wind avoidance active"
+      },
       "cycle_active": {
         "name": "Running"
       },
@@ -667,6 +673,21 @@
         "state": {
           "alarm": "Alarm",
           "powersaving": "Power saving"
+        }
+      },
+      "absence_power_saving_mode": {
+        "name": "Absence power saving mode",
+        "state": {
+          "eco": "Eco",
+          "normal": "Normal",
+          "comfort": "Comfort"
+        }
+      },
+      "motion_detect_wind_mode": {
+        "name": "Motion-detect wind mode",
+        "state": {
+          "direct": "Direct",
+          "indirect": "Indirect"
         }
       },
       "current_temp_c": {

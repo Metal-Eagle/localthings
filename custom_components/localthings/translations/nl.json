@@ -34,6 +34,12 @@
       "overload_protection_active": {
         "name": "Overbelastingsbeveiliging actief"
       },
+      "absence_power_saving_active": {
+        "name": "Energiebesparing bij afwezigheid actief"
+      },
+      "motion_detect_wind_active": {
+        "name": "Bewegingsdetectie luchtstroomvermijding actief"
+      },
       "cycle_active": {
         "name": "Actief"
       },
@@ -667,6 +673,21 @@
         "state": {
           "alarm": "Alarm",
           "powersaving": "Energiebesparing"
+        }
+      },
+      "absence_power_saving_mode": {
+        "name": "Modus energiebesparing bij afwezigheid",
+        "state": {
+          "eco": "Eco",
+          "normal": "Normaal",
+          "comfort": "Comfort"
+        }
+      },
+      "motion_detect_wind_mode": {
+        "name": "Modus luchtstroomvermijding",
+        "state": {
+          "direct": "Direct",
+          "indirect": "Indirect"
         }
       },
       "current_temp_c": {

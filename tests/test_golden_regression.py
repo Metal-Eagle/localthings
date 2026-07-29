@@ -439,6 +439,27 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_windfree():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_lnx_rac_heatpump():
+    """Lennox-branded heat pump on the Samsung RAC board family (issue #173,
+    modelNum TP1X_LNX-AC-RAC-01001_0000) -- routes via the existing '-RAC-'
+    token, same registry as the plain RAC family. Adds two AI-feature
+    resources not seen on prior AC dumps: /mds/absencepowersaving/vs/0
+    (absence-detection power saving) and /option/motiondetectwind/stateful/vs/0
+    (avoid-direct-wind-on-motion), both exposed read-only per the 'don't
+    guess' rule."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_lnx_rac_heatpump')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_lnx_rac_heatpump.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_lnx_rac_heatpump', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_range():
     """Range/cooktop-oven combo (model TP1X_DA-KS-RANGE-0102X, issue #44) --
     reports no oneUiVersion; resolved via the '-RANGE-' modelNum token

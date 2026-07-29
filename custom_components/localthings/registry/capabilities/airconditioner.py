@@ -677,6 +677,52 @@ ANOMALY_LOAD = Capability(
     ),
 )
 
+# Absence-detection power-saving (issue #173, TP1X_LNX-AC-RAC-01001 --
+# Lennox-branded heat pump on the RAC board family): `status` toggles the
+# feature, `switchPowerSaveMode` picks the save intensity out of its own
+# supportedSwitchPowerSaveMode list. A third field, `motionState`, also
+# carries a supportedMotionState list but its role (a live sensor readout vs.
+# a sensitivity setting) isn't distinguishable from the dump, so it's left
+# unmodeled. Same 'don't guess' read-only treatment as CURRENT_LIMIT/
+# ANOMALY_LOAD above -- nothing here confirms write safety on live HVAC
+# hardware.
+ABSENCE_POWER_SAVING = Capability(
+    href='/mds/absencepowersaving/vs/0',
+    poll_tier='cold',
+    entities=(
+        BinarySensorDesc(key='absence_power_saving_active', field='status',
+                          icon='mdi:human-greeting-proximity',
+                          entity_category='diagnostic',
+                          value_fn=lambda v: v == 'On'),
+        SensorDesc(key='absence_power_saving_mode', field='switchPowerSaveMode',
+                   device_class='enum',
+                   options=('eco', 'normal', 'comfort'),
+                   translation_key='absence_power_saving_mode',
+                   icon='mdi:leaf', entity_category='diagnostic',
+                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
+    ),
+)
+
+# Avoid-direct-wind-on-motion, a sibling AI feature to ABSENCE_POWER_SAVING
+# above on the same dump: `status` toggles it, `modes` picks Direct/Indirect
+# airflow out of `supportedModes`. Same read-only treatment.
+MOTION_DETECT_WIND = Capability(
+    href='/option/motiondetectwind/stateful/vs/0',
+    poll_tier='cold',
+    entities=(
+        BinarySensorDesc(key='motion_detect_wind_active', field='status',
+                          icon='mdi:motion-sensor',
+                          entity_category='diagnostic',
+                          value_fn=lambda v: v == 'On'),
+        SensorDesc(key='motion_detect_wind_mode', field='modes',
+                   device_class='enum',
+                   options=('direct', 'indirect'),
+                   translation_key='motion_detect_wind_mode',
+                   icon='mdi:weather-windy', entity_category='diagnostic',
+                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
+    ),
+)
+
 # The climate entity already surfaces current_temperature as a card
 # attribute, but that's not enough for history graphs/automations/
 # statistics -- issue #75 asked for a standalone sensor. Same OCF-standard-
