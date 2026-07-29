@@ -130,6 +130,21 @@ def _option_value(options, prefix):
     return None
 
 
+def _has_option(prefix):
+    """exists_fn for an options-array switch: bind only when the device's own
+    options[] actually carries a `<prefix>_<value>` token.
+
+    fast_preheat/natural_steam were shipped unconditionally (no exists_fn) as
+    an unverified guess (see module docstring) -- issue #183's dump (model
+    NE6516A) reports neither `fastpreheat_*` nor `NaturalSteam_*` in its
+    options[] at all, so both switches were phantom controls: always read as
+    off, and toggling them wrote a token the firmware never recognized in
+    the first place, hence "does not appear to do anything."
+    """
+    return lambda rep, resources: _option_value(
+        rep.get('x.com.samsung.da.options'), prefix) is not None
+
+
 def _option_write(prefix, new_value):
     """A one-token x.com.samsung.da.options write, mirroring
     laundry.option_write. NOT independently confirmed on an oven -- issue
@@ -236,6 +251,26 @@ def _naturalsteam_write(p, rep, href=None):
         return None
     return ['mode', 'vs', '0'], {
         'x.com.samsung.da.options': _option_write('NaturalSteam', p),
+    }
+
+
+def _energysaving_write(p, rep, href=None):
+    if p not in ('On', 'Off'):
+        return None
+    if not rep.get('x.com.samsung.da.options'):
+        return None
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': _option_write('EnergySaving', p),
+    }
+
+
+def _burneronalert_write(p, rep, href=None):
+    if p not in ('On', 'Off'):
+        return None
+    if not rep.get('x.com.samsung.da.options'):
+        return None
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': _option_write('BurnerOnAlert', p),
     }
 
 
@@ -385,11 +420,30 @@ OVEN_MODE = Capability(
                    write_fn=_sound_write),
         SwitchDesc(key='fast_preheat', field='x.com.samsung.da.options',
                    icon='mdi:fire',
+                   exists_fn=_has_option('fastpreheat'),
                    value_fn=lambda opts: _option_value(opts, 'fastpreheat') == 'On',
                    write_fn=_fastpreheat_write),
         SwitchDesc(key='natural_steam', field='x.com.samsung.da.options',
                    icon='mdi:kettle-steam',
+                   exists_fn=_has_option('NaturalSteam'),
                    value_fn=lambda opts: _option_value(opts, 'NaturalSteam') == 'On',
                    write_fn=_naturalsteam_write),
+        # 120-hour energy-saving standby (issue #183): confirmed present in
+        # this unit's options[] (EnergySaving_On) and directly requested --
+        # unlike fast_preheat/natural_steam above, this token is real on this
+        # hardware, just previously unbound entirely.
+        SwitchDesc(key='energy_saving', field='x.com.samsung.da.options',
+                   icon='mdi:leaf', entity_category='config',
+                   exists_fn=_has_option('EnergySaving'),
+                   value_fn=lambda opts: _option_value(opts, 'EnergySaving') == 'On',
+                   write_fn=_energysaving_write),
+        # Cooktop-on alert (issue #183): also confirmed present
+        # (BurnerOnAlert_Off) though the reporter noted it mainly matters for
+        # the SmartThings app's own alerting, not local automation.
+        SwitchDesc(key='cooktop_on_alert', field='x.com.samsung.da.options',
+                   icon='mdi:alert-circle-outline', entity_category='config',
+                   exists_fn=_has_option('BurnerOnAlert'),
+                   value_fn=lambda opts: _option_value(opts, 'BurnerOnAlert') == 'On',
+                   write_fn=_burneronalert_write),
     ),
 )

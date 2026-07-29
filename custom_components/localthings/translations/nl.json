@@ -1025,6 +1025,12 @@
       "natural_steam": {
         "name": "Natuurlijke stoom"
       },
+      "energy_saving": {
+        "name": "Energiebesparing"
+      },
+      "cooktop_on_alert": {
+        "name": "Waarschuwing kookplaat aan"
+      },
       "power_switch": {
         "name": "Voeding"
       },

@@ -1025,6 +1025,12 @@
       "natural_steam": {
         "name": "Natural steam"
       },
+      "energy_saving": {
+        "name": "Energy saving"
+      },
+      "cooktop_on_alert": {
+        "name": "Cooktop-on alert"
+      },
       "power_switch": {
         "name": "Power"
       },
