@@ -34,12 +34,6 @@
       "overload_protection_active": {
         "name": "Overbelastingsbeveiliging actief"
       },
-      "absence_power_saving_active": {
-        "name": "Energiebesparing bij afwezigheid actief"
-      },
-      "motion_detect_wind_active": {
-        "name": "Bewegingsdetectie luchtstroomvermijding actief"
-      },
       "cycle_active": {
         "name": "Actief"
       },
@@ -918,6 +912,12 @@
       },
       "auto_clean": {
         "name": "Automatisch reinigen"
+      },
+      "absence_power_saving_active": {
+        "name": "Energiebesparing bij afwezigheid actief"
+      },
+      "motion_detect_wind_active": {
+        "name": "Bewegingsdetectie luchtstroomvermijding actief"
       },
       "beep": {
         "name": "Piep"

@@ -34,12 +34,6 @@
       "overload_protection_active": {
         "name": "Overload protection active"
       },
-      "absence_power_saving_active": {
-        "name": "Absence power saving active"
-      },
-      "motion_detect_wind_active": {
-        "name": "Motion-detect wind avoidance active"
-      },
       "cycle_active": {
         "name": "Running"
       },
@@ -918,6 +912,12 @@
       },
       "auto_clean": {
         "name": "Auto clean"
+      },
+      "absence_power_saving_active": {
+        "name": "Absence power saving active"
+      },
+      "motion_detect_wind_active": {
+        "name": "Motion-detect wind avoidance active"
       },
       "beep": {
         "name": "Beep"

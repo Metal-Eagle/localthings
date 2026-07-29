@@ -678,22 +678,30 @@ ANOMALY_LOAD = Capability(
 )
 
 # Absence-detection power-saving (issue #173, TP1X_LNX-AC-RAC-01001 --
-# Lennox-branded heat pump on the RAC board family): `status` toggles the
-# feature, `switchPowerSaveMode` picks the save intensity out of its own
-# supportedSwitchPowerSaveMode list. A third field, `motionState`, also
-# carries a supportedMotionState list but its role (a live sensor readout vs.
-# a sensitivity setting) isn't distinguishable from the dump, so it's left
-# unmodeled. Same 'don't guess' read-only treatment as CURRENT_LIMIT/
-# ANOMALY_LOAD above -- nothing here confirms write safety on live HVAC
-# hardware.
+# Lennox-branded heat pump on the RAC board family): `status` is a bare
+# On/Off boolean with no vendor prefix, the same shape already shipped
+# writable elsewhere in this file (MUTE_ONCE, AUTO_CLEAN, AIR_PURIFY,
+# DISPLAY_LIGHT) despite none of those having a live-confirmed write either
+# -- worst case a wrong token no-ops, same risk profile as that family, so
+# it's a switch rather than a sensor. `switchPowerSaveMode` picks the save
+# intensity out of its own supportedSwitchPowerSaveMode list, but *what*
+# writing it actually does to a running compressor isn't knowable from the
+# dump -- same 'don't guess' read-only treatment as CURRENT_LIMIT/
+# ANOMALY_LOAD's mode fields. A third field, `motionState`, also carries a
+# supportedMotionState list but its role (a live sensor readout vs. a
+# sensitivity setting) isn't distinguishable from the dump, so it's left
+# unmodeled entirely.
 ABSENCE_POWER_SAVING = Capability(
     href='/mds/absencepowersaving/vs/0',
     poll_tier='cold',
     entities=(
-        BinarySensorDesc(key='absence_power_saving_active', field='status',
-                          icon='mdi:human-greeting-proximity',
-                          entity_category='diagnostic',
-                          value_fn=lambda v: v == 'On'),
+        SwitchDesc(key='absence_power_saving_active', field='status',
+                   icon='mdi:human-greeting-proximity',
+                   entity_category='config',
+                   value_fn=lambda v: v == 'On',
+                   write_fn=lambda p, rep, href=None: (
+                       ['mds', 'absencepowersaving', 'vs', '0'],
+                       {'status': 'On' if p == 'On' else 'Off'})),
         SensorDesc(key='absence_power_saving_mode', field='switchPowerSaveMode',
                    device_class='enum',
                    options=('eco', 'normal', 'comfort'),
@@ -704,16 +712,21 @@ ABSENCE_POWER_SAVING = Capability(
 )
 
 # Avoid-direct-wind-on-motion, a sibling AI feature to ABSENCE_POWER_SAVING
-# above on the same dump: `status` toggles it, `modes` picks Direct/Indirect
-# airflow out of `supportedModes`. Same read-only treatment.
+# above on the same dump: `status` is the same bare On/Off shape, promoted to
+# a switch for the same reason. `modes` (Direct/Indirect airflow out of
+# `supportedModes`) stays read-only -- same reasoning as
+# absence_power_saving_mode above.
 MOTION_DETECT_WIND = Capability(
     href='/option/motiondetectwind/stateful/vs/0',
     poll_tier='cold',
     entities=(
-        BinarySensorDesc(key='motion_detect_wind_active', field='status',
-                          icon='mdi:motion-sensor',
-                          entity_category='diagnostic',
-                          value_fn=lambda v: v == 'On'),
+        SwitchDesc(key='motion_detect_wind_active', field='status',
+                   icon='mdi:motion-sensor',
+                   entity_category='config',
+                   value_fn=lambda v: v == 'On',
+                   write_fn=lambda p, rep, href=None: (
+                       ['option', 'motiondetectwind', 'stateful', 'vs', '0'],
+                       {'status': 'On' if p == 'On' else 'Off'})),
         SensorDesc(key='motion_detect_wind_mode', field='modes',
                    device_class='enum',
                    options=('direct', 'indirect'),

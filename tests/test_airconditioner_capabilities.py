@@ -514,16 +514,38 @@ def test_lnx_rac_heatpump_motion_detect_wind_state():
     assert state['motion_detect_wind_mode'] == 'indirect'
 
 
-def test_lnx_rac_heatpump_new_capabilities_are_read_only():
-    """Nothing in the dump confirms write safety on live HVAC hardware for
-    either feature -- exposed as sensors, not switches/selects."""
+def test_lnx_rac_heatpump_enable_switches_are_writable():
+    """status is a bare On/Off boolean, same shape already shipped writable
+    elsewhere in this file (MUTE_ONCE, AUTO_CLEAN) -- worst case a wrong
+    token no-ops. The paired mode selects stay read-only sensors."""
     absence_keys = {e.key for e in airconditioner.ABSENCE_POWER_SAVING.entities}
     motion_keys = {e.key for e in airconditioner.MOTION_DETECT_WIND.entities}
     assert absence_keys == {'absence_power_saving_active', 'absence_power_saving_mode'}
     assert motion_keys == {'motion_detect_wind_active', 'motion_detect_wind_mode'}
-    for entity in (*airconditioner.ABSENCE_POWER_SAVING.entities,
-                   *airconditioner.MOTION_DETECT_WIND.entities):
-        assert not hasattr(entity, 'write_fn') or entity.write_fn is None
+    absence_mode = next(e for e in airconditioner.ABSENCE_POWER_SAVING.entities
+                         if e.key == 'absence_power_saving_mode')
+    motion_mode = next(e for e in airconditioner.MOTION_DETECT_WIND.entities
+                        if e.key == 'motion_detect_wind_mode')
+    assert not hasattr(absence_mode, 'write_fn') or absence_mode.write_fn is None
+    assert not hasattr(motion_mode, 'write_fn') or motion_mode.write_fn is None
+
+
+def test_lnx_rac_heatpump_absence_power_saving_write_target():
+    write = next(e for e in airconditioner.ABSENCE_POWER_SAVING.entities
+                 if e.key == 'absence_power_saving_active').write_fn
+    assert write('On', {}) == (
+        ['mds', 'absencepowersaving', 'vs', '0'], {'status': 'On'})
+    assert write('Off', {}) == (
+        ['mds', 'absencepowersaving', 'vs', '0'], {'status': 'Off'})
+
+
+def test_lnx_rac_heatpump_motion_detect_wind_write_target():
+    write = next(e for e in airconditioner.MOTION_DETECT_WIND.entities
+                 if e.key == 'motion_detect_wind_active').write_fn
+    assert write('On', {}) == (
+        ['option', 'motiondetectwind', 'stateful', 'vs', '0'], {'status': 'On'})
+    assert write('Off', {}) == (
+        ['option', 'motiondetectwind', 'stateful', 'vs', '0'], {'status': 'Off'})
 
 
 # ---------------------------------------------------------------------------
