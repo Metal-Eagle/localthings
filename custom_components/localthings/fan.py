@@ -42,6 +42,7 @@ POWER_VS_HREF = '/power/vs/0'
 _FAN_SPEED_FIELD = 'x.com.samsung.da.hood.fanSpeed'
 _SUPPORTED_FAN_SPEED_FIELD = 'x.com.samsung.da.hood.supportedFanSpeed'
 _MIN_FAN_SPEED_FIELD = 'x.com.samsung.da.hood.settableMinFanSpeed'
+_MAX_FAN_SPEED_FIELD = 'x.com.samsung.da.hood.settableMaxFanSpeed'
 _OFF_SPEED_CODE = '0'
 
 _MODES_FIELD = 'x.com.samsung.da.modes'
@@ -125,7 +126,7 @@ class LocalThingsRangeHoodFan(LocalThingsEntity, FanEntity):
         if supported:
             return [str(value) for value in supported]
         min_s = rep.get(_MIN_FAN_SPEED_FIELD)
-        max_s = rep.get('x.com.samsung.da.hood.settableMaxFanSpeed')
+        max_s = rep.get(_MAX_FAN_SPEED_FIELD)
         if min_s is not None and max_s is not None:
             try:
                 mn, mx = int(min_s), int(max_s)
