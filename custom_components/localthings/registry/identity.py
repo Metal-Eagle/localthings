@@ -70,9 +70,9 @@ def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
     # RETRIEVE on it returns every Resource/Collection href this endpoint
     # hosts, not just the one /device/0 seed path the coordinator polls.
     # Relevant for the OCF "Composite Device" model (issue #177: a single
-    # physical unit -- one IP, one /oic/p -- exposing more than one logical
-    # Device, each as its own Collection resource, same rt shape as our own
-    # /device/0). This is what registry.subunits.enumerate_sub_units reads
+    # physical device -- one IP, one /oic/p -- exposing more than one logical
+    # subdevice, each as its own Collection resource, same rt shape as our own
+    # /device/0). This is what registry.subdevices.enumerate_subdevices reads
     # to find a board's `/device/<n>` siblings (Pattern A -- HJcom's
     # ARTIK051_DONGLE_FAC_18K) -- that probing, plus the /device/1 and
     # /device/2 speculative fallback it used to run right here on every

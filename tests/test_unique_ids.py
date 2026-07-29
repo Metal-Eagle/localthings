@@ -1,8 +1,8 @@
 """Corpus-wide invariant: adapter._key must be unique across every bound
 entity that would actually be registered as an HA entity, for every fixture
-in the corpus -- issue #177's whole SubUnit/key_prefix design exists to
+in the corpus -- issue #177's whole Subdevice/key_prefix design exists to
 protect this (see DESIGN-177.md section 3/6). Run over the entire fixture
-set, not just the two new sub-unit fixtures, so a future dump -- sub-unit-
+set, not just the two new subdevice fixtures, so a future dump -- subdevice-
 capable or not -- exercises it automatically.
 """
 from collections import Counter
@@ -25,13 +25,13 @@ class _FakeCoordinator:
     _is_included -- the same one-time entity-creation gate every platform's
     async_setup_entry runs (see entity.py's own module docstring)."""
 
-    def __init__(self, resources: dict[str, dict], sub_units):
+    def __init__(self, resources: dict[str, dict], subdevices):
         self.last_resources = resources
-        self._sub_units = list(sub_units)
+        self._subdevices = list(subdevices)
 
-    def canonical_resources(self, sub_unit):
-        from custom_components.localthings.registry.subunits import canonical_view
-        return canonical_view(sub_unit, self.last_resources, self._sub_units)
+    def canonical_resources(self, subdevice):
+        from custom_components.localthings.registry.subdevices import canonical_view
+        return canonical_view(subdevice, self.last_resources, self._subdevices)
 
 
 @pytest.mark.parametrize('name', _FIXTURE_NAMES)
@@ -62,21 +62,21 @@ def test_key_is_unique_across_all_bound_entities(name):
     dupes = {k: n for k, n in Counter(keys).items() if n > 1}
     assert not dupes, (
         f"{name}: duplicate (platform, _key) values across {len(included)} "
-        f"included entities (materialized sub-units: "
+        f"included entities (materialized subdevices: "
         f"{[su.key for su in materialized]}): {dupes}"
     )
 
 
-def test_sub_unit_capable_fixtures_actually_exercise_a_sub_unit():
-    """A meta-check on the test above: if both sub-unit fixtures somehow
-    stopped materializing any sub-unit (a regression in enumeration or the
+def test_subdevice_capable_fixtures_actually_exercise_a_subdevice():
+    """A meta-check on the test above: if both subdevice fixtures somehow
+    stopped materializing any subdevice (a regression in enumeration or the
     materialization gate), the corpus-wide uniqueness test above would keep
     passing vacuously -- it never gets to check a single collision. Assert
     the two fixtures this design added actually produce a materialized
-    sub-unit, so that silent-vacuous-pass failure mode is caught here
+    subdevice, so that silent-vacuous-pass failure mode is caught here
     instead."""
     for name in ('airconditioner_artik051_dongle_fac_18k',
                  'airconditioner_fac_bora_2in1'):
         resources, oic_res, seeds = _load_device_full(name)
         _, materialized, _, _, _ = _discover_full(resources, oic_res, seeds)
-        assert materialized, f"{name}: expected at least one materialized sub-unit"
+        assert materialized, f"{name}: expected at least one materialized subdevice"

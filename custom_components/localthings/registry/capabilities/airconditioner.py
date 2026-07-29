@@ -939,29 +939,30 @@ _AC_IGNORED = [
     '/stepcontrol/vs/0',
     '/reserverulesets/vs/0',       # opaque hex-encoded schedule reservation blob
     '/welcome/temperature/vs/0',   # welcome-cooling plumbing
-    # System-AC-only (multi-indoor-unit commercial installs, e.g.
+    # System-AC-only (multi-indoor-subdevice commercial installs, e.g.
     # A-CAWW-TP2-20-COMMON, issue #52): opaque hex-encoded installation
-    # topology -- indoor/outdoor unit pairing, per-unit serials, MCU info.
-    # Commissioning-time plumbing, not user-actionable appliance state.
+    # topology -- indoor/outdoor unit pairing, per-subdevice serials, MCU
+    # info. Commissioning-time plumbing, not user-actionable appliance state.
     '/sac/installationinfo/vs/0',
     # Wind-Free 2-in-1 systems (one outdoor unit driving a floor-standing
-    # *and* a wall-mounted indoor unit over one shared local IP, e.g.
+    # *and* a wall-mounted indoor subdevice over one shared local IP, e.g.
     # TP2X_FAC_BORA_21K, issues #150/#153): an opaque paired-subdevice id
     # list, same "remote device ids, not user-actionable locally" role as
-    # /remotedeviceinfo/vs/0 above. This integration talks to whichever
-    # single local endpoint the config entry was set up against; the
-    # second indoor unit isn't independently reachable through this
-    # resource (or any other in the dump) -- it would need its own local
-    # DTLS session/IP, which SmartThings pairing doesn't expose here.
+    # /remotedeviceinfo/vs/0 above -- true whenever this field is redacted
+    # (the shipped airconditioner_fac_bora fixture) or absent. When it does
+    # carry a real id (issue #177's airconditioner_fac_bora_2in1 fixture),
+    # registry/subdevices.py's enumerate_subdevices reads this same
+    # subdeviceIdList to reach the second indoor subdevice over this same
+    # connection instead -- see that module's Pattern B.
     '/subdevices/vs/0',
     # Undocumented single int (runningMode: 0 on every dump seen), no
     # supported-values list to interpret it against -- 'don't guess'.
     '/runn/vs/0',
-    # 2-in-1/multi-indoor-unit systems (issue #177, HJcom's
+    # 2-in-1/multi-indoor-subdevice systems (issue #177, HJcom's
     # ARTIK051_DONGLE_FAC_18K): x.com.samsung.da.numofsubdevice, a plain
-    # corroborating count of indoor units on this connection. Confirmed
+    # corroborating count of indoor subdevices on this connection. Confirmed
     # read-only (a write attempt returned CoAP 4.00). Absent from
-    # /device/0's batch entirely -- registry.subunits.enumerate_sub_units
+    # /device/0's batch entirely -- registry.subdevices.enumerate_subdevices
     # fetches it with its own RETRIEVE and folds it into the resources dict
     # for diagnostics, which is why it needs an entry here rather than
     # surfacing as an unbound-href gap on every board that has it.

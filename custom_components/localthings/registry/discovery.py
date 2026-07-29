@@ -18,7 +18,7 @@ from typing import Callable, Iterable, Optional
 
 from .capability import Capability
 from .entities import SamsungEntityDescription
-from .subunits import MAIN, SubUnit
+from .subdevices import MAIN, Subdevice
 
 
 @dataclass
@@ -29,11 +29,12 @@ class BoundEntity:
     instance: str = ''
     key_override: Optional[str] = None
     instance_name: Optional[str] = None
-    # Which logical indoor unit (issue #177) this entity belongs to. `href`
-    # above is always the *actual*, on-the-wire href for that unit -- MAIN's
-    # to_actual is the identity transform, so every device with no sub-units
+    # Which logical indoor subdevice (issue #177) this entity belongs to.
+    # `href` above is always the *actual*, on-the-wire href for that
+    # subdevice -- MAIN's
+    # to_actual is the identity transform, so every device with no subdevices
     # behaves exactly as before this field existed.
-    sub_unit: SubUnit = MAIN
+    subdevice: Subdevice = MAIN
 
 
 def _snake_to_title(s: str) -> str:
@@ -64,19 +65,19 @@ def instance_suffix(href: str) -> str:
 
 def _bind(cap: Capability, href: str, inst: str, inst_name: Optional[str],
           key_prefix: Optional[str] = None,
-          sub_unit: SubUnit = MAIN) -> list[BoundEntity]:
+          subdevice: Subdevice = MAIN) -> list[BoundEntity]:
     """Build one BoundEntity per entity on `cap`, sharing the instance/
     key-prefix/instance-name computed once by the caller.
 
     `href` here is the *canonical* href discover() is iterating over;
-    `sub_unit.to_actual` maps it to the real, on-the-wire href the entity
-    actually reads/writes (identity for MAIN, so single-unit devices are
-    unaffected -- see subunits.py)."""
+    `subdevice.to_actual` maps it to the real, on-the-wire href the entity
+    actually reads/writes (identity for MAIN, so single-subdevice devices are
+    unaffected -- see subdevices.py)."""
     return [
-        BoundEntity(href=sub_unit.to_actual(href), capability=cap, desc=desc,
+        BoundEntity(href=subdevice.to_actual(href), capability=cap, desc=desc,
                     instance=inst,
                     key_override=f'{key_prefix}_{desc.key}' if key_prefix else None,
-                    instance_name=inst_name, sub_unit=sub_unit)
+                    instance_name=inst_name, subdevice=subdevice)
         for desc in cap.entities
     ]
 
@@ -87,7 +88,7 @@ def discover(
     pattern_caps: Iterable[Capability] = (),
     log: Optional[Callable[[str], None]] = None,
     tier_log: Optional[Callable[[str, str], None]] = None,
-    sub_unit: SubUnit = MAIN,
+    subdevice: Subdevice = MAIN,
 ) -> list[BoundEntity]:
     """`tier_log(href, poll_tier)` fires for every href a capability actually
     matches, even a no-entity "coverage-only" capability (see COVERAGE lists
@@ -97,12 +98,13 @@ def discover(
     coverage-only capability's `poll_tier` would otherwise be silently
     dropped since it never appears in `bound`.
 
-    `resources` is always keyed by *canonical* hrefs -- for a sub-unit
+    `resources` is always keyed by *canonical* hrefs -- for a subdevice
     (issue #177) that means its own canonical view (see
-    subunits.canonical_view), the same shape as a plain single-unit device's
-    resources dict, so registry lookups/rt_filter/match_fn/instance_suffix
-    all behave identically regardless of which unit is being discovered.
-    `sub_unit` only affects the *href* stamped onto each BoundEntity (via
+    subdevices.canonical_view), the same shape as a plain single-subdevice
+    device's resources dict, so registry lookups/rt_filter/match_fn/
+    instance_suffix all behave identically regardless of which subdevice is
+    being discovered.
+    `subdevice` only affects the *href* stamped onto each BoundEntity (via
     `_bind`, see above) and the href `log`/`tier_log` report -- both the
     real, subscribable/pollable path, not the canonical one the registry is
     keyed on.
@@ -122,10 +124,10 @@ def discover(
             if cap.match_fn is not None and not cap.match_fn(rep, resources):
                 continue
             inst = instance_suffix(href)
-            out.extend(_bind(cap, href, inst, _instance_name(cap, rep), sub_unit=sub_unit))
+            out.extend(_bind(cap, href, inst, _instance_name(cap, rep), subdevice=subdevice))
             matched = True
             if tier_log is not None:
-                tier_log(sub_unit.to_actual(href), cap.poll_tier)
+                tier_log(subdevice.to_actual(href), cap.poll_tier)
 
         if matched:
             continue
@@ -143,13 +145,13 @@ def discover(
             src = href[len(cap.href_prefix):] if (cap.strip_prefix_in_key and cap.href_prefix) else href
             segs = [s for s in src.strip('/').split('/') if s and not s.isdigit() and s != 'vs']
             out.extend(_bind(cap, href, inst, _instance_name(cap, rep), '_'.join(segs),
-                              sub_unit=sub_unit))
+                              subdevice=subdevice))
             matched = True
             if tier_log is not None:
-                tier_log(sub_unit.to_actual(href), cap.poll_tier)
+                tier_log(subdevice.to_actual(href), cap.poll_tier)
             break
 
         if not matched and not caps and log is not None:
-            log(sub_unit.to_actual(href))
+            log(subdevice.to_actual(href))
 
     return out

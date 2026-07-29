@@ -1,17 +1,17 @@
-"""Sub-unit ("composite device") support for one physical connection exposing
-more than one logical indoor unit -- issue #177.
+"""Subdevice ("composite device") support for one physical connection exposing
+more than one logical indoor subdevice -- issue #177.
 
 Two reporters, two different board families, two genuinely different
-mechanisms for exposing a second indoor unit over one IP / one DTLS session
-(see DESIGN-177.md section 1 for the full evidence trail; the two diagnostics
-dumps this was built against are HJcom's and jhkwon19's -- they each filed
-one of the two reports this module unifies):
+mechanisms for exposing a second indoor subdevice over one IP / one DTLS
+session (see DESIGN-177.md section 1 for the full evidence trail; the two
+diagnostics dumps this was built against are HJcom's and jhkwon19's -- they
+each filed one of the two reports this module unifies):
 
 Pattern A -- indexed siblings (`ARTIK051_DONGLE_FAC_18K`, HJcom's board).
 `/oic/res` lists three complete parallel resource sets whose trailing path
 segment is the index (`/mode/vs/0`, `/mode/vs/1`, `/mode/vs/2`, ... on both
 OCF-standard and vendor hrefs), and `/device/0`'s batch carries only the
-index-0 hrefs -- the sibling units are reachable only via their own
+index-0 hrefs -- the sibling subdevices are reachable only via their own
 `/device/<n>` collection.
 
 Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, jhkwon19's board).
@@ -19,25 +19,26 @@ Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, jhkwon19's board).
 carries `x.com.samsung.da.subdeviceIdList` on `/subdevices/vs/0`, and that
 same UUID appears as a literal href prefix in `/oic/res`
 (`/<uuid>/file/list/vs/0`, ...). `GET /<uuid>/device/0` returns the second
-unit's own Collection batch, confirmed live by the reporter to carry a
+subdevice's own Collection batch, confirmed live by the reporter to carry a
 different model/serial than the master (`TP2X_FAC_BORA_RAC_21K`, the
-wall-mounted unit, vs. the master's `TP2X_FAC_BORA_21K`, the floor unit).
+wall-mounted subdevice, vs. the master's `TP2X_FAC_BORA_21K`, the floor
+subdevice).
 
-Both are "the same thing wearing different clothes": a logical unit is a
+Both are "the same thing wearing different clothes": a logical subdevice is a
 seed collection path to poll, plus an href transform between the canonical
 href the registry knows (`/mode/vs/0`) and the actual on-the-wire href. The
 detection signals don't overlap on either captured board (HJcom's has no
 `/subdevices/vs/0` at all; jhkwon19's has no `/device/1`), so no
-disambiguation logic is needed -- `enumerate_sub_units` checks both and
+disambiguation logic is needed -- `enumerate_subdevices` checks both and
 materializes any candidate whose seed answers with a non-empty batch.
 
 A non-empty seed batch is necessary but not sufficient for the *candidate*
-to actually be a live second unit, though: HJcom's own board also has a
+to actually be a live second subdevice, though: HJcom's own board also has a
 `/device/2` -- a third, unused SmartThings slot -- that answers with the
 exact same 14-href shape as the real `/device/1` sibling, populated with
 three constant/echoed/shape-only reps (a region code identical to every
-other unit's, an /information rep echoing the *same* model string as unit
-1, and a /temperatures items[] entry with an id/description but no
+other subdevice's, an /information rep echoing the *same* model string as
+subdevice 1, and a /temperatures items[] entry with an id/description but no
 current/desired/minimum/maximum reading) and nothing resembling live
 climate state. Gating on *resource* shape/hrefs turned out to be the wrong
 layer -- it would need per-family domain knowledge (which hrefs mean "in
@@ -66,8 +67,8 @@ from .batch import parse_device0_batch
 _INDEXED_HREF_RE = re.compile(r'^/device/(\d+)$')
 
 # Speculative /device/<n> siblings probed when /oic/res doesn't reveal a
-# second logical Device's Collection on this board (moved here from
-# identity.py, issue #177 -- see enumerate_sub_units' docstring for why: the
+# second logical subdevice's Collection on this board (moved here from
+# identity.py, issue #177 -- see enumerate_subdevices' docstring for why: the
 # old read_identity fired these two extra RETRIEVEs on *every* _connect_session,
 # including every reconnect, for information enumeration only needs once).
 # Same bound as before: a plain, tolerated-404 RETRIEVE, not the kind of
@@ -77,16 +78,18 @@ _SPECULATIVE_DEVICE_INDICES = (1, 2)
 
 
 @dataclass(frozen=True)
-class SubUnit:
-    """One logical indoor unit reachable over a single physical connection.
+class Subdevice:
+    """One logical indoor subdevice reachable over a single physical
+    connection.
 
-    `kind='main'` is the unit this config entry actually connects to and
+    `kind='main'` is the subdevice this config entry actually connects to and
     always exists (see MAIN below) -- its `to_actual`/`to_canonical` are the
-    identity transform, so every existing single-unit device keeps behaving
-    exactly as it did before this module existed. `'indexed'`/`'prefixed'`
-    are Pattern A/B above; `key` is the trailing index string ('1', '2', ...)
-    or the full subdevice UUID, and `seed_path` is the Collection href (as
-    path segments) whose batch response enumerates/refreshes that unit.
+    identity transform, so every existing single-subdevice device keeps
+    behaving exactly as it did before this module existed. `'indexed'`/
+    `'prefixed'` are Pattern A/B above; `key` is the trailing index string
+    ('1', '2', ...) or the full subdevice UUID, and `seed_path` is the
+    Collection href (as path segments) whose batch response
+    enumerates/refreshes that subdevice.
     """
     kind: str            # 'main' | 'indexed' | 'prefixed'
     key: str             # ''    | '1'       | '6c2dff6d-ee5c-dad1-6a5e-000000000001'
@@ -94,13 +97,13 @@ class SubUnit:
 
     def to_actual(self, canonical: str) -> str:
         """Canonical registry href (e.g. '/mode/vs/0') -> the real,
-        on-the-wire href for this unit."""
+        on-the-wire href for this subdevice."""
         if self.kind == 'indexed':
             head, sep, tail = canonical.rpartition('/')
             # Only the index-0 trailing segment is ours to rewrite --
             # deliberately not a "replace any trailing digit" rule, which
             # would misread a genuine multi-instance resource (the fridge's
-            # pattern-cap hrefs, e.g. '/door/vs/1') as a sub-unit's. No
+            # pattern-cap hrefs, e.g. '/door/vs/1') as a subdevice's. No
             # registry declares a non-zero trailing index today and no
             # fixture in the corpus contains one (verified across the whole
             # corpus), so the strict rule costs nothing.
@@ -112,7 +115,7 @@ class SubUnit:
         return canonical
 
     def to_canonical(self, actual: str) -> Optional[str]:
-        """Inverse of to_actual, or None when `actual` isn't this unit's."""
+        """Inverse of to_actual, or None when `actual` isn't this subdevice's."""
         if self.kind == 'indexed':
             head, sep, tail = actual.rpartition('/')
             if tail == self.key:
@@ -126,9 +129,9 @@ class SubUnit:
         return actual
 
     def owns(self, actual: str) -> bool:
-        """True if `actual` belongs to this unit's namespace. MAIN never
+        """True if `actual` belongs to this subdevice's namespace. MAIN never
         "owns" anything by this definition -- it gets whatever's left after
-        every other sub-unit's hrefs are excluded (see canonical_view)."""
+        every other subdevice's hrefs are excluded (see canonical_view)."""
         if self.kind == 'main':
             return False
         return self.to_canonical(actual) is not None
@@ -136,7 +139,7 @@ class SubUnit:
     @property
     def key_prefix(self) -> str:
         """Prefix that guarantees a unique entity key/unique_id (see
-        adapter._key). '' for MAIN -- the master unit's flattened state
+        adapter._key). '' for MAIN -- the master's flattened state
         keys must stay byte-identical to every device this integration
         shipped before issue #177, so no golden file changes. The full
         subdevice UUID is used verbatim (non-alphanumerics stripped, not
@@ -147,60 +150,60 @@ class SubUnit:
         the device name + entity name, not from unique_id.
         """
         if self.kind == 'indexed':
-            return f'unit{self.key}_'
+            return f'subdevice{self.key}_'
         if self.kind == 'prefixed':
             slug = re.sub(r'[^a-zA-Z0-9]', '', self.key)
-            return f'sub_{slug}_'
+            return f'subdevice_{slug}_'
         return ''
 
 
-MAIN = SubUnit(kind='main', key='', seed_path=('device', '0'))
+MAIN = Subdevice(kind='main', key='', seed_path=('device', '0'))
 
 
 def canonical_view(
-    sub_unit: SubUnit, resources: dict[str, dict], sub_units: list['SubUnit'],
+    subdevice: Subdevice, resources: dict[str, dict], subdevices: list['Subdevice'],
 ) -> dict[str, dict]:
-    """Rewrite `resources` (real, on-the-wire hrefs) into `sub_unit`'s own
+    """Rewrite `resources` (real, on-the-wire hrefs) into `subdevice`'s own
     canonical namespace -- what discover()/exists_fn/rep_fn/is_legacy_board
     and friends are written against.
 
     For MAIN this is the snapshot *minus* every href owned by one of the
-    other units in `sub_units` -- otherwise a sibling's own `/mode/vs/1`
+    other subdevices in `subdevices` -- otherwise a sibling's own `/mode/vs/1`
     would leak into the master's view under the same canonical key
     ('/mode/vs/0') that the master's actual `/mode/vs/0` also maps to,
-    silently mixing two units' state together. For an indexed/prefixed unit
-    it's the reverse: only the hrefs that unit owns, rewritten back through
-    `to_canonical`.
+    silently mixing two subdevices' state together. For an indexed/prefixed
+    subdevice it's the reverse: only the hrefs that subdevice owns, rewritten
+    back through `to_canonical`.
 
-    `sub_units` may or may not include MAIN itself -- MAIN.owns() is always
+    `subdevices` may or may not include MAIN itself -- MAIN.owns() is always
     False, so including it is harmless.
     """
-    if sub_unit.kind == 'main':
+    if subdevice.kind == 'main':
         owned_elsewhere = {
             href for href in resources
-            if any(su.owns(href) for su in sub_units)
+            if any(su.owns(href) for su in subdevices)
         }
         return {h: r for h, r in resources.items() if h not in owned_elsewhere}
     return {
         canon: resources[actual]
         for actual in resources
-        if (canon := sub_unit.to_canonical(actual)) is not None
+        if (canon := subdevice.to_canonical(actual)) is not None
     }
 
 
-def normalize_seed_batch(sub_unit: SubUnit, batch: dict[str, dict]) -> dict[str, dict]:
-    """Real, on-the-wire hrefs from one sub-unit's seed-collection batch,
-    normalized so every href actually carries this unit's prefix/index.
+def normalize_seed_batch(subdevice: Subdevice, batch: dict[str, dict]) -> dict[str, dict]:
+    """Real, on-the-wire hrefs from one subdevice's seed-collection batch,
+    normalized so every href actually carries this subdevice's prefix/index.
 
-    Indexed units need no change -- the device echoes the real `/x/<n>`
+    Indexed subdevices need no change -- the device echoes the real `/x/<n>`
     href in its own `/device/<n>` batch (confirmed against HJcom's dump).
-    A prefixed unit's batch entries may or may not already carry the
+    A prefixed subdevice's batch entries may or may not already carry the
     `/<id>` prefix (unconfirmed which -- jhkwon19's board was never probed
-    live before the sub-unit id was known), so it's added when missing.
+    live before the subdevice id was known), so it's added when missing.
     """
-    if sub_unit.kind != 'prefixed':
+    if subdevice.kind != 'prefixed':
         return batch
-    prefix = f'/{sub_unit.key}'
+    prefix = f'/{subdevice.key}'
     return {
         (href if href.startswith(prefix + '/') else f'{prefix}{href}'): rep
         for href, rep in batch.items()
@@ -266,23 +269,24 @@ def _get_property(sess, path_segs: tuple[str, ...]) -> dict:
     return body if isinstance(body, dict) else {}
 
 
-def enumerate_sub_units(
+def enumerate_subdevices(
     sess,
     resources: dict[str, dict],
     oic_res_links,
     probe_log: Optional[Callable[[str, bool], None]] = None,
-) -> tuple[list['SubUnit'], dict[str, dict]]:
-    """Discover every sibling indoor unit reachable over `sess`'s connection.
+) -> tuple[list['Subdevice'], dict[str, dict]]:
+    """Discover every sibling indoor subdevice reachable over `sess`'s
+    connection.
 
     Runs once, at first discovery, in an executor, under the coordinator's
     session lock -- every GET here is a plain RETRIEVE (the write-contract
     'don't guess' rule doesn't apply to reading an extra resource to find
-    out whether it's there). Returns the *candidate* units and the resources
+    out whether it's there). Returns the *candidate* subdevices and the resources
     already fetched while probing them (already normalized to real hrefs),
     so the coordinator's first discovery poll doesn't need to re-poll them.
 
     `probe_log(seed_href, found)` fires for every seed attempted, whether or
-    not it answered -- so diagnostics (see diagnostics.py's sub_unit_probes)
+    not it answered -- so diagnostics (see diagnostics.py's subdevice_probes)
     can tell "checked, nothing there" apart from "never checked", the same
     posture the speculative-probe code this replaces used to document in
     identity.py.
@@ -294,7 +298,7 @@ def enumerate_sub_units(
     entities first, which is `discover_partitioned`'s job, not this one's.
     See this module's docstring.
     """
-    units: list[SubUnit] = []
+    subdevices: list[Subdevice] = []
     fetched: dict[str, dict] = {}
 
     def _probed(seed_href: str, batch: dict) -> None:
@@ -307,7 +311,7 @@ def enumerate_sub_units(
     # Tolerate anything but a list of strings -- this field is redaction-prone
     # (it matches the 'deviceid' substring rule in redact.py) and the existing
     # airconditioner_fac_bora fixture carries the literal string
-    # '**REDACTED**'/'REDACTED' there. That must yield zero sub-units, not a
+    # '**REDACTED**'/'REDACTED' there. That must yield zero subdevices, not a
     # crash -- issue #177 is additive, it must never break an already-working
     # single-climate-entity device.
     ids = raw_ids if isinstance(raw_ids, list) else []
@@ -317,9 +321,9 @@ def enumerate_sub_units(
         _probed(_seed_href(seed), batch)
         if not batch:
             continue
-        unit = SubUnit(kind='prefixed', key=sub_id, seed_path=seed)
-        fetched.update(normalize_seed_batch(unit, batch))
-        units.append(unit)
+        subdevice = Subdevice(kind='prefixed', key=sub_id, seed_path=seed)
+        fetched.update(normalize_seed_batch(subdevice, batch))
+        subdevices.append(subdevice)
 
     # --- Pattern A: indexed siblings (ARTIK051_DONGLE_FAC_18K) --------------
     indices = sorted({
@@ -340,9 +344,9 @@ def enumerate_sub_units(
         _probed(_seed_href(seed), batch)
         if not batch:
             continue
-        unit = SubUnit(kind='indexed', key=str(n), seed_path=seed)
+        subdevice = Subdevice(kind='indexed', key=str(n), seed_path=seed)
         fetched.update(batch)  # already real /x/<n> hrefs, no normalization needed
-        units.append(unit)
+        subdevices.append(subdevice)
 
     # /multidevice/vs/0 (issue #177 follow-up): HJcom's board lists it in
     # /oic/res but it never appears in /device/0's batch, so it needs its
@@ -354,31 +358,31 @@ def enumerate_sub_units(
     # an unbound-href gap). NOT a gate: discover_partitioned's entity-level
     # liveness check decides materialization correctly without it, and only
     # this one board family is known to expose it at all. Whether it agrees
-    # with the number of units actually materialized is the coordinator's
-    # call to log (it owns the logger; this module doesn't), not this
-    # function's.
+    # with the number of subdevices actually materialized is the
+    # coordinator's call to log (it owns the logger; this module doesn't),
+    # not this function's.
     multidevice_seed = ('multidevice', 'vs', '0')
     multidevice = _get_property(sess, multidevice_seed)
     _probed(_seed_href(multidevice_seed), multidevice)
     if multidevice:
         fetched['/multidevice/vs/0'] = multidevice
 
-    return units, fetched
+    return subdevices, fetched
 
 
 @dataclass(frozen=True)
-class SkippedSubUnit:
-    """A candidate `enumerate_sub_units` found whose seed answered, but that
+class SkippedSubdevice:
+    """A candidate `enumerate_subdevices` found whose seed answered, but that
     `discover_partitioned`'s entity-level liveness gate rejected -- an
-    unused SmartThings slot (HJcom's `/device/2`), not a real second unit.
+    unused SmartThings slot (HJcom's `/device/2`), not a real second subdevice.
     Kept around (rather than silently dropped) so a caller can log/report
     what was skipped and why."""
-    sub_unit: SubUnit
+    subdevice: Subdevice
     hrefs: tuple[str, ...]
 
 
 def _has_live_primary_entity(bound, state: dict) -> bool:
-    """True if flattening `bound` (one candidate sub-unit's BoundEntity
+    """True if flattening `bound` (one candidate subdevice's BoundEntity
     list) produced at least one non-`None` value for a *primary* entity --
     `entity_category` unset, HA's own "the user acts on or watches this"
     tier (see the adding-device-support skill's entity-taxonomy section).
@@ -387,7 +391,7 @@ def _has_live_primary_entity(bound, state: dict) -> bool:
     HJcom's `/device/2` does flatten to one non-`None` value
     (`alarm_code`), but that entity is `diagnostic`-category and derived
     from an empty `/alarms/vs/2` -- a config/diagnostic entity reading
-    "something" proves nothing about whether a physical unit is actually
+    "something" proves nothing about whether a physical subdevice is actually
     installed there, so it's deliberately excluded from this check.
     """
     from .adapter import _key  # see discover_partitioned's deferred-import note
@@ -399,27 +403,27 @@ def _has_live_primary_entity(bound, state: dict) -> bool:
 
 def discover_partitioned(
     resources: dict[str, dict],
-    sub_units: list['SubUnit'],
+    subdevices: list['Subdevice'],
     resolve_registry: Callable[[dict], object],
     fallback_capabilities: dict,
     log: Optional[Callable[[str], None]] = None,
     tier_log: Optional[Callable[[str, str], None]] = None,
 ):
     """Bind every href in `resources` (the merged, real-href snapshot -- main
-    plus every enumerated sub-unit's seed) to entities, partitioned by which
-    unit owns it.
+    plus every enumerated subdevice's seed) to entities, partitioned by which
+    subdevice owns it.
 
-    Main pass runs over hrefs owned by no sub-unit -- otherwise every
+    Main pass runs over hrefs owned by no subdevice -- otherwise every
     `/mode/vs/1` would land in `unbound_hrefs` too (nothing in the main
     device's registry claims that literal href) and raise a spurious
-    coverage-gap repair. Then one pass per *candidate* sub-unit over its own
-    canonical view, resolving that unit's own device type from its own
-    `/information/vs/0` when it reports one (e.g. jhkwon19's wall unit
+    coverage-gap repair. Then one pass per *candidate* subdevice over its own
+    canonical view, resolving that subdevice's own device type from its own
+    `/information/vs/0` when it reports one (e.g. jhkwon19's wall subdevice
     reports `TP2X_FAC_BORA_RAC_21K` -> the 'RAC' board token ->
     airconditioner), falling back to the master's registry otherwise --
     every AC family shares the same resource surface, and a sibling that
     fails to answer its own identity resource is still the same appliance
-    type as the unit this config entry was set up against.
+    type as the subdevice this config entry was set up against.
 
     Each candidate is discovered and flattened *twice*: once silently to
     evaluate `_has_live_primary_entity` (this module's materialization
@@ -429,21 +433,21 @@ def discover_partitioned(
     contributes nothing at all -- no bound entities, no unbound-href
     report, no hot/warm href -- as if it had never answered its seed.
     Discovering an unused slot's small, fixed resource set twice at
-    first-discovery time only is a non-issue; getting a phantom sub-unit
+    first-discovery time only is a non-issue; getting a phantom subdevice
     silently counted into unbound_hrefs or hot/warm tiers is not.
 
     Returns `(bound, device_type_name, materialized, skipped)`:
     - `bound`: the concatenated BoundEntity list (main + every materialized
-      sub-unit).
+      subdevice).
     - `device_type_name`: the *master's* resolved device type (used for
-      logging/device naming; each sub-unit's own resolved type only affects
+      logging/device naming; each subdevice's own resolved type only affects
       which capabilities bind its hrefs, not this).
-    - `materialized`: the subset of `sub_units` that passed the gate, in the
-      same order -- what the caller should keep as its live sub-unit roster
+    - `materialized`: the subset of `subdevices` that passed the gate, in the
+      same order -- what the caller should keep as its live subdevice roster
       going forward (poll seeds, canonical_resources, device_info_for, ...).
-    - `skipped`: `SkippedSubUnit` entries for every candidate that didn't.
+    - `skipped`: `SkippedSubdevice` entries for every candidate that didn't.
     """
-    # Deferred import: discovery.py imports SubUnit/MAIN from this module at
+    # Deferred import: discovery.py imports Subdevice/MAIN from this module at
     # module scope, so importing discover() back here at module scope would
     # be a circular import. By the time this function actually runs both
     # modules are fully loaded. adapter.py imports discovery.py, so the same
@@ -452,9 +456,9 @@ def discover_partitioned(
     from .discovery import discover
 
     # Same computation canonical_view does for MAIN (snapshot minus every
-    # other sub-unit's owned hrefs) -- reuse it rather than re-deriving
+    # other subdevice's owned hrefs) -- reuse it rather than re-deriving
     # owned_elsewhere here too.
-    main_view = canonical_view(MAIN, resources, sub_units)
+    main_view = canonical_view(MAIN, resources, subdevices)
 
     reg = resolve_registry(main_view)
     caps, pats = (
@@ -463,29 +467,29 @@ def discover_partitioned(
     )
     # MAIN is never gated -- the config entry's own physical connection
     # always materializes regardless of what its entities' values are.
-    bound = discover(main_view, caps, pats, log=log, tier_log=tier_log, sub_unit=MAIN)
+    bound = discover(main_view, caps, pats, log=log, tier_log=tier_log, subdevice=MAIN)
     device_type_name = reg.name if reg is not None else None
 
-    materialized: list[SubUnit] = []
-    skipped: list[SkippedSubUnit] = []
+    materialized: list[Subdevice] = []
+    skipped: list[SkippedSubdevice] = []
 
-    for su in sub_units:
-        view = canonical_view(su, resources, sub_units)
+    for su in subdevices:
+        view = canonical_view(su, resources, subdevices)
         su_reg = resolve_registry(view) or reg
         su_caps, su_pats = (
             (su_reg.capabilities, su_reg.pattern_capabilities) if su_reg is not None
             else (fallback_capabilities, [])
         )
-        probe_bound = discover(view, su_caps, su_pats, sub_unit=su)
+        probe_bound = discover(view, su_caps, su_pats, subdevice=su)
         probe_state = flatten(probe_bound, resources)
         if _has_live_primary_entity(probe_bound, probe_state):
             materialized.append(su)
             bound = bound + discover(
-                view, su_caps, su_pats, log=log, tier_log=tier_log, sub_unit=su,
+                view, su_caps, su_pats, log=log, tier_log=tier_log, subdevice=su,
             )
         else:
-            skipped.append(SkippedSubUnit(
-                sub_unit=su,
+            skipped.append(SkippedSubdevice(
+                subdevice=su,
                 hrefs=tuple(sorted({b.href for b in probe_bound})),
             ))
 

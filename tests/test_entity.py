@@ -17,12 +17,12 @@ class _FakeCoordinator:
     def __init__(self, last_resources):
         self.last_resources = last_resources
 
-    def canonical_resources(self, sub_unit):
+    def canonical_resources(self, subdevice):
         # Every bound entity in this test file uses the default MAIN
-        # sub-unit (identity transform), so the canonical view is just the
+        # subdevice (identity transform), so the canonical view is just the
         # raw snapshot -- same shape as the real
         # LocalThingsCoordinator.canonical_resources for a device with no
-        # sub-units (issue #177).
+        # subdevices (issue #177).
         return self.last_resources
 
 

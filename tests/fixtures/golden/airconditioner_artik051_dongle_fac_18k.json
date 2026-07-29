@@ -16,12 +16,12 @@
     "power_energy_kwh",
     "power_watts",
     "super_fine_dust",
-    "unit1_alarm_code",
-    "unit1_auto_clean_legacy",
-    "unit1_beep",
-    "unit1_climate",
-    "unit1_current_temperature_c",
-    "unit1_good_sleep",
-    "unit1_humidity"
+    "subdevice1_alarm_code",
+    "subdevice1_auto_clean_legacy",
+    "subdevice1_beep",
+    "subdevice1_climate",
+    "subdevice1_current_temperature_c",
+    "subdevice1_good_sleep",
+    "subdevice1_humidity"
   ]
 }

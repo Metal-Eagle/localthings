@@ -18,7 +18,7 @@ def _load_device(name: str) -> dict[str, dict]:
 
 def _load_device_full(name: str):
     """Like _load_device, but also returns the optional `oic_res`/`seeds`
-    keys a sub-unit-capable fixture (issue #177) may carry alongside
+    keys a subdevice-capable fixture (issue #177) may carry alongside
     `device0` -- see the two `airconditioner_*` fixtures with a
     `seeds_note` field. `oic_res`/`seeds` default to `[]`/`{}` for every
     other fixture, so this is safe to call on any fixture in the corpus.
@@ -44,9 +44,9 @@ class FakeCoapSession:
     fixture's `seeds` map (raw device0-batch-shaped lists keyed by seed
     href -- plus any `probes` entries, which are plain Property maps rather
     than batch lists; both are just CBOR bodies at this layer, and the two
-    readers in registry.subunits already type-check what they get back).
-    Enough surface for registry.subunits.enumerate_sub_units and
-    LocalThingsCoordinator's blocking sub-unit polls to run against fixture
+    readers in registry.subdevices already type-check what they get back).
+    Enough surface for registry.subdevices.enumerate_subdevices and
+    LocalThingsCoordinator's blocking subdevice polls to run against fixture
     data without a live device -- same idea as test_identity.py's
     FakeSession, but keyed by href string (post path-join) rather than a
     path tuple, since callers here pass a `seed_path` tuple straight
@@ -69,16 +69,16 @@ class FakeCoapSession:
 
 
 def _discover_full(resources: dict[str, dict], oic_res, seeds: dict[str, list]):
-    """Run the *whole* sub-unit-aware discovery pipeline against fixture
+    """Run the *whole* subdevice-aware discovery pipeline against fixture
     data, HA-free -- mirrors exactly what LocalThingsCoordinator does across
-    _enumerate_sub_units_blocking + _run_discovery (issue #177), so a test
+    _enumerate_subdevices_blocking + _run_discovery (issue #177), so a test
     exercising this exercises the real code path, not a re-implementation of
     it. See the adding-device-support skill's section 2 for the plain
-    (non-sub-unit) equivalent this extends.
+    (non-subdevice) equivalent this extends.
 
     Returns `(bound, materialized, skipped, full_resources, device_type_name)`:
-    - `bound`: every BoundEntity, main + every materialized sub-unit.
-    - `materialized`/`skipped`: SubUnit / SkippedSubUnit lists straight from
+    - `bound`: every BoundEntity, main + every materialized subdevice.
+    - `materialized`/`skipped`: Subdevice / SkippedSubdevice lists straight from
       discover_partitioned.
     - `full_resources`: `resources` merged with every candidate's seed data
       (actual hrefs) -- what a coordinator's cache would hold.
@@ -86,12 +86,12 @@ def _discover_full(resources: dict[str, dict], oic_res, seeds: dict[str, list]):
     """
     from custom_components.localthings.registry.by_type import resolve
     from custom_components.localthings.registry.registry import CAPABILITIES
-    from custom_components.localthings.registry.subunits import (
-        discover_partitioned, enumerate_sub_units,
+    from custom_components.localthings.registry.subdevices import (
+        discover_partitioned, enumerate_subdevices,
     )
 
     sess = FakeCoapSession(seeds)
-    candidates, extra = enumerate_sub_units(sess, resources, oic_res)
+    candidates, extra = enumerate_subdevices(sess, resources, oic_res)
     full_resources = {**resources, **extra}
     bound, device_type_name, materialized, skipped = discover_partitioned(
         full_resources, candidates, resolve, CAPABILITIES,

@@ -1,7 +1,7 @@
 """End-to-end discovery tests for issue #177's two composite-device
 fixtures, against the real LocalThingsCoordinator (not the HA-free
-registry-level helpers test_subunits.py/test_unique_ids.py use) -- this is
-what actually exercises _enumerate_sub_units_blocking + _run_discovery
+registry-level helpers test_subdevices.py/test_unique_ids.py use) -- this is
+what actually exercises _enumerate_subdevices_blocking + _run_discovery
 together, including device_info_for/via_device and the "no phantom
 /device/2 entities" guarantee.
 """
@@ -40,7 +40,7 @@ async def _discover(coordinator: LocalThingsCoordinator, name: str) -> None:
     """Run the same two-step sequence _async_update_data's first cycle does
     (enumerate, then discover) against fixture data, without the polling/
     reconnect machinery around it -- see coordinator.py's
-    _enumerate_sub_units_blocking/_run_discovery."""
+    _enumerate_subdevices_blocking/_run_discovery."""
     resources, oic_res, seeds = _load_device_full(name)
     coordinator._session = FakeCoapSession(seeds)
     # _connect_session (skipped here -- the session is pre-set) is what
@@ -52,7 +52,7 @@ async def _discover(coordinator: LocalThingsCoordinator, name: str) -> None:
         device_types=(), raw={'/oic/p': {}, '/oic/d': {}, '/oic/res': oic_res},
     )
     merged = await coordinator.hass.async_add_executor_job(
-        coordinator._enumerate_sub_units_blocking, resources,
+        coordinator._enumerate_subdevices_blocking, resources,
     )
     # Mirror _async_update_data's first-cycle order exactly: discover, then
     # drop the candidates the liveness gate rejected, then apply what's left
@@ -63,17 +63,17 @@ async def _discover(coordinator: LocalThingsCoordinator, name: str) -> None:
     # first here would leave this helper testing an ordering production no
     # longer uses.
     coordinator._run_discovery(merged)
-    for href, rep in coordinator._live_unit_resources(merged).items():
+    for href, rep in coordinator._live_subdevice_resources(merged).items():
         coordinator._observe.apply(href, rep, source='poll')
 
 
-def _climate_bound(coordinator, sub_unit_key: str):
-    from custom_components.localthings.registry.subunits import MAIN
+def _climate_bound(coordinator, subdevice_key: str):
+    from custom_components.localthings.registry.subdevices import MAIN
     for b in coordinator.bound:
         if isinstance(b.desc, ClimateDesc):
-            if sub_unit_key is None and b.sub_unit == MAIN:
+            if subdevice_key is None and b.subdevice == MAIN:
                 return b
-            if sub_unit_key is not None and b.sub_unit.key == sub_unit_key:
+            if subdevice_key is not None and b.subdevice.key == subdevice_key:
                 return b
     return None
 
@@ -82,18 +82,18 @@ def _climate_bound(coordinator, sub_unit_key: str):
 # HJcom -- ARTIK051_DONGLE_FAC_18K, Pattern A (indexed siblings)
 # ---------------------------------------------------------------------------
 
-async def test_hjcom_materializes_master_and_bedroom_unit(hass: HomeAssistant):
+async def test_hjcom_materializes_master_and_bedroom_subdevice(hass: HomeAssistant):
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_artik051_dongle_fac_18k')
 
-    assert [su.key for su in coordinator.sub_units] == ['1']
+    assert [su.key for su in coordinator.subdevices] == ['1']
 
     main_climate = _climate_bound(coordinator, None)
-    unit1_climate = _climate_bound(coordinator, '1')
+    sub1_climate = _climate_bound(coordinator, '1')
     assert main_climate is not None
-    assert unit1_climate is not None
+    assert sub1_climate is not None
     assert main_climate.href == '/mode/vs/0'
-    assert unit1_climate.href == '/mode/vs/1'
+    assert sub1_climate.href == '/mode/vs/1'
 
 
 async def test_hjcom_device_2_produces_no_entities_at_all(hass: HomeAssistant):
@@ -104,27 +104,27 @@ async def test_hjcom_device_2_produces_no_entities_at_all(hass: HomeAssistant):
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_artik051_dongle_fac_18k')
 
-    assert '2' not in [su.key for su in coordinator.sub_units]
+    assert '2' not in [su.key for su in coordinator.subdevices]
     assert any(
-        skip.sub_unit.kind == 'indexed' and skip.sub_unit.key == '2'
-        for skip in coordinator._skipped_sub_units
+        skip.subdevice.kind == 'indexed' and skip.subdevice.key == '2'
+        for skip in coordinator._skipped_subdevices
     )
-    assert not any(b.sub_unit.key == '2' for b in coordinator.bound)
+    assert not any(b.subdevice.key == '2' for b in coordinator.bound)
     assert not any(href.endswith('/2') for href in coordinator._hot_hrefs)
     assert not any(href.endswith('/2') for href in coordinator._warm_hrefs)
 
 
-async def test_hjcom_unit1_device_info_links_via_device_to_master(hass: HomeAssistant):
+async def test_hjcom_sub1_device_info_links_via_device_to_master(hass: HomeAssistant):
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_artik051_dongle_fac_18k')
 
-    unit1 = next(su for su in coordinator.sub_units if su.key == '1')
-    info = coordinator.device_info_for(unit1)
+    sub1 = next(su for su in coordinator.subdevices if su.key == '1')
+    info = coordinator.device_info_for(sub1)
 
     master_serial = coordinator.device_serial
     assert info['identifiers'] == {(DOMAIN, f'{master_serial}_1')}
     assert info['via_device'] == (DOMAIN, master_serial)
-    # The sub-unit's own /information/vs/1 (real, ARTIK051_DONGLE_FAC_RAC_18K)
+    # The subdevice's own /information/vs/1 (real, ARTIK051_DONGLE_FAC_RAC_18K)
     # is what names/models this device, not the master's.
     assert info['model'] == 'ARTIK051_DONGLE_FAC_RAC_18K'
 
@@ -136,12 +136,12 @@ async def test_hjcom_unit1_device_info_links_via_device_to_master(hass: HomeAssi
 _SUB_UUID = '6c2dff6d-ee5c-dad1-6a5e-000000000001'
 
 
-async def test_fac_bora_2in1_materializes_prefixed_wall_unit(hass: HomeAssistant):
+async def test_fac_bora_2in1_materializes_prefixed_wall_subdevice(hass: HomeAssistant):
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_fac_bora_2in1')
 
-    assert [su.key for su in coordinator.sub_units] == [_SUB_UUID]
-    assert coordinator.sub_units[0].kind == 'prefixed'
+    assert [su.key for su in coordinator.subdevices] == [_SUB_UUID]
+    assert coordinator.subdevices[0].kind == 'prefixed'
 
     main_climate = _climate_bound(coordinator, None)
     sub_climate = _climate_bound(coordinator, _SUB_UUID)
@@ -151,25 +151,25 @@ async def test_fac_bora_2in1_materializes_prefixed_wall_unit(hass: HomeAssistant
     assert sub_climate.href == f'/{_SUB_UUID}/mode/vs/0'
 
 
-async def test_fac_bora_2in1_sub_unit_device_info(hass: HomeAssistant):
+async def test_fac_bora_2in1_subdevice_device_info(hass: HomeAssistant):
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_fac_bora_2in1')
 
-    unit = coordinator.sub_units[0]
-    info = coordinator.device_info_for(unit)
+    subdevice = coordinator.subdevices[0]
+    info = coordinator.device_info_for(subdevice)
 
     master_serial = coordinator.device_serial
     assert info['identifiers'] == {(DOMAIN, f'{master_serial}_{_SUB_UUID}')}
     assert info['via_device'] == (DOMAIN, master_serial)
     # Confirmed live by the reporter (DESIGN-177.md section 1): the wall
-    # unit's own identity, distinct from the master's TP2X_FAC_BORA_21K.
+    # subdevice's own identity, distinct from the master's TP2X_FAC_BORA_21K.
     assert info['model'] == 'TP2X_FAC_BORA_RAC_21K'
 
 
-async def test_fac_bora_2in1_unique_ids_include_sub_prefix(hass: HomeAssistant):
-    """The prefixed unit's unique_id carries the full subdevice UUID
+async def test_fac_bora_2in1_unique_ids_include_subdevice_prefix(hass: HomeAssistant):
+    """The prefixed subdevice's unique_id carries the full subdevice UUID
     (non-alphanumerics stripped), not a truncation or an ordinal -- see
-    SubUnit.key_prefix."""
+    Subdevice.key_prefix."""
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_fac_bora_2in1')
 
@@ -178,7 +178,7 @@ async def test_fac_bora_2in1_unique_ids_include_sub_prefix(hass: HomeAssistant):
     entity = LocalThingsEntity(coordinator, sub_climate)
     expected_slug = _SUB_UUID.replace('-', '')
     assert entity._attr_unique_id == (
-        f"{DOMAIN}_{coordinator.device_serial}_sub_{expected_slug}_climate"
+        f"{DOMAIN}_{coordinator.device_serial}_subdevice_{expected_slug}_climate"
     )
 
 
@@ -207,10 +207,10 @@ async def test_multidevice_probe_never_reaches_discovery_or_the_cache(
         device_types=(), raw={'/oic/p': {}, '/oic/d': {}, '/oic/res': []},
     )
     merged = await hass.async_add_executor_job(
-        coordinator._enumerate_sub_units_blocking, resources,
+        coordinator._enumerate_subdevices_blocking, resources,
     )
     coordinator._run_discovery(merged)
-    for href, rep in coordinator._live_unit_resources(merged).items():
+    for href, rep in coordinator._live_subdevice_resources(merged).items():
         coordinator._observe.apply(href, rep, source='poll')
 
     assert '/multidevice/vs/0' not in merged
