@@ -58,7 +58,8 @@ async def test_diagnostics_include_ocf_identity(
         device_types=('oic.wk.d', 'oic.d.refrigerator'),
         raw={
             '/oic/p': {'mnmn': 'Samsung Electronics', 'pi': '12-34-56'},
-            '/oic/d': {'n': 'Family Hub', 'di': 'ab-cd-ef'},
+            '/oic/d': {'n': 'Family Hub', 'di': 'ab-cd-ef',
+                       'rt': ['oic.wk.d', 'oic.d.refrigerator']},
         },
     )
 
@@ -67,11 +68,16 @@ async def test_diagnostics_include_ocf_identity(
     identity = diag['identity']
     assert identity['model'] == 'RF9000B'
     assert identity['device_types'] == ['oic.wk.d', 'oic.d.refrigerator']
-    # The raw payloads ride along redacted -- we don't yet know which of
-    # their fields identify a device type, so none are dropped up front.
+    # The raw payloads ride along whole -- we don't yet know which of their
+    # fields identify a device type, so nothing is dropped up front beyond
+    # what redaction takes out.
     assert identity['resources']['/oic/p']['mnmn'] == 'Samsung Electronics'
     assert identity['resources']['/oic/d']['di'] == REDACTED
     assert identity['resources']['/oic/p']['pi'] == REDACTED
+    # The owner-settable device name is redacted; `rt` -- the reason this
+    # block exists -- is not.
+    assert identity['resources']['/oic/d']['n'] == REDACTED
+    assert identity['resources']['/oic/d']['rt'] == ['oic.wk.d', 'oic.d.refrigerator']
 
 
 async def test_diagnostics_identity_none_when_unavailable(

@@ -371,13 +371,20 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 warm.add(href)
 
         model_num = info.get('x.com.samsung.da.modelNum', '')
+        description = info.get('x.com.samsung.da.description', '')
         if reg is not None:
             self._log.debug("device type: %s (modelNum=%r)", reg.name, model_num)
             bound = discover(resources, reg.capabilities, reg.pattern_capabilities,
                               log=unbound.append, tier_log=_tier_log)
             self.device_type_name = reg.name
         else:
-            self._log.warning("unknown device type modelNum=%r; using common caps", model_num)
+            # Both fields: detection reads each of them (board token, then
+            # consumer-model code), and this line is what a user pastes into
+            # an issue -- modelNum alone doesn't identify a washer or dryer.
+            self._log.warning(
+                "unknown device type modelNum=%r description=%r; using common caps",
+                model_num, description,
+            )
             bound = discover(resources, CAPABILITIES, log=unbound.append, tier_log=_tier_log)
             self.device_type_name = None
         self.bound = bound

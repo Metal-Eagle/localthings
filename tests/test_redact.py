@@ -78,28 +78,32 @@ def test_redacts_bare_ocf_identity_keys():
     """/oic/d and /oic/p identify the unit with two-letter keys ('di', 'pi')
     that the substring rules can't see."""
     redacted = redact_resources({
-        '/oic/d': {'di': 'ab-cd-ef', 'n': 'Family Hub'},
+        '/oic/d': {'di': 'ab-cd-ef', 'n': "Marc's Fridge",
+                   'rt': ['oic.wk.d', 'oic.d.refrigerator']},
         '/oic/p': {'pi': '12-34-56', 'mnmo': 'RF9000B'},
     })
 
     assert redacted['/oic/d']['di'] == REDACTED
     assert redacted['/oic/p']['pi'] == REDACTED
-    # Non-identifying neighbours in the same payloads survive.
-    assert redacted['/oic/d']['n'] == 'Family Hub'
+    # 'n' is free text the owner sets from the SmartThings app, so it can
+    # carry a person's name -- redacted too. `rt`, the device-type signal
+    # we actually want out of /oic/d, is not.
+    assert redacted['/oic/d']['n'] == REDACTED
+    assert redacted['/oic/d']['rt'] == ['oic.wk.d', 'oic.d.refrigerator']
     assert redacted['/oic/p']['mnmo'] == 'RF9000B'
 
 
 def test_bare_key_redaction_does_not_leak_into_substring_matching():
-    """'di'/'pi' are whole-key matches only -- plenty of ordinary appliance
-    fields contain those two letters and must survive untouched."""
+    """The bare keys are whole-key matches only -- plenty of ordinary
+    appliance fields contain those letters and must survive untouched."""
     redacted = redact_resources({
         '/x': {
             'condition': 'Normal', 'display': 'On', 'dispenser': 'Cubed',
-            'humidity': '45', 'spinSpeed': '1200',
+            'humidity': '45', 'spinSpeed': '1200', 'name': 'FilterProgress',
         },
     })
 
     assert redacted['/x'] == {
         'condition': 'Normal', 'display': 'On', 'dispenser': 'Cubed',
-        'humidity': '45', 'spinSpeed': '1200',
+        'humidity': '45', 'spinSpeed': '1200', 'name': 'FilterProgress',
     }
