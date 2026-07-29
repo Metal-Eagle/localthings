@@ -211,7 +211,6 @@ async def test_unknown_type_shows_confirmation_step(
     )
     assert result['type'] == FlowResultType.FORM
     assert result['step_id'] == 'confirm_unknown_type'
-    assert result['description_placeholders']['one_ui_version'] == '9.0 Space Heater'
 
     result = await hass.config_entries.flow.async_configure(
         result['flow_id'], {},
@@ -220,37 +219,24 @@ async def test_unknown_type_shows_confirmation_step(
     assert result['data'][CONF_HOST] == MOCK_HOST
 
 
-async def test_unknown_type_without_version_uses_localized_step(
-    hass: HomeAssistant,
+async def test_unknown_type_step_description_makes_no_version_claim(
+    hass: HomeAssistant, mock_probe_unknown_type
 ) -> None:
-    """No English placeholder sentinel leaks into a translated description."""
-    probe_result = {
-        'port': MOCK_PORT,
-        'serial': MOCK_SERIAL,
-        'leaf_cert_pem': 'leaf cert',
-        'leaf_key_pem': 'leaf key',
-        'one_ui_version': '',
-        'device_type_recognized': False,
-    }
-    with patch(
-        'custom_components.localthings.config_flow._probe_and_validate',
-        return_value=probe_result,
-    ):
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN, context={'source': 'user'}
-        )
-        result = await hass.config_entries.flow.async_configure(
-            result['flow_id'],
-            {
-                CONF_HOST: MOCK_HOST,
-                CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
-                CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
-            },
-        )
+    """One confirmation step covers every unrecognized device. It used to be
+    two, differing only in whether they blamed a missing oneUiVersion -- a
+    distinction that stopped existing when detection stopped reading it."""
+    import json
+    from pathlib import Path
 
-    assert result['type'] == FlowResultType.FORM
-    assert result['step_id'] == 'confirm_unknown_type_no_version'
-    assert not result.get('description_placeholders')
+    steps = json.loads(
+        (Path(__file__).parents[2] / 'custom_components' / 'localthings'
+         / 'translations' / 'en.json').read_text()
+    )['config']['step']
+
+    assert 'confirm_unknown_type_no_version' not in steps
+    description = steps['confirm_unknown_type']['description']
+    assert 'oneUiVersion' not in description
+    assert '{' not in description   # no unfilled placeholder
 
 
 async def test_duplicate_device_aborted(hass: HomeAssistant, mock_probe) -> None:
@@ -279,9 +265,8 @@ async def test_duplicate_device_aborted(hass: HomeAssistant, mock_probe) -> None
 
 
 def test_probe_marks_washer_as_recognized(monkeypatch):
-    """A washer's probe response (no oneUiVersion) must still resolve via
-    the modelNum/description fallback so setup doesn't warn about an
-    unrecognized device type."""
+    """A washer reports no oneUiVersion at all -- its consumer-model code
+    must still resolve so setup doesn't warn about an unrecognized type."""
     from custom_components.localthings import config_flow
 
     device0 = [
@@ -298,19 +283,8 @@ def test_probe_marks_washer_as_recognized(monkeypatch):
     from custom_components.localthings.registry.batch import parse_device0_batch
     resources = parse_device0_batch(device0)
 
-    info_resource = resources.get('/information/vs/0', {})
-    one_ui_version = (
-        resources.get('/otninformation/vs/0', {}).get('swVersionInfo', {}).get('oneUiVersion', '')
-    )
-    from custom_components.localthings.registry.by_type import for_device, for_device_by_model
-    recognized = bool(
-        (one_ui_version and for_device(one_ui_version) is not None)
-        or for_device_by_model(
-            info_resource.get('x.com.samsung.da.modelNum', ''),
-            info_resource.get('x.com.samsung.da.description', ''),
-        ) is not None
-    )
-    assert recognized is True
+    from custom_components.localthings.registry.by_type import resolve
+    assert resolve(resources) is not None
 
 
 async def test_options_flow_init_shows_menu(hass: HomeAssistant) -> None:

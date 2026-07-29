@@ -5,8 +5,8 @@ description: >-
   /device/0 diagnostics dump. Use when a device-support issue lands, a device
   raises the "incomplete capability coverage" repair, a diagnostics JSON needs
   triaging, or you're mapping OCF resources to HA entities. Covers reading dumps,
-  routing an unrecognized board family to a registry (oneUiVersion, modelNum
-  board tokens, resource signatures),
+  routing an unrecognized board family to a registry (modelNum board tokens,
+  resource signatures),
   OCF-standard vs vendor hrefs, the diagnostic/config/normal entity taxonomy,
   preferring dynamic (device-reported) select options over hardcoded lists,
   ensuring every href is bound or ignored, and locking it in with a fixture +
@@ -49,15 +49,7 @@ discovery = importlib.import_module('custom_components.localthings.registry.disc
 adapter   = importlib.import_module('custom_components.localthings.registry.adapter')
 
 resources = json.load(open('dump.json'))['data']['resources']
-info = resources.get('/information/vs/0', {})
-one_ui = resources.get('/otninformation/vs/0', {}).get('swVersionInfo', {}).get('oneUiVersion', '')
-# Same three-stage order the coordinator uses -- see §3.
-reg = (
-    (by_type.for_device(one_ui) if one_ui else None)
-    or by_type.for_device_by_model(info.get('x.com.samsung.da.modelNum', ''),
-                                   info.get('x.com.samsung.da.description', ''))
-    or by_type.for_device_by_resources(resources)
-)
+reg = by_type.resolve(resources)      # the same entry point the coordinator uses
 unbound = []
 bound = discovery.discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
 state = adapter.flatten(bound, resources)   # {entity_key: value}
@@ -71,21 +63,30 @@ regenerate a golden.
 
 ## 3. Route the device to a registry — add a row, never a branch
 
-If `for_device*` returns `None`, the device falls back to common capabilities
-and loses roughly **half** its entities (measured across the fixture corpus:
-843 of 1510 bound entities survive). So routing is the first thing to fix, and
-`registry/by_type/__init__.py` is deliberately kept boring:
+If detection returns `None`, the device falls back to common capabilities and
+loses roughly **half** its entities (measured across the fixture corpus: 843 of
+1510 bound entities survive). So routing is the first thing to fix, and
+`registry/by_type/__init__.py` is deliberately kept boring.
 
-1. **`for_device(one_ui_version)`** — `/otninformation/vs/0`'s
-   `swVersionInfo.oneUiVersion`, e.g. `'7.0 Dishwasher'`. The device naming
-   its own type, so it's tried first — but only a minority of hardware
-   reports it, so never assume it exists.
-2. **`for_device_by_model(model_num, description)`** — the workhorse. Both
+`resolve(resources)` is the only entry point — the coordinator, the config
+flow's probe and the golden-regression harness all call it, so the order can't
+drift between what ships and what the tests assert. Two stages:
+
+1. **`for_device_by_model(model_num, description)`** — the primary path. Both
    fields come from `/information/vs/0`. Board-family tokens are matched
    against `modelNum` first, then `description`, then the fuzzy two-letter
    consumer-model prefix.
-3. **`for_device_by_resources(resources)`** — last resort for boards that
-   report no `/information/vs/0` at all. Needs a *distinctive* signature.
+2. **`for_device_by_resources(resources)`** — for boards that report no
+   `/information/vs/0` at all. Needs a *distinctive* signature.
+
+**`oneUiVersion` is not consulted.** It looks like the obvious signal — the
+device naming its own type, `'7.0 Dishwasher'` — and it used to be stage one.
+But only a minority of hardware reports it, every device that does is already
+typed by its modelNum board token (`TestOneUiVersionIsNotConsulted` checks that
+against the whole corpus), and no device-support issue was ever fixed by adding
+a mapping for it. Don't reintroduce it as a detection stage; it stays in
+diagnostics as a firmware-generation marker (`'7.0 Air conditioner'` means
+Tizen Lite), which is useful when triaging.
 
 ### Adding a board family
 

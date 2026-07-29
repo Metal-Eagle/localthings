@@ -1,6 +1,7 @@
 # Test harness — pulls in home-assistant, pytest, and pytest-socket at the
-# matching versions. Current Home Assistant requires Python >= 3.14; pip will
-# resolve the newest home-assistant your interpreter supports.
+# matching versions. pip resolves the newest home-assistant your interpreter
+# supports: Python 3.13 gets 0.13.316 (the floor below), 3.14 gets newer. On
+# 3.12 or older nothing resolves and the whole install fails.
 pytest-homeassistant-custom-component>=0.13.316
 
 # Integration runtime deps, needed to import the component under test

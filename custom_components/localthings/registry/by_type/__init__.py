@@ -10,17 +10,17 @@ from . import (
 )
 
 __all__ = [
-    'DeviceRegistry', '_type_key', 'for_device', 'for_device_by_model',
+    'DeviceRegistry', 'resolve', 'for_device_by_model',
     'for_device_by_resources', '_board_tokens',
 ]
 
 
+# One entry per registry, no aliases: every key here is reachable from
+# `_BOARD_TOKEN_TO_KEY`, `_CONSUMER_PREFIX_TO_KEY`, or `for_device_by_resources`.
 _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'air_dresser': air_dresser.REGISTRY,
     'air_purifier': air_purifier.REGISTRY,
-    'airpurifier': air_purifier.REGISTRY,
     'airconditioner': airconditioner.REGISTRY,
-    'air_conditioner': airconditioner.REGISTRY,
     'cooktop': cooktop.REGISTRY,
     'dehumidifier': dehumidifier.REGISTRY,
     'dishwasher': dishwasher.REGISTRY,
@@ -28,7 +28,6 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'induction_cooktop': induction_cooktop.REGISTRY,
     'microwave': microwave.REGISTRY,
     'oven': oven.REGISTRY,
-    'hood': range_hood.REGISTRY,
     'range': _range.REGISTRY,
     'range_hood': range_hood.REGISTRY,
     'refrigerator': refrigerator.REGISTRY,
@@ -36,48 +35,6 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'washer': washer.REGISTRY,
     'water_purifier': water_purifier.REGISTRY,
 }
-
-
-def _type_key(one_ui_version: str) -> str:
-    """Convert oneUiVersion string to registry key.
-
-    Args:
-        one_ui_version: String like '7.0 Dishwasher' or 'Oven'.
-
-    Returns:
-        Lowercase key with version prefix stripped and spaces/hyphens converted to underscores.
-
-    Examples:
-        '7.0 Dishwasher' -> 'dishwasher'
-        '7.0 French Door Refrigerator' -> 'french_door_refrigerator'
-        'Oven' -> 'oven'
-    """
-    if ' ' in one_ui_version:
-        # Strip version prefix: everything before and including the first space
-        suffix = one_ui_version.split(' ', 1)[-1]
-    else:
-        suffix = one_ui_version
-
-    return suffix.lower().replace(' ', '_').replace('-', '_')
-
-
-def for_device(one_ui_version: str) -> Optional[DeviceRegistry]:
-    """Return the DeviceRegistry for the given oneUiVersion string, or None if unknown.
-
-    Args:
-        one_ui_version: Device's oneUiVersion string (e.g., '7.0 Dishwasher').
-
-    Returns:
-        DeviceRegistry if a matching registry exists, None otherwise.
-    """
-    key = _type_key(one_ui_version)
-    if key in _REGISTRY_BY_KEY:
-        return _REGISTRY_BY_KEY[key]
-    # Suffix fallback: e.g. "french_door_refrigerator" ends with "_refrigerator"
-    for rkey, reg in _REGISTRY_BY_KEY.items():
-        if key.endswith(f'_{rkey}'):
-            return reg
-    return None
 
 
 # Consumer-model prefix (first two letters of the '_'-delimited token in
@@ -214,9 +171,10 @@ def _consumer_model_key(description: str) -> Optional[str]:
 
 
 def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegistry]:
-    """Fallback device-type detection for hardware that never reports
-    oneUiVersion (confirmed for washers -- their /otninformation/vs/0 has
-    no swVersionInfo key at all).
+    """Device-type detection from /information/vs/0's model strings.
+
+    The primary path: the board named in `modelNum` determines the resource
+    surface, which is what a registry describes.
 
     Three passes, narrowest evidence first:
 
@@ -252,11 +210,13 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
 def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
     """Detect a device family from a distinctive local-resource signature.
 
-    Some newer cooktops omit both ``oneUiVersion`` and
-    ``/information/vs/0``.  Their mode resource still identifies them: it
-    contains a DeviceType option and multiple per-burner OperationState
-    options.  Require both shapes so an oven's unrelated ``/mode/vs/0`` is
-    not misclassified.
+    For boards that ship no ``/information/vs/0`` at all, leaving
+    `for_device_by_model` nothing to read. Some newer cooktops are the
+    original case: their mode resource still identifies them, carrying a
+    DeviceType option and multiple per-burner OperationState options.
+
+    Require two independent shapes for every signature here, never one, so
+    an unrelated family's ``/mode/vs/0`` isn't misclassified.
     """
     mode = resources.get('/mode/vs/0', {})
     options = mode.get('x.com.samsung.da.options') or ()
@@ -292,3 +252,28 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
                 return _REGISTRY_BY_KEY['range']
             return _REGISTRY_BY_KEY['oven']
     return None
+
+
+def resolve(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
+    """Device type for a parsed /device/0 dump, or None if unrecognized.
+
+    The single entry point for detection -- the coordinator, the config
+    flow's probe and the golden-regression harness all call this, so the
+    order can't drift between what ships and what the tests assert.
+
+    Model strings first (`for_device_by_model`), then a distinctive resource
+    signature (`for_device_by_resources`) for boards that report no
+    /information/vs/0 at all.
+
+    `/otninformation/vs/0`'s oneUiVersion is deliberately not consulted. It
+    reads like the obvious signal -- the device naming its own type, e.g.
+    '7.0 Dishwasher' -- but only a minority of hardware populates it, every
+    device that does is already typed by its modelNum board token, and no
+    device-support issue has ever been fixed by adding a mapping for it. It
+    is still reported in diagnostics as a firmware-generation marker.
+    """
+    info = resources.get('/information/vs/0', {})
+    return for_device_by_model(
+        info.get('x.com.samsung.da.modelNum', ''),
+        info.get('x.com.samsung.da.description', ''),
+    ) or for_device_by_resources(resources)

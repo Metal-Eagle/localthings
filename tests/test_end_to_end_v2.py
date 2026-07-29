@@ -1,23 +1,23 @@
 import pytest
 from tests.conftest import _load_device
-from custom_components.localthings.registry.by_type import for_device, _type_key
+from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.discovery import discover
 from custom_components.localthings.registry.adapter import flatten
 
 
-@pytest.mark.parametrize('name,expected_type_key', [
+@pytest.mark.parametrize('name,expected_type', [
     ('dishwasher',   'dishwasher'),
     ('refrigerator', 'refrigerator'),
 ])
-def test_full_pipeline_v2(name, expected_type_key):
+def test_full_pipeline_v2(name, expected_type):
     resources = _load_device(name)
 
-    otn = resources.get('/otninformation/vs/0', {})
-    one_ui = otn.get('swVersionInfo', {}).get('oneUiVersion', '')
-    assert _type_key(one_ui) == expected_type_key
-
-    reg = for_device(one_ui)
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
+    )
     assert reg is not None
+    assert reg.name == expected_type
 
     bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
     assert bound

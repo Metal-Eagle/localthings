@@ -105,7 +105,6 @@ def mock_probe():
             'serial': MOCK_SERIAL,
             'leaf_cert_pem': MOCK_LEAF_CERT_PEM,
             'leaf_key_pem': MOCK_LEAF_KEY_PEM,
-            'one_ui_version': '7.0 Refrigerator',
             'device_type_recognized': True,
         },
     ) as m:
@@ -122,7 +121,6 @@ def mock_probe_unknown_type():
             'serial': MOCK_SERIAL,
             'leaf_cert_pem': MOCK_LEAF_CERT_PEM,
             'leaf_key_pem': MOCK_LEAF_KEY_PEM,
-            'one_ui_version': '9.0 Space Heater',
             'device_type_recognized': False,
         },
     ) as m:

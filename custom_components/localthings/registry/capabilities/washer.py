@@ -2,9 +2,10 @@
 front-load washers).
 
 Resources verified against two live WW90DG6U25LEU4 dumps (Table_02 course
-family). Washers never report `oneUiVersion` -- see
-`registry/by_type/__init__.py`'s `for_device_by_model()` for the fallback
-detection this device type requires.
+family). Washers share the `DA_WM_` laundry board with dryers, so their
+`modelNum` can't tell the two apart -- see `registry/by_type/__init__.py`'s
+`_CONSUMER_PREFIX_TO_KEY` for the `description`-based detection this device
+type requires.
 
 The shared laundry surface -- power/kids-lock/remote-control OCF+vendor
 fallback pairs, buzzer, energy meter, job-beginning-status, and the

@@ -1,88 +1,28 @@
 """Tests for samsung_appliance/registry/by_type."""
 import pytest
-from custom_components.localthings.registry.by_type import _type_key, for_device, DeviceRegistry
-
-
-class TestTypeKey:
-    """Tests for _type_key() function."""
-
-    def test_type_key_strips_version_prefix(self):
-        """'7.0 Dishwasher' -> 'dishwasher'"""
-        assert _type_key("7.0 Dishwasher") == "dishwasher"
-
-    def test_type_key_preserves_spaces_as_underscores(self):
-        """'7.0 French Door Refrigerator' -> 'french_door_refrigerator'"""
-        assert _type_key("7.0 French Door Refrigerator") == "french_door_refrigerator"
-
-    def test_type_key_no_space_returns_lowercase(self):
-        """'Oven' -> 'oven' (no space in string)"""
-        assert _type_key("Oven") == "oven"
-
-
-class TestForDevice:
-    """Tests for for_device() function."""
-
-    def test_for_device_returns_dishwasher_registry(self):
-        """for_device("7.0 Dishwasher") returns a non-None DeviceRegistry."""
-        registry = for_device("7.0 Dishwasher")
-        assert registry is not None
-        assert isinstance(registry, DeviceRegistry)
-        assert registry.name == "dishwasher"
-
-    def test_for_device_unknown_returns_none(self):
-        """for_device("7.0 Toaster") returns None for unknown device type."""
-        registry = for_device("7.0 Toaster")
-        assert registry is None
-
-    def test_for_device_suffix_fallback(self):
-        """for_device("7.0 French Door Refrigerator") resolves via suffix fallback."""
-        registry = for_device("7.0 French Door Refrigerator")
-        assert registry is not None
-        assert isinstance(registry, DeviceRegistry)
-        assert registry.name == 'refrigerator'
-
-    def test_for_device_returns_cooktop_registry(self):
-        """The registry's own .name is 'gas_cooktop' (disambiguated from
-        induction_cooktop), but the lookup key devices route through stays
-        'cooktop' -- oneUiVersion "Cooktop" still resolves here."""
-        registry = for_device('7.0 Cooktop')
-        assert registry is not None
-        assert registry.name == 'gas_cooktop'
-
-    def test_for_device_returns_range_hood_registry(self):
-        registry = for_device('7.0 Range Hood')
-        assert registry is not None
-        assert registry.name == 'range_hood'
+from custom_components.localthings.registry.by_type import (
+    DeviceRegistry, _REGISTRY_BY_KEY,
+)
 
 
 class TestDeviceRegistries:
     """Tests for device registries themselves."""
 
-    def test_dishwasher_registry_has_no_dup_hrefs(self):
-        """All caps in dishwasher registry have unique hrefs (or meet disambiguation rule)."""
-        registry = for_device("7.0 Dishwasher")
-        assert registry is not None
+    def test_every_key_maps_to_a_device_registry(self):
+        for key, registry in _REGISTRY_BY_KEY.items():
+            assert isinstance(registry, DeviceRegistry), key
 
-        # Each href should map to exactly one cap (or multiple with rt_filter/match_fn)
-        for href, caps in registry.capabilities.items():
-            if len(caps) > 1:
-                # If multiple caps share an href, all must have rt_filter or match_fn
-                for cap in caps:
-                    assert cap.rt_filter is not None or cap.match_fn is not None, \
-                        f"href {href!r} has multiple caps but {cap!r} lacks rt_filter and match_fn"
-
-    def test_refrigerator_registry_has_no_dup_hrefs(self):
-        """All caps in refrigerator registry have unique hrefs (or meet disambiguation rule)."""
-        registry = for_device("7.0 Refrigerator")
-        assert registry is not None
-
-        # Each href should map to exactly one cap (or multiple with rt_filter/match_fn)
-        for href, caps in registry.capabilities.items():
-            if len(caps) > 1:
-                # If multiple caps share an href, all must have rt_filter or match_fn
-                for cap in caps:
-                    assert cap.rt_filter is not None or cap.match_fn is not None, \
-                        f"href {href!r} has multiple caps but {cap!r} lacks rt_filter and match_fn"
+    def test_no_registry_has_ambiguous_hrefs(self):
+        """An href carrying more than one capability needs every one of them
+        to declare a discriminator, or discovery would bind both."""
+        for key, registry in _REGISTRY_BY_KEY.items():
+            for href, caps in registry.capabilities.items():
+                if len(caps) > 1:
+                    for cap in caps:
+                        assert cap.rt_filter is not None or cap.match_fn is not None, (
+                            f"{key}: href {href!r} has multiple caps but {cap!r} "
+                            f"lacks rt_filter and match_fn"
+                        )
 
 
 class TestWasherRegistry:
@@ -552,6 +492,72 @@ class TestBoardTokenAmbiguity:
                 assert len(keys) <= 1, (
                     f"{name}: {field!r} matches conflicting board tokens {keys}"
                 )
+
+
+class TestOneUiVersionIsNotConsulted:
+    """oneUiVersion used to be the first detection stage. It named the type
+    directly ('7.0 Dishwasher'), but only a minority of hardware reports it,
+    every device that does is already typed by its modelNum board token, and
+    no device-support issue was ever fixed by adding a mapping for it. It is
+    still reported in diagnostics as a firmware-generation marker."""
+
+    def test_resolve_ignores_a_recognizable_one_ui_version(self):
+        from custom_components.localthings.registry.by_type import resolve
+        resources = {
+            '/otninformation/vs/0': {'swVersionInfo': {'oneUiVersion': '7.0 Dishwasher'}},
+            '/information/vs/0': {
+                'x.com.samsung.da.modelNum': 'SOME-UNKNOWN-BOARD',
+                'x.com.samsung.da.description': 'SOME-UNKNOWN-BOARD',
+            },
+        }
+        assert resolve(resources) is None
+
+    def test_resolve_types_every_one_ui_reporting_fixture_without_it(
+        self, all_device_fixtures
+    ):
+        """The claim above, checked: for every dump that reports a
+        oneUiVersion, the model strings alone reach a registry."""
+        from custom_components.localthings.registry.by_type import resolve
+        seen = 0
+        for name, resources in all_device_fixtures.items():
+            one_ui = (resources.get('/otninformation/vs/0', {})
+                      .get('swVersionInfo', {}).get('oneUiVersion', ''))
+            if not one_ui:
+                continue
+            seen += 1
+            assert resolve(resources) is not None, (
+                f"{name} reports oneUiVersion {one_ui!r} and nothing else types it"
+            )
+        assert seen, "no fixture reports oneUiVersion -- has the corpus changed?"
+
+
+class TestResolve:
+    def test_prefers_model_strings_over_resource_signature(self, all_device_fixtures):
+        """Every fixture with usable model strings resolves the same way
+        through `resolve` as through `for_device_by_model` directly."""
+        from custom_components.localthings.registry.by_type import (
+            resolve, for_device_by_model,
+        )
+        for name, resources in all_device_fixtures.items():
+            info = resources.get('/information/vs/0', {})
+            by_model = for_device_by_model(
+                info.get('x.com.samsung.da.modelNum', ''),
+                info.get('x.com.samsung.da.description', ''),
+            )
+            if by_model is not None:
+                assert resolve(resources) is by_model, name
+
+    def test_falls_back_to_resource_signature(self, all_device_fixtures):
+        """The three dumps with no /information/vs/0 still type."""
+        from custom_components.localthings.registry.by_type import resolve
+        for name in ('cooktop', 'range_ne63a6511', 'range_no_info'):
+            resources = all_device_fixtures[name]
+            assert '/information/vs/0' not in resources, name
+            assert resolve(resources) is not None, name
+
+    def test_returns_none_for_an_unrecognizable_dump(self):
+        from custom_components.localthings.registry.by_type import resolve
+        assert resolve({'/some/unknown/vs/0': {}}) is None
 
 
 class TestForDeviceByResources:

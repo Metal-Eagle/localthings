@@ -6,7 +6,7 @@ climate entity itself lives in climate.py (imports homeassistant) and is not
 importable here -- consistent with how the other HA platform files are untested.
 """
 from custom_components.localthings.registry.adapter import flatten
-from custom_components.localthings.registry.by_type import for_device, for_device_by_model
+from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.capabilities import airconditioner
 from custom_components.localthings.registry.discovery import discover
 from custom_components.localthings.registry.entities import ClimateDesc, SelectDesc
@@ -24,18 +24,12 @@ def _ac():
 
 
 def _resolve(name):
-    """Mirror the coordinator's detection order: oneUiVersion first, modelNum
-    fallback second (needed for issue #37's board, which reports neither
-    oneUiVersion nor a '_PRAC_' modelNum token)."""
+    """Mirror the coordinator's detection: board tokens in modelNum."""
     resources = _load_device(name)
-    otn = resources.get('/otninformation/vs/0', {})
-    one_ui = otn.get('swVersionInfo', {}).get('oneUiVersion', '')
     info = resources['/information/vs/0']
-    reg = for_device(one_ui) if one_ui else None
-    if reg is None:
-        reg = for_device_by_model(
-            info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
-        )
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
+    )
     return reg, resources
 
 
@@ -151,9 +145,7 @@ def test_climate_consumed_hrefs_declared_as_coverage():
 # ---------------------------------------------------------------------------
 
 def _ac_tp1x():
-    resources = _load_device('airconditioner_tp1x_da_ac_rac_01011')
-    one_ui = resources['/otninformation/vs/0']['swVersionInfo']['oneUiVersion']
-    return for_device(one_ui), resources
+    return _resolve('airconditioner_tp1x_da_ac_rac_01011')
 
 
 def test_tp1x_resolves_to_airconditioner_registry():
@@ -209,10 +201,11 @@ def test_tp2x_rac_20k_no_unbound_hrefs():
     assert unbound == []
 
 
-def test_tp1x_rac_model_resolves_via_one_ui_version():
-    """TP1X_DA-AC-RAC-01001_0000 (issue #38) self-reports oneUiVersion
-    '7.0 Air conditioner' -- resolved via for_device(), not the modelNum
-    fallback."""
+def test_tp1x_rac_model_resolves_via_rac_token():
+    """TP1X_DA-AC-RAC-01001_0000 (issue #38). It self-reports oneUiVersion
+    '7.0 Air conditioner', which used to be what resolved it; the hyphenated
+    '-RAC-' board token types it now, so firmware that omits oneUiVersion (the
+    cool-only variant, issue #91) lands on the same registry."""
     reg, _ = _resolve('airconditioner_tp1x_rac')
     assert reg is not None and reg.name == 'airconditioner'
 
@@ -280,17 +273,18 @@ def test_current_limit_is_read_only():
 # ---------------------------------------------------------------------------
 # TP1X_DA-AC-RAC-01001 cool-only global variant (issue #91). Same modelNum as
 # the issue #38 board above, but its /otninformation/vs/0 ships no
-# swVersionInfo block, so oneUiVersion is empty and detection must fall back
-# to the hyphenated '-RAC-' modelNum token (the older '_RAC_' underscore match
-# doesn't fire on this DA-AC-RAC spelling). Adds /stepcontrol/vs/0 and
+# swVersionInfo block, so it is typed purely by its 'RAC' modelNum token --
+# which the tokenizer reads out of the hyphenated 'DA-AC-RAC' spelling and the
+# underscored 'TP2X_RAC_20K' one alike. Adds /stepcontrol/vs/0 and
 # /remotedeviceinfo/vs/0 (both ignored) and exposes the WindFree preset via
 # the Nano/NanoSleep convenient-mode codes. Its panel light is carried inside
 # /mode/vs/0's options blob instead of a dedicated /light/vs/0 switch.
 # ---------------------------------------------------------------------------
 
-def test_tp1x_rac_coolonly_resolves_via_hyphenated_model_fallback():
-    """Empty oneUiVersion -> resolved by the '-RAC-' modelNum token, not
-    for_device(). Guards the regression where this unit loaded as 'unknown'."""
+def test_tp1x_rac_coolonly_resolves_via_hyphenated_model_token():
+    """This unit reports no oneUiVersion at all -- the 'RAC' board token is
+    the only thing that types it. Guards the regression where it loaded as
+    'unknown'."""
     resources = _load_device('airconditioner_tp1x_rac_coolonly')
     otn = resources.get('/otninformation/vs/0', {})
     assert otn.get('swVersionInfo', {}).get('oneUiVersion', '') == ''
