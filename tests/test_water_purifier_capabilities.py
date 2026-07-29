@@ -295,3 +295,98 @@ def test_coffee_recipe_hrefs_are_ignored_not_guessed():
     for href in ('/brand/recipe/info/vs/0', '/coffee/custom/recipe/vs/0',
                  '/recipe/coffee/vs/0', '/recipe/coffee/deletion/vs/0'):
         assert href in ignored_hrefs, href
+
+
+# ---------------------------------------------------------------------------
+# AILITE_DA-REF-WATERPURIFIER board (issue #196, RWP70F15ANW) -- a
+# coffee-capable variant on a different board family than issue #90/#107's
+# TP2X_WATERPURIFIER_20K, whose modelNum's 'REF' token would otherwise
+# misroute it to the refrigerator registry (see test_by_type.py's
+# TestBoardTokenAmbiguity carve-out). Also the first dump to expose
+# /cup/state/vs/0, /statistic/pour/vs/0, and the settings/sound/* trio on
+# this device type.
+# ---------------------------------------------------------------------------
+
+def _water_purifier_ailite():
+    resources = _load_device('water_purifier_ailite_25k')
+    info = resources['/information/vs/0']
+    reg = for_device_by_model(
+        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'],
+    )
+    return reg, resources
+
+
+def _bound_ailite():
+    reg, resources = _water_purifier_ailite()
+    return discover(resources, reg.capabilities, reg.pattern_capabilities), resources
+
+
+def _state_ailite():
+    bound, resources = _bound_ailite()
+    return flatten(bound, resources)
+
+
+def _desc_ailite(key):
+    bound, _ = _bound_ailite()
+    return next(b.desc for b in bound if b.desc.key == key)
+
+
+def test_ailite_model_resolves_to_water_purifier_not_refrigerator():
+    reg, _ = _water_purifier_ailite()
+    assert reg is not None and reg.name == 'water_purifier'
+
+
+def test_ailite_no_unbound_hrefs():
+    reg, resources = _water_purifier_ailite()
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
+def test_ailite_expected_state_keys_present():
+    state = _state_ailite()
+    for key in ('cup_state', 'sound_mode', 'sound_output', 'sound_volume',
+                'alarm_in_mute', 'last_pour_type', 'last_pour_capacity'):
+        assert key in state, key
+
+
+def test_ailite_hot_water_temperature_gated_off_without_supported_list():
+    """This board reports tempDesiredHotWater but no
+    supportedHotTemperatures (only a hotwaterRange/hotwaterLevel pair whose
+    write contract isn't confirmed) -- the exact shape that used to make
+    HA's select show 'unknown' (issue #196), since current_option isn't in
+    an empty options list. The descriptor must gate off entirely rather than
+    register with empty options."""
+    state = _state_ailite()
+    assert 'hot_water_temperature' not in state
+
+
+def test_ailite_sound_mode_options_come_from_live_supported_modes():
+    """This board's supportedModes (voice/fixedTone/mute) differs from both
+    laundry.SOUND_MODE's hardcoded voice/tone/mute and air_purifier.SOUND_MODE's
+    mute/buzzer -- reusing either would reject a value this device actually
+    supports, per the oven._OVEN_MODES lesson from issue #138."""
+    desc = _desc_ailite('sound_mode')
+    assert desc.options_field == 'supportedModes'
+    assert desc.translation_key == 'water_purifier_sound_mode'
+
+
+def test_ailite_sound_volume_bounds_come_live_not_hardcoded():
+    desc = _desc_ailite('sound_volume')
+    assert isinstance(desc, NumberDesc)
+    assert desc.native_min is None and desc.native_max is None
+    rep = {'minLevel': '0', 'maxLevel': '15', 'resolution': '5'}
+    assert desc.native_min_fn(rep) == 0
+    assert desc.native_max_fn(rep) == 15
+    assert desc.step_fn(rep) == 5
+
+
+def test_ailite_alarm_in_mute_is_read_only():
+    """No sibling field advertises alarmInMute as user-settable -- surfaced
+    as a read-only diagnostic per the 'don't guess' rule rather than an
+    invented switch."""
+    from custom_components.localthings.registry.entities import BinarySensorDesc
+    desc = _desc_ailite('alarm_in_mute')
+    assert isinstance(desc, BinarySensorDesc)
+    assert desc.value_fn('true') is True
+    assert desc.value_fn('false') is False

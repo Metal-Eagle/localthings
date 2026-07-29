@@ -1,8 +1,10 @@
 """Capabilities for the Samsung water-purifier family (TP2X_WATERPURIFIER-class,
-issue #90, model TP2X_WATERPURIFIER_20K).
+issue #90, model TP2X_WATERPURIFIER_20K; also AILITE_DA-REF-WATERPURIFIER-class,
+issue #196, model RWP70F15ANW/AILITE_WATERPURIFIER_25K).
 
-Resources verified against the issue #90 diagnostics dump.
+Resources verified against the issue #90 and #196 diagnostics dumps.
 """
+from ..batch import is_stub_rep
 from ..capability import Capability
 from ..entities import BinarySensorDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc
 from .common import int_or_none, parse_iso_utc as _parse_iso_utc
@@ -21,10 +23,23 @@ DISPENSE = Capability(
         # Only a handful of discrete temperatures are selectable (not a
         # continuous range) -- a select over the live-reported set, not a
         # number with invented bounds.
+        #
+        # Newer boards (issue #196, RWP70F15ANW) don't populate
+        # supportedHotTemperatures at all -- they report a hotwaterRange
+        # (min/max) and a hotwaterLevel (step count?) instead, with no
+        # confirmed write contract for values off the old preset list. With
+        # an empty options_field result, HA's current_option still returns
+        # the live tempDesiredHotWater, which isn't in the (empty) options
+        # list and renders as "unknown" -- the exact symptom reported. Gate
+        # the entity off entirely when the board doesn't report a supported
+        # list, rather than guess at hotwaterRange/hotwaterLevel's meaning.
         SelectDesc(key='hot_water_temperature', field='x.com.samsung.da.tempDesiredHotWater',
                    icon='mdi:thermometer',
                    entity_category='config',
                    options_field='x.com.samsung.da.supportedHotTemperatures',
+                   exists_fn=lambda rep, resources: (
+                       is_stub_rep(rep)
+                       or 'x.com.samsung.da.supportedHotTemperatures' in rep),
                    write_fn=lambda p, rep, href=None: (
                        ['setting', 'waterpurifier', 'vs', '0'],
                        {'x.com.samsung.da.tempDesiredHotWater': p})),
@@ -187,6 +202,86 @@ COFFEE = Capability(
         SensorDesc(key='coffee_brew_status', field='brew.status',
                    icon='mdi:coffee-outline',
                    entity_category='diagnostic'),
+    ),
+)
+
+# Cup-detection status (issue #196, RWP70F15ANW). Only "UnReady" observed;
+# the full state domain isn't confirmed, so this stays a plain diagnostic
+# sensor rather than an enum with an invented state table.
+CUP_STATE = Capability(
+    href='/cup/state/vs/0',
+    poll_tier='warm',
+    entities=(
+        SensorDesc(key='cup_state', field='water.cup.state',
+                   icon='mdi:cup-outline', entity_category='diagnostic'),
+    ),
+)
+
+# Sound mode/output/volume (issue #196). Shapes echo laundry.py/
+# air_purifier.py's same-named hrefs, but this board's own values differ
+# from both (supportedModes here is voice/fixedTone/mute, not laundry's
+# voice/tone/mute nor air_purifier's mute/buzzer) -- reusing either would
+# reject a live-supported value, so these read the device's own supported
+# list/range like air_purifier's versions do.
+SOUND_MODE = Capability(
+    href='/settings/sound/mode/vs/0',
+    poll_tier='cold',
+    entities=(
+        SelectDesc(key='sound_mode', translation_key='water_purifier_sound_mode',
+                   field='mode',
+                   icon='mdi:volume-high',
+                   entity_category='config',
+                   options_field='supportedModes',
+                   write_fn=lambda p, rep, href=None: (
+                       ['settings', 'sound', 'mode', 'vs', '0'], {'mode': p})),
+    ),
+)
+
+SOUND_OUTPUT = Capability(
+    href='/settings/sound/output/vs/0',
+    poll_tier='cold',
+    entities=(
+        SensorDesc(key='sound_output', field='deviceType',
+                   icon='mdi:volume-high', entity_category='diagnostic'),
+        # No confirmed write contract (no sibling field advertising this as
+        # user-settable) -- surfaced read-only per the 'don't guess' rule.
+        BinarySensorDesc(key='alarm_in_mute', field='alarmInMute',
+                          icon='mdi:volume-mute',
+                          entity_category='diagnostic',
+                          value_fn=lambda v: str(v).lower() == 'true'),
+    ),
+)
+
+SOUND_VOLUME = Capability(
+    href='/settings/sound/volume/vs/0',
+    poll_tier='cold',
+    entities=(
+        NumberDesc(key='sound_volume', field='level',
+                   icon='mdi:volume-medium',
+                   entity_category='config',
+                   native_min_fn=lambda rep: int_or_none(rep.get('minLevel')) or 0,
+                   native_max_fn=lambda rep: int_or_none(rep.get('maxLevel')) or 0,
+                   step_fn=lambda rep: int_or_none(rep.get('resolution')) or 1,
+                   value_fn=int_or_none,
+                   write_fn=lambda p, rep, href=None: (
+                       ['settings', 'sound', 'volume', 'vs', '0'],
+                       {'level': str(int(p))})),
+    ),
+)
+
+# Last-pour statistics (issue #196). last.capacity's unit isn't confirmed
+# (no sibling unit field on this resource, unlike DISPENSE.dispense_capacity
+# which at least has an -- albeit suspect -- capacityUnit) so it's left
+# unitless rather than assumed to be mL.
+STATISTIC_POUR = Capability(
+    href='/statistic/pour/vs/0',
+    poll_tier='cold',
+    entities=(
+        SensorDesc(key='last_pour_type', field='last.type',
+                   icon='mdi:cup-water', entity_category='diagnostic'),
+        SensorDesc(key='last_pour_capacity', field='last.capacity',
+                   icon='mdi:cup-water', entity_category='diagnostic',
+                   value_fn=int_or_none),
     ),
 )
 

@@ -277,6 +277,33 @@ class TestForDeviceByModel:
         assert reg is not None
         assert reg.name == 'water_purifier'
 
+    def test_water_purifier_wins_over_ref_when_both_tokens_present(self):
+        """Issue #196: an AILITE water purifier (RWP70F15ANW) spells its
+        modelNum '...-REF-WATERPURIFIER-...', which would otherwise match the
+        bare 'REF' board token (refrigerator) before ever reaching
+        'WATERPURIFIER' -- misrouting it to the refrigerator registry, whose
+        resource surface shares almost nothing with a water purifier."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'AILITE_DA-REF-WATERPURIFIER-01011|70674641|'
+            '900100000219130081088700001E0000',
+            'AILITE_WATERPURIFIER_25K',
+        )
+        assert reg is not None
+        assert reg.name == 'water_purifier'
+
+    def test_bare_ref_token_still_resolves_refrigerator(self):
+        """Regression guard for the #196 carve-out above: a genuine
+        refrigerator modelNum with no 'WATERPURIFIER' token must still
+        resolve to 'refrigerator'."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'TP1X_REF_21K|00175941|00050126001811344100000020090000',
+            'TP1X_REF_21K',
+        )
+        assert reg is not None
+        assert reg.name == 'refrigerator'
+
     def test_airconditioner_via_wac_token(self):
         """Issue #87: a Bespoke Window AC (AW06C7155EWAZ) reports no
         oneUiVersion and a modelNum carrying the '_WAC_' (Window Air
@@ -487,6 +514,14 @@ class TestBoardTokenAmbiguity:
     safe while no real model string contains two tokens naming different
     device types. Guard that against every dump we have."""
 
+    # Issue #196: AILITE water-purifier boards spell their modelNum
+    # '...-REF-WATERPURIFIER-...' -- 'REF' names the shared cooling-subsystem
+    # board, not a refrigerator. `_board_family_key` carries an explicit
+    # carve-out resolving this one pair to 'water_purifier'; this is the one
+    # documented exception to the "no two board tokens ever co-occur"
+    # invariant the rest of this test enforces.
+    _ALLOWED_CONFLICTS = {frozenset({'refrigerator', 'water_purifier'})}
+
     def test_no_fixture_model_string_yields_two_conflicting_keys(self, all_device_fixtures):
         from custom_components.localthings.registry.by_type import (
             _BOARD_TOKEN_TO_KEY, _board_tokens,
@@ -502,7 +537,7 @@ class TestBoardTokenAmbiguity:
                     for t in _board_tokens(field, cut)
                     if t in _BOARD_TOKEN_TO_KEY
                 }
-                assert len(keys) <= 1, (
+                assert len(keys) <= 1 or frozenset(keys) in self._ALLOWED_CONFLICTS, (
                     f"{name}: {field!r} matches conflicting board tokens {keys}"
                 )
 

@@ -1,0 +1,590 @@
+{
+  "device0": [
+    {
+      "rt": [
+        "x.com.samsung.devcol",
+        "oic.wk.col"
+      ],
+      "if": [
+        "oic.if.baseline",
+        "oic.if.ll",
+        "oic.if.b"
+      ]
+    },
+    {
+      "href": "/selfcheck/vs/0",
+      "rep": {
+        "x.com.samsung.da.supportedActions": [
+          "Start"
+        ],
+        "x.com.samsung.da.result": "Success",
+        "x.com.samsung.da.error": [
+          "ErrorCode_None"
+        ],
+        "x.com.samsung.da.status": "Ready"
+      }
+    },
+    {
+      "href": "/realtimenotiforclient/vs/0",
+      "rep": {
+        "x.com.samsung.da.timeforshortnoti": "0",
+        "x.com.samsung.da.periodicnotisubscription": "true"
+      }
+    },
+    {
+      "href": "/configuration/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/filter/waterfilter/vs/0",
+      "rep": {
+        "x.com.samsung.da.filterUsage": "69",
+        "x.com.samsung.da.filterUsageResolution": "1",
+        "x.com.samsung.da.filterResetType": [
+          "replaceable"
+        ],
+        "x.com.samsung.da.lastResetDate": "2025-11-19T05:39:17",
+        "x.com.samsung.da.filterStatus": "normal"
+      }
+    },
+    {
+      "href": "/alarms/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/information/vs/0",
+      "rep": {
+        "x.com.samsung.da.modelNum": "AILITE_DA-REF-WATERPURIFIER-01011|70674641|900100000219130081088700001E0000",
+        "x.com.samsung.da.description": "AILITE_WATERPURIFIER_25K",
+        "x.com.samsung.da.serialNum": "**REDACTED**",
+        "x.com.samsung.da.otnDUID": "**REDACTED**",
+        "x.com.samsung.da.diagDumpType": "file",
+        "x.com.samsung.da.diagEndPoint": "SSM",
+        "x.com.samsung.da.diagLogType": [
+          "errCode",
+          "dump"
+        ],
+        "x.com.samsung.da.diagMnid": "0AJT",
+        "x.com.samsung.da.diagSetupid": "RX0",
+        "x.com.samsung.da.diagProtocolType": "BLE_OCF",
+        "x.com.samsung.da.diagMinVersion": "3.0",
+        "x.com.samsung.da.diagTsId": "DA01",
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.id": "0",
+            "x.com.samsung.da.description": "WiFi Module",
+            "x.com.samsung.da.type": "Software",
+            "x.com.samsung.da.number": "251121",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "1",
+            "x.com.samsung.da.description": "Micom",
+            "x.com.samsung.da.type": "Firmware",
+            "x.com.samsung.da.number": "25071603, 2510140E, 22092302, FFFFFFFF, 25061700, FFFFFFFF",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          },
+          {
+            "x.com.samsung.da.id": "2",
+            "x.com.samsung.da.description": "Bixby",
+            "x.com.samsung.da.type": "Bixby",
+            "x.com.samsung.da.number": "1.2.2-rc.3",
+            "x.com.samsung.da.newVersionAvailable": "0"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/runningmode/vs/0",
+      "rep": {
+        "x.com.samsung.da.runningMode": 0
+      }
+    },
+    {
+      "href": "/setting/waterpurifier/vs/0",
+      "rep": {
+        "x.com.samsung.da.supportedTypes": [
+          "ambientwater",
+          "coldwater",
+          "hotwater"
+        ],
+        "x.com.samsung.da.desiredType": "coldwater",
+        "x.com.samsung.da.tempDesiredHotWater": "85",
+        "x.com.samsung.da.desiredCapacity": "120",
+        "x.com.samsung.da.hotwaterLevel": "5",
+        "x.com.samsung.da.hotwaterRange": [
+          "40",
+          "90"
+        ],
+        "x.com.samsung.da.tempUnit": "C",
+        "x.com.samsung.da.pourStatus": "Off",
+        "x.com.samsung.da.capacityUnit": "C",
+        "x.com.samsung.da.capacityResolution": "10",
+        "x.com.samsung.da.desiredCapacityRange": [
+          "50",
+          "2000"
+        ],
+        "x.com.samsung.da.triggerTime": "1785341896789"
+      }
+    },
+    {
+      "href": "/favorite/capacity/vs/0",
+      "rep": {
+        "x.com.samsung.da.switchCapacity": "On",
+        "x.com.samsung.da.defaultCapacity": "120",
+        "x.com.samsung.da.capacityList": [
+          "80",
+          "120",
+          "260",
+          "500",
+          "9999"
+        ],
+        "x.com.samsung.da.triggerTime": "1785341867176"
+      }
+    },
+    {
+      "href": "/status/waterpurifier/vs/0",
+      "rep": {
+        "x.com.samsung.da.filterCleanMaxTime": "14",
+        "x.com.samsung.da.sterilizeMaxTime": "10",
+        "x.com.samsung.da.sterilizeRunTime": "0",
+        "x.com.samsung.da.status": "Ready",
+        "x.com.samsung.da.sterilizePlanTime": "2026-07-31T17:00:00",
+        "x.com.samsung.da.sterilizeLastTime": "2026-07-28T17:08:36",
+        "x.com.samsung.da.sterilizeStartTime": "2026-07-31T17:00:00",
+        "x.com.samsung.da.sterilizePeriod": "3"
+      }
+    },
+    {
+      "href": "/status/lock/vs/0",
+      "rep": {
+        "x.com.samsung.da.coldwaterLock": "Unlocked",
+        "x.com.samsung.da.device.microphone": "On"
+      }
+    },
+    {
+      "href": "/favorite/hotwater/vs/0",
+      "rep": {
+        "x.com.samsung.da.favorite.revision": "0",
+        "x.com.samsung.da.favorite.defaultTemperature": "85",
+        "x.com.samsung.da.favorite.showList": [
+          "40",
+          "50",
+          "75",
+          "85",
+          "90"
+        ],
+        "x.com.samsung.da.favorite.supportedList": [
+          "40",
+          "75",
+          "85",
+          "90"
+        ],
+        "x.com.samsung.da.switchHotwater": "Unlocked",
+        "x.com.samsung.da.triggerTime": "1785341867177"
+      }
+    },
+    {
+      "href": "/settings/sound/volume/vs/0",
+      "rep": {
+        "level": "5",
+        "minLevel": "0",
+        "maxLevel": "15",
+        "resolution": "5"
+      }
+    },
+    {
+      "href": "/settings/sound/mode/vs/0",
+      "rep": {
+        "mode": "voice",
+        "supportedModes": [
+          "voice",
+          "fixedTone",
+          "mute"
+        ]
+      }
+    },
+    {
+      "href": "/settings/sound/output/vs/0",
+      "rep": {
+        "deviceType": "speaker",
+        "alarmInMute": "true"
+      }
+    },
+    {
+      "href": "/setting/vs/0",
+      "rep": {
+        "x.com.samsung.da.setLanguage": "ko_KR",
+        "x.com.samsung.da.supportedSetLanguage": [
+          "ko_KR"
+        ]
+      }
+    },
+    {
+      "href": "/automation/waterpurifier/vs/0",
+      "rep": {
+        "automation.supported.modes": [
+          "0"
+        ],
+        "automation.supported.options": [
+          "capacity"
+        ]
+      }
+    },
+    {
+      "href": "/favorite/coffee/vs/0",
+      "rep": {
+        "favorite.activate": "On",
+        "brew.status": "Suspend",
+        "favorite.enable.list": [
+          "0",
+          "1",
+          "2",
+          "3"
+        ]
+      }
+    },
+    {
+      "href": "/brand/recipe/info/vs/0",
+      "rep": {
+        "revision": "0",
+        "brand.num.max": "1"
+      }
+    },
+    {
+      "href": "/recipe/coffee/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/coffee/custom/recipe/vs/0",
+      "rep": {
+        "publisher": "0",
+        "cups": 1,
+        "favor": "223",
+        "numberOfStages": "2",
+        "stages": [
+          {
+            "temperature": 0,
+            "waterAmount": 30,
+            "timeSecond": 20,
+            "turnOver": 0
+          },
+          {
+            "temperature": 0,
+            "waterAmount": 30,
+            "timeSecond": 20,
+            "turnOver": 0
+          }
+        ],
+        "publisher.support": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ]
+      }
+    },
+    {
+      "href": "/recipe/coffee/deletion/vs/0",
+      "rep": {}
+    },
+    {
+      "href": "/cup/state/vs/0",
+      "rep": {
+        "water.cup.state": "UnReady",
+        "water.cup.basis.revision": "0"
+      }
+    },
+    {
+      "href": "/statistic/pour/vs/0",
+      "rep": {
+        "last.type": "coldwater",
+        "last.capacity": "40"
+      }
+    },
+    {
+      "href": "/otninformation/vs/0",
+      "rep": {
+        "x.com.samsung.da.target": "",
+        "x.com.samsung.da.newVersionAvailable": "false",
+        "otnStatus": "None",
+        "flashingProgress": "0",
+        "otnCompleteDate": "noHistory",
+        "scheduledTime": "None",
+        "swVersionInfo": {
+          "platform": "Tizen Lite",
+          "oneUiVersion": "7.0 Water purifier",
+          "osVersion": "5.0"
+        },
+        "otnList": [
+          {
+            "type": "WIFI",
+            "modelId": "A-WPWW-AIL-25-COMMON",
+            "versions": [
+              "20251121"
+            ],
+            "visVersion": "251121"
+          },
+          {
+            "type": "Micom",
+            "modelId": "838070674741FFFFFFFF",
+            "versions": [
+              "2510140E",
+              "FFFFFFFF"
+            ],
+            "visVersion": "251014"
+          },
+          {
+            "type": "Micom",
+            "modelId": "838070674641FFFFFFFF",
+            "versions": [
+              "25071603",
+              "FFFFFFFF"
+            ],
+            "visVersion": "250716"
+          },
+          {
+            "type": "Micom",
+            "modelId": "03807067464170674741",
+            "versions": [
+              "25071603",
+              "2510140E"
+            ],
+            "visVersion": "251014"
+          },
+          {
+            "type": "Micom",
+            "modelId": "038000156141FFFFFFFF",
+            "versions": [
+              "22092302",
+              "FFFFFFFF"
+            ],
+            "visVersion": "220923"
+          },
+          {
+            "type": "Micom",
+            "modelId": "038070673941FFFFFFFF",
+            "versions": [
+              "25061700",
+              "FFFFFFFF"
+            ],
+            "visVersion": "250617"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/timezone/vs/0",
+      "rep": {
+        "timezoneid": "Asia/Seoul",
+        "offset": "+09:00",
+        "DST": "OFF"
+      }
+    },
+    {
+      "href": "/connectionconfig/vs/0",
+      "rep": {
+        "autoReconnectionMinVersion": "1.0",
+        "autoReconnection": "true",
+        "autoReconnectionProtocolType": [
+          "helper_hotspot",
+          "ble_ocf"
+        ],
+        "supportedWiFiAuthType": [
+          "OPEN",
+          "WEP",
+          "WPA-PSK",
+          "WPA2-PSK",
+          "SAE"
+        ],
+        "supportedWiFiCryptoType": [
+          "TKIP",
+          "AES",
+          "WEP-64",
+          "WEP-128"
+        ],
+        "supportedWiFiFreq": [
+          "2.4G",
+          "5G"
+        ],
+        "calmConnectionCare": {
+          "version": "1.0",
+          "role": [
+            "things"
+          ]
+        }
+      }
+    },
+    {
+      "href": "/bixbyuservalidate/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.loginId": "**REDACTED**",
+            "x.com.samsung.da.isExpired": "false"
+          }
+        ]
+      }
+    },
+    {
+      "href": "/bixby/status/vs/0",
+      "rep": {
+        "x.com.samsung.da.enable": "true"
+      }
+    },
+    {
+      "href": "/bixbyterms/vs/0",
+      "rep": {
+        "x.com.samsung.da.items": [
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "AudioReview",
+            "x.com.samsung.da.termsStatus": "Agreed",
+            "x.com.samsung.da.termsType": "Optional",
+            "x.com.samsung.da.termsURL": "https://d264isyiyrfhr3.cloudfront.net/storage/tos/kor/1.0.1/1773704680415/kor/kor_kor_AudioRecordingReview.html"
+          },
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "Datasharing",
+            "x.com.samsung.da.termsStatus": "Agreed",
+            "x.com.samsung.da.termsType": "Mandatory",
+            "x.com.samsung.da.termsURL": "https://d264isyiyrfhr3.cloudfront.net/storage/tos/kor/1.0.1/1690269284216/kor/kor_kor_DataSharingAgreement_v3.html"
+          },
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "Personalization",
+            "x.com.samsung.da.termsStatus": "Agreed",
+            "x.com.samsung.da.termsType": "Optional",
+            "x.com.samsung.da.termsURL": "https://d264isyiyrfhr3.cloudfront.net/storage/tos/kor/1.0.2/1773644167282/kor/kor_kor_PersonalizationAgreement.html"
+          },
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "PrivacyNotice",
+            "x.com.samsung.da.termsStatus": "Agreed",
+            "x.com.samsung.da.termsType": "Mandatory",
+            "x.com.samsung.da.termsURL": "https://d264isyiyrfhr3.cloudfront.net/storage/tos/kor/1.0.2/1726806774110/kor/kor_kor_pn.html"
+          },
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "PrivacyPolicy",
+            "x.com.samsung.da.termsStatus": "Agreed",
+            "x.com.samsung.da.termsType": "Mandatory",
+            "x.com.samsung.da.termsURL": "https://d264isyiyrfhr3.cloudfront.net/storage/tos/kor/1.7.8/1783668586319/kor/kor_kor_pp.html"
+          },
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "SamsungLocation",
+            "x.com.samsung.da.termsStatus": "Agreed",
+            "x.com.samsung.da.termsType": "Mandatory",
+            "x.com.samsung.da.termsURL": "https://static.bada.com/contents/legal/kor/kor/locationinfortnc.html"
+          },
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "FMMPrivacyPolicy",
+            "x.com.samsung.da.termsStatus": "Agreed",
+            "x.com.samsung.da.termsType": "Mandatory",
+            "x.com.samsung.da.termsURL": "https://account.samsung.com/membership/policy/privacy/service/o12ht525e6"
+          },
+          {
+            "x.com.samsung.da.accountInfo": "**REDACTED**",
+            "x.com.samsung.da.termsName": "BixbyPrivacy",
+            "x.com.samsung.da.termsStatus": "NotOnboarding",
+            "x.com.samsung.da.termsType": "Optional",
+            "x.com.samsung.da.termsURL": ""
+          }
+        ],
+        "x.com.samsung.da.lastCheckedTime": "1785341867"
+      }
+    },
+    {
+      "href": "/bixby/vs/0",
+      "rep": {
+        "x.com.samsung.da.voiceWakeup": "Disable",
+        "x.com.samsung.da.multidevWakeup": "true"
+      }
+    },
+    {
+      "href": "/sec/networkaudio/audio/vs/0",
+      "rep": {
+        "volume": "4",
+        "mute": "false",
+        "maxVolume": "15",
+        "timestamp": "0"
+      }
+    },
+    {
+      "href": "/voice/feature/vs/0",
+      "rep": {
+        "voice.feature": {
+          "ContinuousConversation": {
+            "support": "true",
+            "value": "false",
+            "supportedValues": [
+              "true",
+              "false"
+            ]
+          },
+          "DiscoverBixby": {
+            "support": "false"
+          },
+          "LLMBixby": {
+            "support": "true"
+          },
+          "SimpleCommand": {
+            "support": "false",
+            "value": "false",
+            "supportedValues": [
+              "true",
+              "false"
+            ],
+            "description": [
+              "\ub0c9\uc7a5\uace0 \ubb38 \uc5f4\uc5b4\uc918"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "href": "/voice/provisioning/vs/0",
+      "rep": {
+        "voice.provisioning.headers": {
+          "login_id": "**REDACTED**",
+          "voice.provisioning.headers.bixbyLanguage": "ko_KR",
+          "voice.provisioning.headers.bixbyType": "BixbyAgent",
+          "voice.provisioning.headers.bixbyVersion": "1.2.2-rc.3",
+          "voice.provisioning.headers.companioncountry": "KR",
+          "voice.provisioning.headers.csc": "920",
+          "voice.provisioning.headers.csciso": "KR",
+          "voice.provisioning.headers.deviceLanguage": "ko-KR",
+          "voice.provisioning.headers.deviceModelNameAsh": "RWP70F15ANW",
+          "voice.provisioning.headers.deviceModelNamePro": "BIXBY-LITE",
+          "voice.provisioning.headers.deviceSubType": "screenless_waterpurifier_lite",
+          "voice.provisioning.headers.deviceTypeAsh": "appliance",
+          "voice.provisioning.headers.deviceTypePro": "appliance",
+          "voice.provisioning.headers.mcc": "450",
+          "voice.provisioning.headers.osType": "Tizen Lite",
+          "voice.provisioning.headers.osVersion": "Tizen Lite",
+          "voice.provisioning.headers.requestTrackId": "1785341867293",
+          "voice.provisioning.headers.sspServerUrl": "us-auth2.samsungosp.com",
+          "voice.provisioning.headers.storecountry": "KR",
+          "voice.provisioning.headers.userType": "COMMERCIAL"
+        },
+        "voice.provisioning.termsstatechange": {
+          "voice.provisioning.termsstatechange.refresh": "",
+          "voice.provisioning.termsstatechange.state": "Agreed",
+          "voice.provisioning.termsstatechange.terms": ""
+        },
+        "voice.provisioning.deviceinfo": {
+          "voice.provisioning.deviceinfo.accesstoken": "**REDACTED**",
+          "voice.provisioning.deviceinfo.bixbyserver": "bxb3PrdUS",
+          "voice.provisioning.deviceinfo.bixbyserviceid": "US1DAAPPFD31232A4E4B40D6B83630AF58385719",
+          "voice.provisioning.deviceinfo.deviceid": "**REDACTED**",
+          "voice.provisioning.deviceinfo.gdprcountry": "false",
+          "voice.provisioning.deviceinfo.isSupportedCountry": "true",
+          "voice.provisioning.deviceinfo.userid": "**REDACTED**"
+        }
+      }
+    }
+  ]
+}
