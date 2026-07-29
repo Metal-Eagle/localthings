@@ -985,6 +985,9 @@
       "favorite_coffee_enabled": {
         "name": "Favorite coffee"
       },
+      "filter_remind": {
+        "name": "Filter reminder"
+      },
       "fridge_sound": {
         "name": "Sound"
       },
@@ -1026,6 +1029,9 @@
       },
       "rapid_fridge": {
         "name": "Rapid fridge"
+      },
+      "remind_beep": {
+        "name": "End signal reminder"
       },
       "sabbath_mode": {
         "name": "Sabbath mode"

@@ -985,6 +985,9 @@
       "favorite_coffee_enabled": {
         "name": "Favoriete koffie"
       },
+      "filter_remind": {
+        "name": "Filterherinnering"
+      },
       "fridge_sound": {
         "name": "Geluid"
       },
@@ -1026,6 +1029,9 @@
       },
       "rapid_fridge": {
         "name": "Snelkoelen"
+      },
+      "remind_beep": {
+        "name": "Eindsignaal herinnering"
       },
       "sabbath_mode": {
         "name": "Sabbatmodus"

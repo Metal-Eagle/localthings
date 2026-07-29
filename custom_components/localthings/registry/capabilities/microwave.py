@@ -27,6 +27,10 @@ different from an oven, and defined fresh here:
     (a brightness level, not literally 'On') -- the switch now treats any
     non-Off/non-None value as "on" for reads, and writes back 'High'/'Off'
     (the two confirmed tokens) rather than the never-confirmed 'On'.
+  * Filter reminder / end signal reminder: bare 'FilterRemind'/'RemindBeep'
+    option-array tokens (issue #181), both with On and Off observed live
+    (issue #152's ME7500D fixtures) -- gated with exists_fn like Lamp since
+    the MW7300B combi dump has neither.
 
 Note: cooking-mode writes are unproven here, same caveat as oven.py's
 OVEN_MODE -- exposed as a SelectDesc for fidelity, first real-world write
@@ -145,6 +149,14 @@ def _lamp_exists(rep, resources):
     return option_value(rep.get('x.com.samsung.da.options'), 'Lamp') is not None
 
 
+def _filter_remind_exists(rep, resources):
+    return option_value(rep.get('x.com.samsung.da.options'), 'FilterRemind') is not None
+
+
+def _remind_beep_exists(rep, resources):
+    return option_value(rep.get('x.com.samsung.da.options'), 'RemindBeep') is not None
+
+
 def _lamp_write(p, rep, href=None):
     if p not in ('On', 'Off'):
         return None
@@ -156,6 +168,26 @@ def _lamp_write(p, rep, href=None):
     token = 'High' if p == 'On' else 'Off'
     return ['mode', 'vs', '0'], {
         'x.com.samsung.da.options': option_write('Lamp', token),
+    }
+
+
+def _filter_remind_write(p, rep, href=None):
+    if p not in ('On', 'Off'):
+        return None
+    if not rep.get('x.com.samsung.da.options'):
+        return None
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': option_write('FilterRemind', p),
+    }
+
+
+def _remind_beep_write(p, rep, href=None):
+    if p not in ('On', 'Off'):
+        return None
+    if not rep.get('x.com.samsung.da.options'):
+        return None
+    return ['mode', 'vs', '0'], {
+        'x.com.samsung.da.options': option_write('RemindBeep', p),
     }
 
 
@@ -213,5 +245,22 @@ MICROWAVE_MODE = Capability(
                    exists_fn=_lamp_exists,
                    value_fn=lambda opts: option_value(opts, 'Lamp') not in (None, 'Off'),
                    write_fn=_lamp_write),
+        # issue #181: Filter Reminder / End Signal Reminder toggles,
+        # confirmed present (both On and Off observed across dumps -- see
+        # issue #152's ME7500D fixtures) but only on boards that carry the
+        # FilterRemind_*/RemindBeep_* tokens; gated off elsewhere (e.g. the
+        # MW7300B combi dump has neither) rather than assumed universal.
+        SwitchDesc(key='filter_remind', field='x.com.samsung.da.options',
+                   icon='mdi:air-filter',
+                   entity_category='config',
+                   exists_fn=_filter_remind_exists,
+                   value_fn=lambda opts: option_value(opts, 'FilterRemind') == 'On',
+                   write_fn=_filter_remind_write),
+        SwitchDesc(key='remind_beep', field='x.com.samsung.da.options',
+                   icon='mdi:bell-ring',
+                   entity_category='config',
+                   exists_fn=_remind_beep_exists,
+                   value_fn=lambda opts: option_value(opts, 'RemindBeep') == 'On',
+                   write_fn=_remind_beep_write),
     ),
 )
