@@ -32,7 +32,7 @@ def test_read_identity_tolerates_missing_resources():
     assert ident.model == ''
     assert ident.serial is None
     assert ident.device_types == ()
-    assert ident.raw == {'/oic/p': {}, '/oic/d': {}}
+    assert ident.raw == {'/oic/p': {}, '/oic/d': {}, '/oic/res': []}
 
 
 def test_read_identity_captures_oic_d_device_types():
@@ -69,3 +69,33 @@ def test_read_identity_keeps_raw_payloads_for_diagnostics():
     ident = read_identity(sess, serial=None)
     assert ident.raw['/oic/p']['mnmo'] == 'RF9000B'
     assert ident.raw['/oic/d']['di'] == 'abc-123'
+
+
+def test_read_identity_captures_oic_res_links():
+    """/oic/res is OCF's discovery endpoint: a baseline RETRIEVE returns an
+    array of Link objects, one per Resource/Collection the endpoint hosts --
+    including, per the OCF 'Composite Device' model, a second logical
+    Device's Collection on a multi-unit system (issue #177). Nothing routes
+    on this yet; captured so a report from such a device shows us whether
+    its firmware actually exposes more than the one /device/0 seed href."""
+    sess = FakeSession({
+        ('oic', 'res'): [
+            {'di': 'aaaa', 'href': '/device/0', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+            {'di': 'bbbb', 'href': '/device/1', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+        ],
+    })
+    ident = read_identity(sess, serial=None)
+    assert ident.raw['/oic/res'] == [
+        {'di': 'aaaa', 'href': '/device/0', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+        {'di': 'bbbb', 'href': '/device/1', 'rt': ['x.com.samsung.devcol', 'oic.wk.col']},
+    ]
+
+
+def test_read_identity_tolerates_malformed_oic_res():
+    """A single Property map instead of an array (or anything else
+    non-list-shaped) must not explode -- same defensive posture as
+    _device_types' handling of a malformed /oic/d rt."""
+    ident = read_identity(
+        FakeSession({('oic', 'res'): {'not': 'a list'}}), serial=None
+    )
+    assert ident.raw['/oic/res'] == []
