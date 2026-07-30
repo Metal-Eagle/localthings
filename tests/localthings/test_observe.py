@@ -452,3 +452,71 @@ def test_downgrade_to_poll_stops_refresh_task():
 
     assert not thread.is_alive()
     assert mgr._refresh_thread is None
+
+
+def test_try_enter_observe_mode_exits_early_when_fraction_reached():
+    """The grace wait returns as soon as enough hrefs notify, not after the
+    whole grace ceiling. Production data (fridge TP2X_REF_20K, 2026-07-30):
+    all subscribed hrefs notify within ~0.34s of subscribe, yet the old fixed
+    time.sleep(15) waited the remaining ~14.6s anyway — every successful
+    first-refresh / observe-retry fetch paid that dead time."""
+    mgr = _manager()
+    session = _FakeSession()
+    hrefs = ['/a/vs/0', '/b/vs/0']
+
+    def _notify_after_subscribe():
+        # Let try_enter clear _notified + subscribe first (matches the existing
+        # test pattern's 0.005 lead), then notify well before the 2s ceiling.
+        time.sleep(0.01)
+        for href in hrefs:
+            mgr.on_notification(href, cbor2.dumps({'x': 1}))
+
+    notifier = threading.Thread(target=_notify_after_subscribe, daemon=True)
+    notifier.start()
+
+    try:
+        t0 = time.monotonic()
+        entered = mgr.try_enter_observe_mode(session, hrefs, grace_period_s=2.0)
+        elapsed = time.monotonic() - t0
+        notifier.join()
+
+        assert entered is True
+        assert mgr.mode == 'observe'
+        # Early exit: returns near the notify (~0.01s), not the 2.0s ceiling.
+        # The old fixed sleep would make this >= 2.0.
+        assert elapsed < 0.5
+    finally:
+        mgr.close()
+
+
+def test_try_enter_observe_mode_waits_full_ceiling_when_fraction_not_reached():
+    """Early-exit must NOT fire below the success fraction. A partial set of
+    notifies that doesn't meet the threshold waits the full grace ceiling,
+    then falls back to poll — identical to the old fixed sleep. Guards
+    against an over-eager predicate that enters observe on too few notifies."""
+    mgr = _manager()
+    session = _FakeSession()
+    hrefs = ['/a/vs/0', '/b/vs/0', '/c/vs/0', '/d/vs/0']  # 4 hrefs
+
+    def _notify_one():
+        time.sleep(0.01)
+        mgr.on_notification(hrefs[0], cbor2.dumps({'x': 1}))  # 1/4 = 0.25
+
+    notifier = threading.Thread(target=_notify_one, daemon=True)
+    notifier.start()
+
+    try:
+        t0 = time.monotonic()
+        entered = mgr.try_enter_observe_mode(
+            session, hrefs, grace_period_s=0.2, success_fraction=0.8,
+        )
+        elapsed = time.monotonic() - t0
+        notifier.join()
+
+        assert entered is False
+        assert mgr.mode == 'poll'
+        assert mgr.subscribed_hrefs == set()
+        # Waited the full 0.2s ceiling (1/4 = 0.25 < 0.8); did not early-exit.
+        assert elapsed >= 0.18
+    finally:
+        mgr.close()
