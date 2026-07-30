@@ -41,6 +41,17 @@ async def async_get_config_entry_diagnostics(
     # registry/identity.py.
     identity = coordinator._identity
 
+    def _seed_diag(su) -> dict:
+        # A flat-mode subdevice (issue #205 -- no working /<uuid>/device/0
+        # Collection, so its state comes from individually-polled hrefs
+        # instead) has no meaningful seed_path; report the flat_hrefs list
+        # in its place rather than the misleading bare "/" a joined empty
+        # tuple would otherwise produce.
+        return {
+            "seed_path": ("/" + "/".join(su.seed_path)) if su.seed_path else None,
+            "flat_hrefs": list(su.flat_hrefs),
+        }
+
     def _subdevice_diag(su) -> dict:
         # One pass over coordinator.bound for both fields below (count and
         # the distinct hrefs), and one redaction of this subdevice's canonical
@@ -53,7 +64,7 @@ async def async_get_config_entry_diagnostics(
         return {
             "kind": su.kind,
             "key": su.key,
-            "seed_path": "/" + "/".join(su.seed_path),
+            **_seed_diag(su),
             "bound_entity_count": len(matching),
             "hrefs": sorted({b.href for b in matching}),
             "model": res.get('/information/vs/0', {}).get('x.com.samsung.da.modelNum', ''),
@@ -101,16 +112,16 @@ async def async_get_config_entry_diagnostics(
         "subdevices": [_subdevice_diag(su) for su in coordinator.subdevices],
         # Candidates that answered their seed but that discover_partitioned's
         # entity-level liveness gate rejected -- an unused SmartThings slot
-        # (HJcom's /device/2) that still answers a same-shaped batch, not a
-        # real second subdevice. Reported alongside subdevices above so a report
-        # shows what was found *and* why it didn't become an entity, not
-        # just silence where a third climate card might otherwise be
-        # expected.
+        # (the issue #177 reporter's /device/2) that still answers a
+        # same-shaped batch, not a real second subdevice. Reported alongside
+        # subdevices above so a report shows what was found *and* why it
+        # didn't become an entity, not just silence where a third climate
+        # card might otherwise be expected.
         "subdevices_skipped": [
             {
                 "kind": skip.subdevice.kind,
                 "key": skip.subdevice.key,
-                "seed_path": "/" + "/".join(skip.subdevice.seed_path),
+                **_seed_diag(skip.subdevice),
                 "hrefs": list(skip.hrefs),
                 # The reps the liveness gate actually judged, canonicalized
                 # like the materialized subdevices above. These are the one

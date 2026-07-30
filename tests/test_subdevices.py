@@ -206,6 +206,9 @@ class _FakeSession:
             return 0x84, b''
         return 0x45, cbor2.dumps(body)
 
+    def pace(self):
+        pass
+
 
 _DEVCOL_REP = {'rt': ['x.com.samsung.devcol', 'oic.wk.col']}
 
@@ -264,6 +267,102 @@ def test_enumerate_prefixed_from_subdevice_id_list():
     assert extra == {f'/{_UUID}/mode/vs/0': {'m': 'cool'}}
 
 
+def test_enumerate_prefixed_falls_back_to_flat_hrefs_when_device0_collection_is_empty():
+    """issue #205: not every prefixed subdevice exposes its own
+    /<uuid>/device/0 Collection -- not even TP2X_FAC_BORA_21K, the board
+    this pattern was built against, always does. When it doesn't,
+    enumeration probes every href the master itself answered this cycle,
+    individually, under the UUID prefix, and keeps whichever ones answer."""
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+        '/mode/vs/0': {'m': 'cool'},
+        '/power/vs/0': {'p': 'On'},
+    }
+    sess = _FakeSession({
+        # (_UUID, 'device', '0') deliberately absent -> Collection probe fails.
+        (_UUID, 'mode', 'vs', '0'): {'mode': 'cool'},
+        # (_UUID, 'power', 'vs', '0') deliberately absent -> drops out.
+    })
+    subdevices, extra = enumerate_subdevices(sess, resources, oic_res_links=[])
+    assert len(subdevices) == 1
+    subdevice = subdevices[0]
+    assert (subdevice.kind, subdevice.key) == ('prefixed', _UUID)
+    assert subdevice.seed_path == ()
+    assert subdevice.flat_hrefs == ('/mode/vs/0',)
+    assert extra == {f'/{_UUID}/mode/vs/0': {'mode': 'cool'}}
+
+
+def test_enumerate_prefixed_flat_fallback_materializes_nothing_when_no_href_answers():
+    """Same posture as every other candidate check in this module: nothing
+    answering means no candidate, not a crash."""
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+        '/mode/vs/0': {'m': 'cool'},
+    }
+    subdevices, extra = enumerate_subdevices(_FakeSession({}), resources, oic_res_links=[])
+    assert subdevices == []
+    assert extra == {}
+
+
+def test_enumerate_prefixed_flat_fallback_probe_log_reports_every_href_tried():
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+        '/mode/vs/0': {'m': 'cool'},
+    }
+    sess = _FakeSession({
+        (_UUID, 'mode', 'vs', '0'): {'mode': 'cool'},
+    })
+    probes: dict[str, bool] = {}
+    enumerate_subdevices(sess, resources, oic_res_links=[], probe_log=probes.__setitem__)
+    assert probes[f'/{_UUID}/device/0'] is False
+    assert probes[f'/{_UUID}/mode/vs/0'] is True
+
+
+def test_enumerate_prefixed_flat_fallback_with_no_master_hrefs_to_probe_is_a_no_op():
+    """The master itself having nothing but /subdevices/vs/0 in its own
+    resources this cycle (e.g. a very first, mostly-empty poll) must not
+    crash the fallback loop -- the only href in `resources` is
+    /subdevices/vs/0 itself, which the fake session doesn't answer under
+    the prefix either, so nothing materializes."""
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+    }
+    subdevices, extra = enumerate_subdevices(_FakeSession({}), resources, oic_res_links=[])
+    assert subdevices == []
+    assert extra == {}
+
+
+def test_enumerate_prefixed_flat_fallback_does_not_cross_contaminate_a_second_uuid():
+    """Two prefixed candidates in the same subdeviceIdList, one whose
+    Collection endpoint works and one that needs the flat fallback -- each
+    must end up with only its own hrefs, no bleed between them."""
+    uuid_a, uuid_b = _UUID, '11111111-1111-1111-1111-111111111111'
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [uuid_a, uuid_b]},
+        '/mode/vs/0': {'m': 'cool'},
+    }
+    sess = _FakeSession({
+        (uuid_a, 'device', '0'): [
+            _DEVCOL_REP, {'href': '/mode/vs/0', 'rep': {'m': 'a-collection'}},
+        ],
+        # uuid_b's Collection deliberately absent -> falls back to the flat
+        # per-href probe.
+        (uuid_b, 'mode', 'vs', '0'): {'m': 'b-flat'},
+    })
+    subdevices, extra = enumerate_subdevices(sess, resources, oic_res_links=[])
+
+    by_key = {u.key: u for u in subdevices}
+    assert set(by_key) == {uuid_a, uuid_b}
+    assert by_key[uuid_a].seed_path == (uuid_a, 'device', '0')
+    assert by_key[uuid_a].flat_hrefs == ()
+    assert by_key[uuid_b].seed_path == ()
+    assert by_key[uuid_b].flat_hrefs == ('/mode/vs/0',)
+    assert extra == {
+        f'/{uuid_a}/mode/vs/0': {'m': 'a-collection'},
+        f'/{uuid_b}/mode/vs/0': {'m': 'b-flat'},
+    }
+
+
 def test_enumerate_prefixed_tolerates_redacted_string_id_list():
     """subdeviceIdList matches redact.py's 'deviceid' substring rule, and the
     real airconditioner_fac_bora_device.json fixture carries the literal
@@ -284,10 +383,10 @@ def test_enumerate_no_subdevices_resource_at_all():
 
 def test_enumerate_indexed_materializes_candidate_regardless_of_content():
     """enumerate_subdevices itself has no way to tell a real sibling from an
-    unused slot that merely answers the same shape (HJcom's /device/2) --
-    that's discover_partitioned's job (see its own tests below). A
-    same-shaped batch of otherwise-empty reps is still returned as a
-    candidate here."""
+    unused slot that merely answers the same shape (the reporter's
+    /device/2) -- that's discover_partitioned's job (see its own tests
+    below). A same-shaped batch of otherwise-empty reps is still returned
+    as a candidate here."""
     oic_res = [{'di': 'a', 'links': [{'href': '/device/2'}]}]
     sess = _FakeSession({
         ('device', '2'): [_DEVCOL_REP, {'href': '/power/vs/2', 'rep': {}},
@@ -425,8 +524,8 @@ def test_discover_partitioned_main_pass_excludes_subdevice_hrefs_from_unbound():
 
 def test_discover_partitioned_subdevice_resolves_its_own_registry():
     """A subdevice reporting its own /information/vs/0 resolves its own
-    device type (jhkwon19's wall subdevice: TP2X_FAC_BORA_RAC_21K -> RAC ->
-    airconditioner) independent of the master's."""
+    device type (issue #177's real wall subdevice: TP2X_FAC_BORA_RAC_21K ->
+    RAC -> airconditioner) independent of the master's."""
     main_cap = Capability(href='/mode/vs/0', entities=(BinarySensorDesc(key='m', field='x'),))
     sub_cap = Capability(href='/mode/vs/0', entities=(BinarySensorDesc(key='m2', field='x'),))
     main_reg = _FakeRegistry('main_type', {'/mode/vs/0': [main_cap]})
@@ -499,13 +598,14 @@ def test_discover_partitioned_no_subdevices_matches_plain_discover():
 # ---------------------------------------------------------------------------
 # discover_partitioned's materialization gate: a candidate is only kept if
 # it produced at least one *primary* (no entity_category) bound entity whose
-# flattened value isn't None. This is what tells HJcom's real /device/1
-# sibling apart from the unused /device/2 slot that answers the same shape.
+# flattened value isn't None. This is what tells the reporter's real
+# /device/1 sibling apart from the unused /device/2 slot that answers the
+# same shape.
 # ---------------------------------------------------------------------------
 
 def test_discover_partitioned_skips_candidate_with_no_live_primary_entity():
     """A candidate whose only populated entity is diagnostic-category
-    doesn't count -- exactly HJcom's /device/2 shape (an alarm_code
+    doesn't count -- exactly the reporter's /device/2 shape (an alarm_code
     sensor reading something even though the subdevice itself is empty)."""
     diag_cap = Capability(
         href='/alarms/vs/0',
@@ -533,7 +633,7 @@ def test_discover_partitioned_skips_candidate_with_no_live_primary_entity():
 def test_discover_partitioned_materializes_candidate_with_live_primary_entity():
     """A candidate with a populated *primary* (no entity_category) entity
     is materialized, even alongside an all-empty diagnostic sibling href --
-    exactly HJcom's /device/1 shape."""
+    exactly the reporter's /device/1 shape."""
     climate_cap = Capability(
         href='/mode/vs/0',
         entities=(BinarySensorDesc(key='mode', field='m'),),   # no entity_category -> primary

@@ -903,7 +903,7 @@ def _new_subdevice_aware_state_keys(name):
 
 
 def test_registry_reproduces_golden_state_keys_for_airconditioner_artik051_dongle_fac_18k():
-    """HJcom's ARTIK051_DONGLE_FAC_18K (issue #177, Pattern A -- indexed
+    """The reporter's ARTIK051_DONGLE_FAC_18K (issue #177, Pattern A -- indexed
     siblings): a real v0.16.0 dump with a genuine second indoor subdevice at
     `/device/1` (subdevice1_-prefixed keys below) and an unused SmartThings
     slot at `/device/2` that answers its seed but never produces a
@@ -942,7 +942,7 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_cac():
 
 
 def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1():
-    """jhkwon19's TP2X_FAC_BORA_21K (issue #177, Pattern B -- UUID-prefixed
+    """The reporter's TP2X_FAC_BORA_21K (issue #177, Pattern B -- UUID-prefixed
     tree): device0/oic_res are real; the wall-mounted subdevice's own
     /information/vs/0 is real (confirmed live by the reporter), the rest of
     its seed tree is constructed (see the fixture's own seeds_note) -- just
@@ -952,6 +952,30 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1(
     deliberately left unchanged as the redacted-subdeviceIdList regression
     case (zero subdevices)."""
     name = 'airconditioner_fac_bora_2in1'
+    golden = json.loads((GOLDEN / f'{name}.json').read_text())
+    state_keys = _new_subdevice_aware_state_keys(name)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_205_flat():
+    """The same reporter's same physical TP2X_FAC_BORA_21K unit as the _2in1
+    fixture above, but a later capture (issue #205) where /<uuid>/device/0 doesn't
+    answer -- contrary to what that fixture's own seed batch assumed the
+    Collection endpoint would do. device0/oic_res are real; the only
+    UUID-prefixed data is the one href ever actually confirmed live
+    (/information/vs/0, same real capture the _2in1 fixture uses), fed
+    through registry.subdevices.enumerate_subdevices' per-href flat
+    fallback instead of a Collection batch. /information/vs/0 alone binds
+    no entity, so the candidate is found but never materializes -- this
+    golden has no `subdevice_...`-prefixed keys at all, same shape as
+    tests/fixtures/golden/airconditioner_fac_bora.json, which is the point:
+    a device whose sibling can't yet be confirmed live must regress to
+    exactly the master-only state, never a phantom or partial subdevice."""
+    name = 'airconditioner_fac_bora_205_flat'
     golden = json.loads((GOLDEN / f'{name}.json').read_text())
     state_keys = _new_subdevice_aware_state_keys(name)
     assert set(state_keys) == set(golden['state_keys']), (

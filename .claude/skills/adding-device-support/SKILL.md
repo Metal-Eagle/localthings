@@ -218,10 +218,14 @@ This is a rule about **writes and entities**, not about reading. A speculative
 `GET` of an href a dump doesn't contain is fine and the codebase already relies
 on it: `read_identity` reads `/oic/p`, `/oic/d` and `/oic/res`, and
 `subdevices.enumerate_subdevices` probes `/device/<n>`, `/<uuid>/device/0` and
-`/multidevice/vs/0` on every device. A RETRIEVE is non-mutating and a 4.04 is
-tolerated everywhere in that path, so the cost of a wrong guess is one wasted
-round trip. Guessing a *write* against live hardware is the thing this rule
-forbids — as is materializing an entity from a field you can't explain.
+`/multidevice/vs/0` on every device — and, when a prefixed candidate's own
+`/<uuid>/device/0` doesn't answer (issue #205: not guaranteed even on the
+board this pattern was built against), every href the master itself
+answered this cycle, individually under that UUID's prefix (see §11). A
+RETRIEVE is non-mutating and a 4.04 is tolerated everywhere in that path, so
+the cost of a wrong guess is one wasted round trip. Guessing a *write*
+against live hardware is the thing this rule forbids — as is materializing
+an entity from a field you can't explain.
 
 ## 6. Select options: read them from the device, don't hardcode
 
@@ -364,6 +368,19 @@ The new fixture is picked up automatically by the corpus-wide checks (the
 board token fails the build rather than silently mistyping someone's
 appliance.
 
+**Don't put a reporter's name or GitHub username in code.** Fixture data
+gets serials/MACs/other device PII scrubbed per point 1 above — the same
+rule applies to the *prose* you write while fixing the issue: comments,
+docstrings, `seeds_note`, and test/function names should say "the
+reporter," "issue #NNN's reporter," or (when a module already distinguishes
+multiple reporters, like `subdevices.py`'s Pattern A/Pattern B) "the
+Pattern A reporter," never a real name or handle. That prose ships in the
+package and lives in git history indefinitely — unlike an issue thread or a
+release-notes thank-you (both fine places to credit someone by name), it's
+not somewhere a person would expect to stay named forever. If you're fixing
+an issue and about to write `<username>'s board`/`<username>'s dump` in a
+comment, stop and swap in a generic reference instead.
+
 ## 11. Triage: "one of my subdevices is missing"
 
 For an appliance that exposes several logical indoor subdevices over one IP —
@@ -372,22 +389,41 @@ the dump in this order; each step rules out a different cause.
 
 1. **`subdevice_probes`** — did we even look? Every seed attempted appears
    here with what it returned. An absent seed means enumeration never tried
-   that path; a `false` means it tried and got nothing.
-2. **`subdevices_skipped`** — did we find it and reject it? A candidate lands
-   here when its seed answered but it produced no *primary* (non-diagnostic)
-   entity with a populated value. Its `resources` block holds the exact reps
-   the gate judged, so you can check the call yourself. If every
-   power/mode/temperature rep is `{}`, the subdevice is an unused slot and the
-   skip is correct. If they're populated, the gate is wrong — that's a bug
-   worth a fixture.
-3. **`multidevice.numofsubdevice`** — the board's own count, where it
-   reports one. Disagreement with `len(subdevices) + 1` is a strong hint,
-   not proof; only one board family is known to expose it.
-4. **Which pattern is this board?** `identity.resources['/oic/res']` listing
+   that path; a `false` means it tried and got nothing. On a UUID-prefixed
+   board whose `/<uuid>/device/0` reads `false` (issue #205 — this isn't
+   rare, not even on the board the pattern was built against), the report
+   also carries one probe per href the master itself answered that cycle,
+   individually under that prefix (`subdevices.enumerate_subdevices`'s flat
+   fallback) — a `true` there is real, confirmed-live evidence for that one
+   href, not a guess.
+2. **`subdevices`**/**`flat_hrefs`** — for a *materialized* subdevice found
+   this way, `flat_hrefs` lists exactly which hrefs it's actually being
+   polled on (individually, no Collection endpoint to batch through) —
+   compare against the master's own hrefs to see what's still unconfirmed
+   for that sibling.
+3. **`subdevices_skipped`** — did we find it and reject it? A candidate lands
+   here when its seed(s) answered but it produced no *primary*
+   (non-diagnostic) entity with a populated value. Its `resources` block
+   holds the exact reps the gate judged, so you can check the call
+   yourself. If every power/mode/temperature rep is `{}`, the subdevice is
+   an unused slot and the skip is correct. If they're populated, the gate
+   is wrong — that's a bug worth a fixture. A flat-fallback candidate whose
+   only confirmed href is `/information/vs/0` (never bound to any entity —
+   only ever read for device-type resolution) will *always* land here until
+   more of its hrefs are confirmed live; that's the gate working as
+   intended, not a bug to chase.
+4. **`multidevice.numofsubdevice`** — the board's own count, where it
+   reports one. `coordinator._run_discovery` compares it against
+   `len(materialized) + 1` (materialized subdevices plus the master) and
+   only warns on disagreement — `subdevices_skipped` entries don't count
+   toward either side, since they never materialized. A strong hint, not
+   proof; only one board family is known to expose it.
+5. **Which pattern is this board?** `identity.resources['/oic/res']` listing
    `/device/1`, `/device/2` means indexed siblings. `resources['/subdevices/
    vs/0']` carrying a `subdeviceIdList` means a UUID-prefixed tree, and that
-   same UUID usually shows up as an href prefix in `/oic/res` too. Neither
-   present, on a device the owner insists has two subdevices, is the
+   same UUID usually shows up as an href prefix in `/oic/res` too — enumerate
+   whether or not `/<uuid>/device/0` itself answers, per §5's fallback.
+   Neither present, on a device the owner insists has two subdevices, is the
    interesting case — that's a third mechanism and needs a new dump, not a
    code guess.
 

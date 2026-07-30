@@ -4,50 +4,64 @@ more than one logical indoor subdevice -- issue #177.
 Two reporters, two different board families, two genuinely different
 mechanisms for exposing a second indoor subdevice over one IP / one DTLS
 session (see DESIGN-177.md section 1 for the full evidence trail; the two
-diagnostics dumps this was built against are HJcom's and jhkwon19's -- they
-each filed one of the two reports this module unifies):
+diagnostics dumps this was built against come from the Pattern A and
+Pattern B reporters, respectively -- they each filed one of the two
+reports this module unifies):
 
-Pattern A -- indexed siblings (`ARTIK051_DONGLE_FAC_18K`, HJcom's board).
-`/oic/res` lists three complete parallel resource sets whose trailing path
-segment is the index (`/mode/vs/0`, `/mode/vs/1`, `/mode/vs/2`, ... on both
-OCF-standard and vendor hrefs), and `/device/0`'s batch carries only the
-index-0 hrefs -- the sibling subdevices are reachable only via their own
-`/device/<n>` collection.
+Pattern A -- indexed siblings (`ARTIK051_DONGLE_FAC_18K`, that reporter's
+board). `/oic/res` lists three complete parallel resource sets whose
+trailing path segment is the index (`/mode/vs/0`, `/mode/vs/1`,
+`/mode/vs/2`, ... on both OCF-standard and vendor hrefs), and `/device/0`'s
+batch carries only the index-0 hrefs -- the sibling subdevices are
+reachable only via their own `/device/<n>` collection.
 
-Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, jhkwon19's board).
+Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, that reporter's board).
 `/oic/res` hides the whole appliance tree; `/device/0`'s batch instead
 carries `x.com.samsung.da.subdeviceIdList` on `/subdevices/vs/0`, and that
 same UUID appears as a literal href prefix in `/oic/res`
-(`/<uuid>/file/list/vs/0`, ...). `GET /<uuid>/device/0` returns the second
-subdevice's own Collection batch, confirmed live by the reporter to carry a
-different model/serial than the master (`TP2X_FAC_BORA_RAC_21K`, the
-wall-mounted subdevice, vs. the master's `TP2X_FAC_BORA_21K`, the floor
-subdevice).
+(`/<uuid>/file/list/vs/0`, ...). What's actually been confirmed live on
+that reporter's unit is narrower than early issue #177 writeups suggested: a
+single individual `GET /<uuid>/information/vs/0` was read by hand through
+the debug panel and came back carrying a different model/serial than the
+master (`TP2X_FAC_BORA_RAC_21K`, the wall-mounted subdevice, vs. the
+master's `TP2X_FAC_BORA_21K`, the floor subdevice) -- real evidence a
+second subdevice exists at that prefix, but not evidence that `GET
+/<uuid>/device/0` (the Collection batch PR #199 built this pattern's seed
+around) itself returns anything. Issue #205, the same unit on a later
+version, is that assumption failing: `/<uuid>/device/0` comes back empty.
+So `enumerate_subdevices` tries it first (a future board might genuinely
+expose it) and falls back, when it's empty, to probing every href the
+master itself answered this cycle individually under the UUID prefix --
+the only thing ever actually confirmed to work for this pattern -- on the
+assumption that a composite device's siblings share the master's resource
+surface. See `Subdevice.flat_hrefs`.
 
 Both are "the same thing wearing different clothes": a logical subdevice is a
 seed collection path to poll, plus an href transform between the canonical
 href the registry knows (`/mode/vs/0`) and the actual on-the-wire href. The
-detection signals don't overlap on either captured board (HJcom's has no
-`/subdevices/vs/0` at all; jhkwon19's has no `/device/1`), so no
-disambiguation logic is needed -- `enumerate_subdevices` checks both and
-materializes any candidate whose seed answers with a non-empty batch.
+detection signals don't overlap on either captured board (the Pattern A
+reporter's has no `/subdevices/vs/0` at all; the Pattern B reporter's has
+no `/device/1`), so no disambiguation logic is needed --
+`enumerate_subdevices` checks both and materializes any candidate whose
+seed answers with a non-empty batch.
 
 A non-empty seed batch is necessary but not sufficient for the *candidate*
-to actually be a live second subdevice, though: HJcom's own board also has a
-`/device/2` -- a third, unused SmartThings slot -- that answers with the
-exact same 14-href shape as the real `/device/1` sibling, populated with
-three constant/echoed/shape-only reps (a region code identical to every
-other subdevice's, an /information rep echoing the *same* model string as
-subdevice 1, and a /temperatures items[] entry with an id/description but no
-current/desired/minimum/maximum reading) and nothing resembling live
-climate state. Gating on *resource* shape/hrefs turned out to be the wrong
-layer -- it would need per-family domain knowledge (which hrefs mean "in
-use" for a washer's second drum, a fridge's second compartment, ...) baked
-into a registry field before any of those families could use this module
-at all. `discover_partitioned` instead gates at the *entity* layer, after
-discovery+flattening: a candidate is only kept if it produced at least one
-*primary* (no `entity_category`) bound entity whose flattened value isn't
-`None` -- e.g. HJcom's /device/2 does flatten to an `alarm_code` value, but
+to actually be a live second subdevice, though: the Pattern A reporter's
+own board also has a `/device/2` -- a third, unused SmartThings slot --
+that answers with the exact same 14-href shape as the real `/device/1`
+sibling, populated with three constant/echoed/shape-only reps (a region
+code identical to every other subdevice's, an /information rep echoing the
+*same* model string as subdevice 1, and a /temperatures items[] entry with
+an id/description but no current/desired/minimum/maximum reading) and
+nothing resembling live climate state. Gating on *resource* shape/hrefs
+turned out to be the wrong layer -- it would need per-family domain
+knowledge (which hrefs mean "in use" for a washer's second drum, a
+fridge's second compartment, ...) baked into a registry field before any
+of those families could use this module at all. `discover_partitioned`
+instead gates at the *entity* layer, after discovery+flattening: a
+candidate is only kept if it produced at least one *primary* (no
+`entity_category`) bound entity whose flattened value isn't `None` -- e.g.
+the Pattern A reporter's /device/2 does flatten to an `alarm_code` value, but
 that entity is diagnostic-category and derived from an empty /alarms/vs/2,
 so it doesn't count. This reuses the same primary/config/diagnostic
 taxonomy every registry already declares (see the adding-device-support
@@ -90,10 +104,19 @@ class Subdevice:
     ('1', '2', ...) or the full subdevice UUID, and `seed_path` is the
     Collection href (as path segments) whose batch response
     enumerates/refreshes that subdevice.
+
+    `flat_hrefs` is non-empty only for a 'prefixed' subdevice that doesn't
+    expose its own Collection at `seed_path` (issue #205 -- not even
+    TP2X_FAC_BORA_21K, the board this pattern was built against, always
+    does). When set, `seed_path` is meaningless (left as `()`) and this
+    subdevice's state comes from GETting each of these canonical hrefs
+    individually under its prefix instead of one Collection batch -- see
+    enumerate_subdevices' fallback and coordinator._poll_subdevice_seed.
     """
     kind: str            # 'main' | 'indexed' | 'prefixed'
     key: str             # ''    | '1'       | '6c2dff6d-ee5c-dad1-6a5e-000000000001'
     seed_path: tuple[str, ...]
+    flat_hrefs: tuple[str, ...] = ()
 
     def to_actual(self, canonical: str) -> str:
         """Canonical registry href (e.g. '/mode/vs/0') -> the real,
@@ -196,10 +219,11 @@ def normalize_seed_batch(subdevice: Subdevice, batch: dict[str, dict]) -> dict[s
     normalized so every href actually carries this subdevice's prefix/index.
 
     Indexed subdevices need no change -- the device echoes the real `/x/<n>`
-    href in its own `/device/<n>` batch (confirmed against HJcom's dump).
-    A prefixed subdevice's batch entries may or may not already carry the
-    `/<id>` prefix (unconfirmed which -- jhkwon19's board was never probed
-    live before the subdevice id was known), so it's added when missing.
+    href in its own `/device/<n>` batch (confirmed against the Pattern A
+    reporter's dump). A prefixed subdevice's batch entries may or may not
+    already carry the `/<id>` prefix (unconfirmed which -- the Pattern B
+    reporter's board was never probed live before the subdevice id was
+    known), so it's added when missing.
     """
     if subdevice.kind != 'prefixed':
         return batch
@@ -262,9 +286,9 @@ def _get_batch(sess, path_segs: tuple[str, ...]) -> dict[str, dict]:
 def _get_property(sess, path_segs: tuple[str, ...]) -> dict:
     """GET a plain OCF Property-map resource (a bare dict, not a Collection
     batch). Used for `/multidevice/vs/0` (issue #177 follow-up): listed in
-    `/oic/res` on HJcom's board but absent from `/device/0`'s batch, so it
-    needs its own RETRIEVE, and it answers a single Property map, not a
-    [devcol-rep, ...] list."""
+    `/oic/res` on the Pattern A reporter's board but absent from
+    `/device/0`'s batch, so it needs its own RETRIEVE, and it answers a
+    single Property map, not a [devcol-rep, ...] list."""
     body = _get_raw(sess, path_segs)
     return body if isinstance(body, dict) else {}
 
@@ -293,9 +317,10 @@ def enumerate_subdevices(
 
     Every candidate whose seed answers with a non-empty batch is returned
     here -- this function has no way to tell a real sibling from an unused
-    SmartThings slot that merely answers the same shape (HJcom's
-    `/device/2`); that requires discovering+flattening the candidate's own
-    entities first, which is `discover_partitioned`'s job, not this one's.
+    SmartThings slot that merely answers the same shape (the Pattern A
+    reporter's `/device/2`); that requires discovering+flattening the
+    candidate's own entities first, which is `discover_partitioned`'s job,
+    not this one's.
     See this module's docstring.
     """
     subdevices: list[Subdevice] = []
@@ -319,11 +344,52 @@ def enumerate_subdevices(
         seed = (sub_id, 'device', '0')
         batch = _get_batch(sess, seed)
         _probed(_seed_href(seed), batch)
-        if not batch:
+        if batch:
+            subdevice = Subdevice(kind='prefixed', key=sub_id, seed_path=seed)
+            fetched.update(normalize_seed_batch(subdevice, batch))
+            subdevices.append(subdevice)
             continue
-        subdevice = Subdevice(kind='prefixed', key=sub_id, seed_path=seed)
-        fetched.update(normalize_seed_batch(subdevice, batch))
-        subdevices.append(subdevice)
+        # Fallback (issue #205): TP2X_FAC_BORA_21K itself -- the board this
+        # pattern was built against -- turns out not to always expose its own
+        # `/<uuid>/device/0` Collection either, so "every prefixed subdevice
+        # has one" doesn't hold even on the reference hardware. With no
+        # Collection to seed from and no per-UUID entry in `/oic/res` to
+        # enumerate hrefs from, the only signal left is that a composite
+        # device's siblings are the same physical board family as the
+        # subdevice this config entry already talks to -- so probe every
+        # href the master itself answered this cycle, individually, under
+        # this UUID's prefix, and keep whichever ones answer. Each is a
+        # plain tolerated-404 RETRIEVE, same posture as every other probe in
+        # this function.
+        #
+        # Known gap, not yet guarded against: a firmware that answers *any*
+        # request under an unrecognized prefix (echoing the master's own
+        # state back rather than 4.04ing) would pass every one of these
+        # probes and, if the echoed state also clears discover_partitioned's
+        # liveness gate, materialize a phantom duplicate of the master
+        # rather than a real sibling. Every board seen so far genuinely
+        # 4.04s on paths it doesn't own (issue #205's own unit answered only
+        # 1 of 31 probes), so this hasn't been built -- the one place it
+        # could hook in later is comparing a candidate's confirmed reps
+        # against the master's own values for those same canonical hrefs.
+        flat_hrefs = []
+        first = True
+        for href in sorted(resources):
+            if not first:
+                sess.pace()
+            first = False
+            actual = f'/{sub_id}{href}'
+            rep = _get_property(sess, tuple(actual.strip('/').split('/')))
+            _probed(actual, bool(rep))
+            if rep:
+                flat_hrefs.append(href)
+                fetched[actual] = rep
+        if not flat_hrefs:
+            continue
+        subdevices.append(Subdevice(
+            kind='prefixed', key=sub_id, seed_path=(),
+            flat_hrefs=tuple(flat_hrefs),
+        ))
 
     # --- Pattern A: indexed siblings (ARTIK051_DONGLE_FAC_18K) --------------
     indices = sorted({
@@ -334,7 +400,7 @@ def enumerate_subdevices(
     })
     if not indices:
         # A board that hides its whole tree from /oic/res (Pattern B's
-        # jhkwon19 board does this too, but it has no /device/<n> to find
+        # reporter board does this too, but it has no /device/<n> to find
         # regardless) gives us nothing to enumerate from -- fall back to the
         # bounded speculative probe this replaces from identity.py.
         indices = list(_SPECULATIVE_DEVICE_INDICES)
@@ -348,9 +414,9 @@ def enumerate_subdevices(
         fetched.update(batch)  # already real /x/<n> hrefs, no normalization needed
         subdevices.append(subdevice)
 
-    # /multidevice/vs/0 (issue #177 follow-up): HJcom's board lists it in
-    # /oic/res but it never appears in /device/0's batch, so it needs its
-    # own RETRIEVE. It's a plain corroborating count
+    # /multidevice/vs/0 (issue #177 follow-up): the Pattern A reporter's
+    # board lists it in /oic/res but it never appears in /device/0's batch,
+    # so it needs its own RETRIEVE. It's a plain corroborating count
     # (x.com.samsung.da.numofsubdevice), confirmed read-only (a write
     # attempt returned CoAP 4.00) -- captured for diagnostics only, folded
     # into the merged resources dict like any other href (see
@@ -374,9 +440,9 @@ def enumerate_subdevices(
 class SkippedSubdevice:
     """A candidate `enumerate_subdevices` found whose seed answered, but that
     `discover_partitioned`'s entity-level liveness gate rejected -- an
-    unused SmartThings slot (HJcom's `/device/2`), not a real second subdevice.
-    Kept around (rather than silently dropped) so a caller can log/report
-    what was skipped and why."""
+    unused SmartThings slot (the Pattern A reporter's `/device/2`), not a
+    real second subdevice. Kept around (rather than silently dropped) so a
+    caller can log/report what was skipped and why."""
     subdevice: Subdevice
     hrefs: tuple[str, ...]
 
@@ -388,7 +454,7 @@ def _has_live_primary_entity(bound, state: dict) -> bool:
     tier (see the adding-device-support skill's entity-taxonomy section).
 
     This is the materialization gate itself (see this module's docstring):
-    HJcom's `/device/2` does flatten to one non-`None` value
+    the Pattern A reporter's `/device/2` does flatten to one non-`None` value
     (`alarm_code`), but that entity is `diagnostic`-category and derived
     from an empty `/alarms/vs/2` -- a config/diagnostic entity reading
     "something" proves nothing about whether a physical subdevice is actually
@@ -418,8 +484,8 @@ def discover_partitioned(
     device's registry claims that literal href) and raise a spurious
     coverage-gap repair. Then one pass per *candidate* subdevice over its own
     canonical view, resolving that subdevice's own device type from its own
-    `/information/vs/0` when it reports one (e.g. jhkwon19's wall subdevice
-    reports `TP2X_FAC_BORA_RAC_21K` -> the 'RAC' board token ->
+    `/information/vs/0` when it reports one (e.g. the Pattern B reporter's
+    wall subdevice reports `TP2X_FAC_BORA_RAC_21K` -> the 'RAC' board token ->
     airconditioner), falling back to the master's registry otherwise --
     every AC family shares the same resource surface, and a sibling that
     fails to answer its own identity resource is still the same appliance

@@ -3,10 +3,11 @@
 two -- and that the legacy-board test (is_legacy_board/_legacy_airflow) is
 evaluated per subdevice rather than once globally.
 
-Uses HJcom's ARTIK051_DONGLE_FAC_18K fixture deliberately: it's a legacy
-`/airflow/vs/<n>` board (no `/wind/*` at all) on *both* the master and its
-materialized sibling, which is exactly the shape climate.py's own comments
-warn is easy to get wrong if the canonical view leaks between subdevices.
+Uses the issue #177 reporter's ARTIK051_DONGLE_FAC_18K fixture deliberately:
+it's a legacy `/airflow/vs/<n>` board (no `/wind/*` at all) on *both* the
+master and its materialized sibling, which is exactly the shape climate.py's
+own comments warn is easy to get wrong if the canonical view leaks between
+subdevices.
 """
 from __future__ import annotations
 
@@ -71,15 +72,16 @@ async def test_subdevice_climate_reads_its_own_power_state(climates):
 
 
 async def test_legacy_board_test_is_evaluated_per_subdevice(climates):
-    """HJcom's board has no /wind/* resources at all on *either* subdevice --
-    is_legacy_board(self._resources) must independently evaluate True for
-    the master's own canonical view and for the subdevice's own canonical
-    view. If is_legacy_board were fed the raw, unpartitioned snapshot (or
-    if canonical_view leaked one subdevice's hrefs into the other's), this
-    wouldn't distinguish "this subdevice is legacy" from "some subdevice on
-    this connection is legacy" -- and a future board with one legacy + one
-    modern subdevice sharing a connection would silently read the wrong
-    fan/swing channel on one side."""
+    """The reporter's board has no /wind/* resources at all on *either*
+    subdevice -- is_legacy_board(self._resources) must independently
+    evaluate True for the master's own canonical view and for the
+    subdevice's own canonical view. If is_legacy_board were fed the raw,
+    unpartitioned snapshot (or if canonical_view leaked one subdevice's
+    hrefs into the other's), this wouldn't distinguish "this subdevice is
+    legacy" from "some subdevice on this connection is legacy" -- and a
+    future board with one legacy + one modern subdevice sharing a
+    connection would silently read the wrong fan/swing channel on one
+    side."""
     main, sub1 = climates[None], climates['1']
     assert main._legacy_airflow() != {}
     assert sub1._legacy_airflow() != {}

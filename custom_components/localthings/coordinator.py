@@ -174,9 +174,10 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # it's the *other* subdevices sharing this DTLS session, if any.
         self.subdevices: list[Subdevice] = []
         # Candidates _run_discovery's gate rejected (an unused SmartThings
-        # slot that still answers its seed, e.g. HJcom's /device/2) --
-        # surfaced in diagnostics alongside the materialized ones so a
-        # report shows what was found and why it didn't become an entity.
+        # slot that still answers its seed, e.g. the issue #177 reporter's
+        # /device/2) -- surfaced in diagnostics alongside the materialized
+        # ones so a report shows what was found and why it didn't become an
+        # entity.
         self._skipped_subdevices: list = []
         # Those rejected candidates' raw reps, kept aside for diagnostics
         # only (see _live_subdevice_resources). They are deliberately not in the
@@ -285,8 +286,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # identity resource -- fall back to a generic per-subdevice label
             # rather than leaving the device unnamed. 'Subdevice <n>' only
             # makes sense for an indexed subdevice (the key is a small
-            # ordinal); jhkwon19-pattern (prefixed) subdevices are never more
-            # than one per connection today, so there's no ordinal to show.
+            # ordinal); UUID-prefixed subdevices are never more than one per
+            # connection today, so there's no ordinal to show.
             label = (
                 f'Subdevice {subdevice.key}' if subdevice.kind == 'indexed'
                 else 'Secondary Subdevice'
@@ -408,12 +409,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """GET one subdevice's seed Collection and return its batch,
         normalized to real hrefs. A sibling failing to answer is a debug
         log, never a failed poll -- the master must not go unavailable
-        because a sibling timed out or dropped off (e.g. HJcom's
-        /device/2, a SmartThings-unused component that may not always
-        respond). Blocking -- called from _poll_once, already in executor."""
+        because a sibling timed out or dropped off (e.g. the issue #177
+        reporter's /device/2, a SmartThings-unused component that may not
+        always respond). Blocking -- called from _poll_once, already in
+        executor."""
         sess = self._session
         if sess is None:
             return {}
+        if subdevice.flat_hrefs:
+            return self._poll_subdevice_flat_hrefs(subdevice, sess)
         try:
             code, payload = sess.get(list(subdevice.seed_path), timeout=10.0)
             if code == 0x45 and payload:
@@ -423,6 +427,53 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as e:
             self._log.debug("subdevice %s seed poll failed: %s", subdevice.key, e)
         return {}
+
+    def _poll_subdevice_flat_hrefs(self, subdevice: Subdevice, sess) -> dict[str, dict]:
+        """Re-poll a flat-mode prefixed subdevice's hrefs individually
+        (issue #205) -- it has no Collection endpoint to batch-refresh
+        through (see enumerate_subdevices' fallback), so each canonical
+        href confirmed at enumeration time gets its own GET under the
+        subdevice's prefix. A href failing to answer this cycle just drops
+        out of the result, same "never let a sibling's flakiness fail the
+        master's poll" posture as the Collection path above.
+
+        Takes `sess` from the caller (already None-checked there) rather
+        than re-reading self._session -- async_close() can null that
+        without holding _session_lock, and pace()/get() both need a live
+        session on every iteration, not just the first.
+
+        Skips any href already covered by the hot/warm sub-poll tiers
+        (self._hot_hrefs/_warm_hrefs, in the same actual/on-the-wire form
+        this method builds) -- those are already refreshed every 3s/6s by
+        _run_subpolls, strictly more current than this once-per-summary-poll
+        pass could offer, so re-fetching them here would only add GETs
+        without adding freshness. A subdevice with many confirmed hrefs
+        (unlike a Collection batch, which is always one GET regardless of
+        count) is otherwise a summary-poll cost that scales with its href
+        count."""
+        skip = set(self._hot_hrefs) | set(self._warm_hrefs)
+        result: dict[str, dict] = {}
+        first = True
+        for href in subdevice.flat_hrefs:
+            actual = subdevice.to_actual(href)
+            if actual in skip:
+                continue
+            try:
+                if not first:
+                    sess.pace()
+                first = False
+                path = [s for s in actual.strip('/').split('/')]
+                code, payload = sess.get(path, timeout=10.0)
+                if code == 0x45 and payload:
+                    rep = cbor2.loads(payload)
+                    if isinstance(rep, dict):
+                        result[actual] = rep
+            except Exception as e:
+                self._log.debug(
+                    "subdevice %s flat href %s poll failed: %s",
+                    subdevice.key, href, e,
+                )
+        return result
 
     def _poll_hrefs_blocking(self, hrefs: list[str]) -> dict[str, dict]:
         """GET individual hrefs sequentially. Does not reconnect on failure. Blocking."""
@@ -494,8 +545,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _run_discovery sees every candidate's state without a second poll
         round trip. `_run_discovery` is what narrows self.subdevices down to
         the ones that are actually live (see discover_partitioned) -- this
-        method doesn't know how to tell an unused SmartThings slot (HJcom's
-        /device/2) from a real sibling, only that something answered.
+        method doesn't know how to tell an unused SmartThings slot (the
+        issue #177 reporter's /device/2) from a real sibling, only that
+        something answered.
         """
         if self._session is None:
             self._connect_session()
@@ -573,8 +625,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # its own /information/vs/0 when it reports one and falling back to
         # the master's registry otherwise. See subdevices.discover_partitioned
         # -- it also gates each candidate down to whether it actually
-        # produced live primary state (HJcom's /device/2, an unused
-        # SmartThings slot, answers its seed but never does), so
+        # produced live primary state (the issue #177 reporter's /device/2,
+        # an unused SmartThings slot, answers its seed but never does), so
         # self.subdevices below is narrowed to the ones that passed, not
         # every candidate _enumerate_subdevices_blocking found. For a device
         # with no candidates (self.subdevices == []) this is exactly the
@@ -592,11 +644,12 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 skip.subdevice.key, skip.subdevice.kind, list(skip.hrefs),
             )
         # Corroborating signal, not a gate (DESIGN-177.md section 4):
-        # /multidevice/vs/0's numofsubdevice is a plain count HJcom's board
-        # reports independently of the liveness gate above. Log, don't
-        # raise, on a disagreement -- only this one board family is known to
-        # expose the resource at all, so a mismatch is a "look into this"
-        # signal for triage, not proof either side is wrong.
+        # /multidevice/vs/0's numofsubdevice is a plain count the issue
+        # #177 reporter's board reports independently of the liveness gate
+        # above. Log, don't raise, on a disagreement -- only this one board
+        # family is known to expose the resource at all, so a mismatch is a
+        # "look into this" signal for triage, not proof either side is
+        # wrong.
         numofsubdevice = self._multidevice.get(
             'x.com.samsung.da.numofsubdevice')
         if numofsubdevice is not None:
