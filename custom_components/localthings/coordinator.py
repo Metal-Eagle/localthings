@@ -415,7 +415,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if sess is None:
             return {}
         if subdevice.flat_hrefs:
-            return self._poll_subdevice_flat_hrefs(subdevice)
+            return self._poll_subdevice_flat_hrefs(subdevice, sess)
         try:
             code, payload = sess.get(list(subdevice.seed_path), timeout=10.0)
             if code == 0x45 and payload:
@@ -426,23 +426,40 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._log.debug("subdevice %s seed poll failed: %s", subdevice.key, e)
         return {}
 
-    def _poll_subdevice_flat_hrefs(self, subdevice: Subdevice) -> dict[str, dict]:
+    def _poll_subdevice_flat_hrefs(self, subdevice: Subdevice, sess) -> dict[str, dict]:
         """Re-poll a flat-mode prefixed subdevice's hrefs individually
         (issue #205) -- it has no Collection endpoint to batch-refresh
         through (see enumerate_subdevices' fallback), so each canonical
         href confirmed at enumeration time gets its own GET under the
         subdevice's prefix. A href failing to answer this cycle just drops
         out of the result, same "never let a sibling's flakiness fail the
-        master's poll" posture as the Collection path above."""
-        sess = self._session
+        master's poll" posture as the Collection path above.
+
+        Takes `sess` from the caller (already None-checked there) rather
+        than re-reading self._session -- async_close() can null that
+        without holding _session_lock, and pace()/get() both need a live
+        session on every iteration, not just the first.
+
+        Skips any href already covered by the hot/warm sub-poll tiers
+        (self._hot_hrefs/_warm_hrefs, in the same actual/on-the-wire form
+        this method builds) -- those are already refreshed every 3s/6s by
+        _run_subpolls, strictly more current than this once-per-summary-poll
+        pass could offer, so re-fetching them here would only add GETs
+        without adding freshness. A subdevice with many confirmed hrefs
+        (unlike a Collection batch, which is always one GET regardless of
+        count) is otherwise a summary-poll cost that scales with its href
+        count."""
+        skip = set(self._hot_hrefs) | set(self._warm_hrefs)
         result: dict[str, dict] = {}
         first = True
         for href in subdevice.flat_hrefs:
-            if not first:
-                sess.pace()
-            first = False
             actual = subdevice.to_actual(href)
+            if actual in skip:
+                continue
             try:
+                if not first:
+                    sess.pace()
+                first = False
                 path = [s for s in actual.strip('/').split('/')]
                 code, payload = sess.get(path, timeout=10.0)
                 if code == 0x45 and payload:

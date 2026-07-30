@@ -318,6 +318,51 @@ def test_enumerate_prefixed_flat_fallback_probe_log_reports_every_href_tried():
     assert probes[f'/{_UUID}/mode/vs/0'] is True
 
 
+def test_enumerate_prefixed_flat_fallback_with_no_master_hrefs_to_probe_is_a_no_op():
+    """The master itself having nothing but /subdevices/vs/0 in its own
+    resources this cycle (e.g. a very first, mostly-empty poll) must not
+    crash the fallback loop -- the only href in `resources` is
+    /subdevices/vs/0 itself, which the fake session doesn't answer under
+    the prefix either, so nothing materializes."""
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+    }
+    subdevices, extra = enumerate_subdevices(_FakeSession({}), resources, oic_res_links=[])
+    assert subdevices == []
+    assert extra == {}
+
+
+def test_enumerate_prefixed_flat_fallback_does_not_cross_contaminate_a_second_uuid():
+    """Two prefixed candidates in the same subdeviceIdList, one whose
+    Collection endpoint works and one that needs the flat fallback -- each
+    must end up with only its own hrefs, no bleed between them."""
+    uuid_a, uuid_b = _UUID, '11111111-1111-1111-1111-111111111111'
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [uuid_a, uuid_b]},
+        '/mode/vs/0': {'m': 'cool'},
+    }
+    sess = _FakeSession({
+        (uuid_a, 'device', '0'): [
+            _DEVCOL_REP, {'href': '/mode/vs/0', 'rep': {'m': 'a-collection'}},
+        ],
+        # uuid_b's Collection deliberately absent -> falls back to the flat
+        # per-href probe.
+        (uuid_b, 'mode', 'vs', '0'): {'m': 'b-flat'},
+    })
+    subdevices, extra = enumerate_subdevices(sess, resources, oic_res_links=[])
+
+    by_key = {u.key: u for u in subdevices}
+    assert set(by_key) == {uuid_a, uuid_b}
+    assert by_key[uuid_a].seed_path == (uuid_a, 'device', '0')
+    assert by_key[uuid_a].flat_hrefs == ()
+    assert by_key[uuid_b].seed_path == ()
+    assert by_key[uuid_b].flat_hrefs == ('/mode/vs/0',)
+    assert extra == {
+        f'/{uuid_a}/mode/vs/0': {'m': 'a-collection'},
+        f'/{uuid_b}/mode/vs/0': {'m': 'b-flat'},
+    }
+
+
 def test_enumerate_prefixed_tolerates_redacted_string_id_list():
     """subdeviceIdList matches redact.py's 'deviceid' substring rule, and the
     real airconditioner_fac_bora_device.json fixture carries the literal

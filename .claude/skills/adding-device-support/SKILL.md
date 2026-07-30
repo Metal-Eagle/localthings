@@ -400,8 +400,11 @@ the dump in this order; each step rules out a different cause.
    more of its hrefs are confirmed live; that's the gate working as
    intended, not a bug to chase.
 4. **`multidevice.numofsubdevice`** — the board's own count, where it
-   reports one. Disagreement with `len(subdevices) + len(subdevices_skipped)`
-   is a strong hint, not proof; only one board family is known to expose it.
+   reports one. `coordinator._run_discovery` compares it against
+   `len(materialized) + 1` (materialized subdevices plus the master) and
+   only warns on disagreement — `subdevices_skipped` entries don't count
+   toward either side, since they never materialized. A strong hint, not
+   proof; only one board family is known to expose it.
 5. **Which pattern is this board?** `identity.resources['/oic/res']` listing
    `/device/1`, `/device/2` means indexed siblings. `resources['/subdevices/
    vs/0']` carrying a `subdeviceIdList` means a UUID-prefixed tree, and that

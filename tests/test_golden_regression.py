@@ -961,6 +961,30 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1(
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_205_flat():
+    """jhkwon19's same physical TP2X_FAC_BORA_21K unit as the _2in1 fixture
+    above, but a later capture (issue #205) where /<uuid>/device/0 doesn't
+    answer -- contrary to what that fixture's own seed batch assumed the
+    Collection endpoint would do. device0/oic_res are real; the only
+    UUID-prefixed data is the one href ever actually confirmed live
+    (/information/vs/0, same real capture the _2in1 fixture uses), fed
+    through registry.subdevices.enumerate_subdevices' per-href flat
+    fallback instead of a Collection batch. /information/vs/0 alone binds
+    no entity, so the candidate is found but never materializes -- this
+    golden has no `subdevice_...`-prefixed keys at all, same shape as
+    tests/fixtures/golden/airconditioner_fac_bora.json, which is the point:
+    a device whose sibling can't yet be confirmed live must regress to
+    exactly the master-only state, never a phantom or partial subdevice."""
+    name = 'airconditioner_fac_bora_205_flat'
+    golden = json.loads((GOLDEN / f'{name}.json').read_text())
+    state_keys = _new_subdevice_aware_state_keys(name)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier_avt_ww():
     """AVT-WW-TP1-23-AXX500 (issue #190) -- next-gen BESPOKE Cube Air board;
     reports device_type 'unknown' with empty oneUiVersion because 'VTWW' as a

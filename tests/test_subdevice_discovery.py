@@ -36,12 +36,14 @@ def _coordinator(hass: HomeAssistant) -> LocalThingsCoordinator:
     return LocalThingsCoordinator(hass, entry)
 
 
-async def _discover(coordinator: LocalThingsCoordinator, name: str) -> None:
+async def _discover_with(
+    coordinator: LocalThingsCoordinator, resources: dict, oic_res, seeds: dict,
+) -> None:
     """Run the same two-step sequence _async_update_data's first cycle does
-    (enumerate, then discover) against fixture data, without the polling/
-    reconnect machinery around it -- see coordinator.py's
-    _enumerate_subdevices_blocking/_run_discovery."""
-    resources, oic_res, seeds = _load_device_full(name)
+    (enumerate, then discover) against arbitrary resources/oic_res/seeds,
+    without the polling/reconnect machinery around it -- see coordinator.py's
+    _enumerate_subdevices_blocking/_run_discovery. `_discover` below is the
+    fixture-file-backed convenience wrapper most tests want."""
     coordinator._session = FakeCoapSession(seeds)
     # _connect_session (skipped here -- the session is pre-set) is what
     # normally populates _identity via read_identity; set it directly with
@@ -65,6 +67,12 @@ async def _discover(coordinator: LocalThingsCoordinator, name: str) -> None:
     coordinator._run_discovery(merged)
     for href, rep in coordinator._live_subdevice_resources(merged).items():
         coordinator._observe.apply(href, rep, source='poll')
+
+
+async def _discover(coordinator: LocalThingsCoordinator, name: str) -> None:
+    """Fixture-file-backed convenience wrapper around _discover_with."""
+    resources, oic_res, seeds = _load_device_full(name)
+    await _discover_with(coordinator, resources, oic_res, seeds)
 
 
 def _climate_bound(coordinator, subdevice_key: str):
@@ -220,6 +228,90 @@ async def test_fac_bora_205_flat_fallback_finds_candidate_but_gate_holds_it_back
     assert _climate_bound(coordinator, None) is not None
 
 
+async def test_flat_subdevice_materializes_and_repolls_end_to_end(hass: HomeAssistant):
+    """Synthetic (not a real capture, unlike the fixture-driven test above) --
+    exercises the one path nothing else covers: a flat-mode prefixed
+    subdevice with *enough* confirmed hrefs to actually pass
+    discover_partitioned's liveness gate and materialize a real climate
+    entity, then a subsequent _poll_subdevice_seed re-poll refreshing its
+    state all the way through to canonical_resources -- the path a real
+    resolution of issue #205 (once more hrefs are confirmed live for some
+    unit) would actually need.
+
+    Also pins _poll_subdevice_flat_hrefs' hot/warm skip: climate-critical
+    hrefs (power/mode/temperature) land on the warm tier by discovery's own
+    rules, so they're already kept fresh every few seconds by _run_subpolls
+    -- re-fetching them again on this once-per-summary-poll pass would only
+    add GETs, not freshness, so they're the ones this method must skip.
+    /option/autoclean/vs/0 is cold-tier and is what actually needs this
+    path."""
+    resources, oic_res, _real_seeds = _load_device_full('airconditioner_fac_bora_2in1')
+    seeds = {
+        # No (_SUB_UUID, 'device', '0') entry -- forces the flat fallback,
+        # same as the real issue #205 capture above, but this time with
+        # enough hrefs answering to actually materialize. power/mode/
+        # temperature values copied verbatim from that fixture's own (real)
+        # Collection-batch seed, just served individually instead of
+        # batched, to isolate "does flat mode produce the same result as
+        # Collection mode" as the only variable.
+        f'/{_SUB_UUID}/power/vs/0': {'x.com.samsung.da.power': 'On'},
+        f'/{_SUB_UUID}/mode/vs/0': {
+            'x.com.samsung.da.supportedModes': ['Cool', 'Dry', 'Wind', 'Auto'],
+            'x.com.samsung.da.modes': ['Cool'],
+            'x.com.samsung.da.options': [],
+        },
+        f'/{_SUB_UUID}/temperature/current/0': {
+            'range': [18.0, 30.0], 'units': 'C', 'temperature': 26.0,
+        },
+        f'/{_SUB_UUID}/temperature/desired/0': {
+            'range': [18.0, 30.0], 'units': 'C', 'temperature': 24.0,
+        },
+        # Cold-tier -- not covered by _run_subpolls, so this is the href
+        # that actually depends on _poll_subdevice_flat_hrefs to ever
+        # refresh at all.
+        f'/{_SUB_UUID}/option/autoclean/vs/0': {
+            'x.com.samsung.da.settingStatus': 'Off',
+        },
+    }
+    coordinator = _coordinator(hass)
+    await _discover_with(coordinator, resources, oic_res, seeds)
+
+    assert [su.key for su in coordinator.subdevices] == [_SUB_UUID]
+    subdevice = coordinator.subdevices[0]
+    assert subdevice.seed_path == ()
+    assert subdevice.flat_hrefs != ()
+
+    sub_climate = _climate_bound(coordinator, _SUB_UUID)
+    assert sub_climate is not None
+
+    # Re-poll: a fresh reading under the prefix should reach
+    # canonical_resources through _poll_subdevice_seed's flat-mode branch,
+    # not just sit frozen at the one-time enumeration snapshot.
+    coordinator._session.seeds[f'/{_SUB_UUID}/temperature/current/0'] = {
+        'range': [18.0, 30.0], 'units': 'C', 'temperature': 27.5,
+    }
+    coordinator._session.seeds[f'/{_SUB_UUID}/option/autoclean/vs/0'] = {
+        'x.com.samsung.da.settingStatus': 'On',
+    }
+    refreshed = coordinator._poll_subdevice_seed(subdevice)
+
+    # The warm-tier temperature href is skipped here -- already covered by
+    # _run_subpolls at a faster cadence -- so it does NOT show up refreshed
+    # through this path.
+    assert f'/{_SUB_UUID}/temperature/current/0' not in refreshed
+    assert refreshed == {
+        f'/{_SUB_UUID}/option/autoclean/vs/0': {'x.com.samsung.da.settingStatus': 'On'},
+    }
+
+    for href, rep in refreshed.items():
+        coordinator._observe.apply(href, rep, source='poll')
+    res = coordinator.canonical_resources(subdevice)
+    assert res['/option/autoclean/vs/0']['x.com.samsung.da.settingStatus'] == 'On'
+    # Confirms the skip is about redundant re-fetching, not stale data --
+    # the warm-tier value from initial discovery is still there, untouched.
+    assert res['/temperature/current/0']['temperature'] == 26.0
+
+
 class _FakeCollectionSession:
     """Minimal session that only ever answers a Collection GET -- used to
     prove the flat-mode re-poll path (issue #205) is only taken when
@@ -293,6 +385,33 @@ def test_poll_subdevice_seed_flat_mode_polls_each_href_individually(
     assert sess.calls == [
         (_SUB_UUID, 'mode', 'vs', '0'), (_SUB_UUID, 'power', 'vs', '0'),
     ]
+
+
+def test_poll_subdevice_seed_flat_mode_skips_hrefs_covered_by_hot_warm_subpolls(
+    hass: HomeAssistant,
+):
+    """A flat href already in the hot/warm sub-poll tiers is refreshed every
+    few seconds by _run_subpolls -- re-fetching it again on this
+    once-per-summary-poll pass would only add GETs, not freshness, so
+    _poll_subdevice_flat_hrefs must not even attempt it."""
+    from custom_components.localthings.registry.subdevices import Subdevice
+
+    coordinator = _coordinator(hass)
+    sess = _FakeCollectionSession({
+        (_SUB_UUID, 'mode', 'vs', '0'): {'mode': 'cool'},
+        (_SUB_UUID, 'power', 'vs', '0'): {'power': 'On'},
+    })
+    coordinator._session = sess
+    coordinator._warm_hrefs = [f'/{_SUB_UUID}/mode/vs/0']
+    subdevice = Subdevice(
+        kind='prefixed', key=_SUB_UUID, seed_path=(),
+        flat_hrefs=('/mode/vs/0', '/power/vs/0'),
+    )
+
+    result = coordinator._poll_subdevice_seed(subdevice)
+
+    assert result == {f'/{_SUB_UUID}/power/vs/0': {'power': 'On'}}
+    assert sess.calls == [(_SUB_UUID, 'power', 'vs', '0')]
 
 
 async def test_multidevice_probe_never_reaches_discovery_or_the_cache(

@@ -18,17 +18,22 @@ Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, jhkwon19's board).
 `/oic/res` hides the whole appliance tree; `/device/0`'s batch instead
 carries `x.com.samsung.da.subdeviceIdList` on `/subdevices/vs/0`, and that
 same UUID appears as a literal href prefix in `/oic/res`
-(`/<uuid>/file/list/vs/0`, ...). On jhkwon19's own first unit, `GET
-/<uuid>/device/0` returned the second subdevice's own Collection batch,
-confirmed live to carry a different model/serial than the master
-(`TP2X_FAC_BORA_RAC_21K`, the wall-mounted subdevice, vs. the master's
-`TP2X_FAC_BORA_21K`, the floor subdevice) -- but issue #205, a second
-TP2X_FAC_BORA_21K unit, showed that same `/<uuid>/device/0` probe coming
-back empty, so it isn't a property of the board family, only of the
-individual unit/firmware. When it's empty, `enumerate_subdevices` falls back
-to probing every href the master itself answered this cycle individually
-under the UUID prefix, on the assumption that a composite device's siblings
-share the master's resource surface -- see `Subdevice.flat_hrefs`.
+(`/<uuid>/file/list/vs/0`, ...). What's actually been confirmed live on
+jhkwon19's unit is narrower than early issue #177 writeups suggested: a
+single individual `GET /<uuid>/information/vs/0` was read by hand through
+the debug panel and came back carrying a different model/serial than the
+master (`TP2X_FAC_BORA_RAC_21K`, the wall-mounted subdevice, vs. the
+master's `TP2X_FAC_BORA_21K`, the floor subdevice) -- real evidence a
+second subdevice exists at that prefix, but not evidence that `GET
+/<uuid>/device/0` (the Collection batch PR #199 built this pattern's seed
+around) itself returns anything. Issue #205, the same unit on a later
+version, is that assumption failing: `/<uuid>/device/0` comes back empty.
+So `enumerate_subdevices` tries it first (a future board might genuinely
+expose it) and falls back, when it's empty, to probing every href the
+master itself answered this cycle individually under the UUID prefix --
+the only thing ever actually confirmed to work for this pattern -- on the
+assumption that a composite device's siblings share the master's resource
+surface. See `Subdevice.flat_hrefs`.
 
 Both are "the same thing wearing different clothes": a logical subdevice is a
 seed collection path to poll, plus an href transform between the canonical
@@ -351,6 +356,17 @@ def enumerate_subdevices(
         # this UUID's prefix, and keep whichever ones answer. Each is a
         # plain tolerated-404 RETRIEVE, same posture as every other probe in
         # this function.
+        #
+        # Known gap, not yet guarded against: a firmware that answers *any*
+        # request under an unrecognized prefix (echoing the master's own
+        # state back rather than 4.04ing) would pass every one of these
+        # probes and, if the echoed state also clears discover_partitioned's
+        # liveness gate, materialize a phantom duplicate of the master
+        # rather than a real sibling. Every board seen so far genuinely
+        # 4.04s on paths it doesn't own (issue #205's own unit answered only
+        # 1 of 31 probes), so this hasn't been built -- the one place it
+        # could hook in later is comparing a candidate's confirmed reps
+        # against the master's own values for those same canonical hrefs.
         flat_hrefs = []
         first = True
         for href in sorted(resources):
