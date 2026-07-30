@@ -383,10 +383,10 @@ def test_enumerate_no_subdevices_resource_at_all():
 
 def test_enumerate_indexed_materializes_candidate_regardless_of_content():
     """enumerate_subdevices itself has no way to tell a real sibling from an
-    unused slot that merely answers the same shape (HJcom's /device/2) --
-    that's discover_partitioned's job (see its own tests below). A
-    same-shaped batch of otherwise-empty reps is still returned as a
-    candidate here."""
+    unused slot that merely answers the same shape (the reporter's
+    /device/2) -- that's discover_partitioned's job (see its own tests
+    below). A same-shaped batch of otherwise-empty reps is still returned
+    as a candidate here."""
     oic_res = [{'di': 'a', 'links': [{'href': '/device/2'}]}]
     sess = _FakeSession({
         ('device', '2'): [_DEVCOL_REP, {'href': '/power/vs/2', 'rep': {}},
@@ -598,13 +598,14 @@ def test_discover_partitioned_no_subdevices_matches_plain_discover():
 # ---------------------------------------------------------------------------
 # discover_partitioned's materialization gate: a candidate is only kept if
 # it produced at least one *primary* (no entity_category) bound entity whose
-# flattened value isn't None. This is what tells HJcom's real /device/1
-# sibling apart from the unused /device/2 slot that answers the same shape.
+# flattened value isn't None. This is what tells the reporter's real
+# /device/1 sibling apart from the unused /device/2 slot that answers the
+# same shape.
 # ---------------------------------------------------------------------------
 
 def test_discover_partitioned_skips_candidate_with_no_live_primary_entity():
     """A candidate whose only populated entity is diagnostic-category
-    doesn't count -- exactly HJcom's /device/2 shape (an alarm_code
+    doesn't count -- exactly the reporter's /device/2 shape (an alarm_code
     sensor reading something even though the subdevice itself is empty)."""
     diag_cap = Capability(
         href='/alarms/vs/0',
@@ -632,7 +633,7 @@ def test_discover_partitioned_skips_candidate_with_no_live_primary_entity():
 def test_discover_partitioned_materializes_candidate_with_live_primary_entity():
     """A candidate with a populated *primary* (no entity_category) entity
     is materialized, even alongside an all-empty diagnostic sibling href --
-    exactly HJcom's /device/1 shape."""
+    exactly the reporter's /device/1 shape."""
     climate_cap = Capability(
         href='/mode/vs/0',
         entities=(BinarySensorDesc(key='mode', field='m'),),   # no entity_category -> primary

@@ -368,6 +368,19 @@ The new fixture is picked up automatically by the corpus-wide checks (the
 board token fails the build rather than silently mistyping someone's
 appliance.
 
+**Don't put a reporter's name or GitHub username in code.** Fixture data
+gets serials/MACs/other device PII scrubbed per point 1 above — the same
+rule applies to the *prose* you write while fixing the issue: comments,
+docstrings, `seeds_note`, and test/function names should say "the
+reporter," "issue #NNN's reporter," or (when a module already distinguishes
+multiple reporters, like `subdevices.py`'s Pattern A/Pattern B) "the
+Pattern A reporter," never a real name or handle. That prose ships in the
+package and lives in git history indefinitely — unlike an issue thread or a
+release-notes thank-you (both fine places to credit someone by name), it's
+not somewhere a person would expect to stay named forever. If you're fixing
+an issue and about to write `<username>'s board`/`<username>'s dump` in a
+comment, stop and swap in a generic reference instead.
+
 ## 11. Triage: "one of my subdevices is missing"
 
 For an appliance that exposes several logical indoor subdevices over one IP —

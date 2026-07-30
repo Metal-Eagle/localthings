@@ -73,7 +73,7 @@ def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
     # physical device -- one IP, one /oic/p -- exposing more than one logical
     # subdevice, each as its own Collection resource, same rt shape as our own
     # /device/0). This is what registry.subdevices.enumerate_subdevices reads
-    # to find a board's `/device/<n>` siblings (Pattern A -- HJcom's
+    # to find a board's `/device/<n>` siblings (Pattern A -- the reporter's
     # ARTIK051_DONGLE_FAC_18K) -- that probing, plus the /device/1 and
     # /device/2 speculative fallback it used to run right here on every
     # _connect_session (including every reconnect), moved to that module so

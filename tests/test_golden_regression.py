@@ -903,7 +903,7 @@ def _new_subdevice_aware_state_keys(name):
 
 
 def test_registry_reproduces_golden_state_keys_for_airconditioner_artik051_dongle_fac_18k():
-    """HJcom's ARTIK051_DONGLE_FAC_18K (issue #177, Pattern A -- indexed
+    """The reporter's ARTIK051_DONGLE_FAC_18K (issue #177, Pattern A -- indexed
     siblings): a real v0.16.0 dump with a genuine second indoor subdevice at
     `/device/1` (subdevice1_-prefixed keys below) and an unused SmartThings
     slot at `/device/2` that answers its seed but never produces a

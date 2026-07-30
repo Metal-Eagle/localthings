@@ -112,11 +112,11 @@ async def async_get_config_entry_diagnostics(
         "subdevices": [_subdevice_diag(su) for su in coordinator.subdevices],
         # Candidates that answered their seed but that discover_partitioned's
         # entity-level liveness gate rejected -- an unused SmartThings slot
-        # (HJcom's /device/2) that still answers a same-shaped batch, not a
-        # real second subdevice. Reported alongside subdevices above so a report
-        # shows what was found *and* why it didn't become an entity, not
-        # just silence where a third climate card might otherwise be
-        # expected.
+        # (the issue #177 reporter's /device/2) that still answers a
+        # same-shaped batch, not a real second subdevice. Reported alongside
+        # subdevices above so a report shows what was found *and* why it
+        # didn't become an entity, not just silence where a third climate
+        # card might otherwise be expected.
         "subdevices_skipped": [
             {
                 "kind": skip.subdevice.kind,

@@ -958,7 +958,7 @@ _AC_IGNORED = [
     # Undocumented single int (runningMode: 0 on every dump seen), no
     # supported-values list to interpret it against -- 'don't guess'.
     '/runn/vs/0',
-    # 2-in-1/multi-indoor-subdevice systems (issue #177, HJcom's
+    # 2-in-1/multi-indoor-subdevice systems (issue #177, the reporter's
     # ARTIK051_DONGLE_FAC_18K): x.com.samsung.da.numofsubdevice, a plain
     # corroborating count of indoor subdevices on this connection. Confirmed
     # read-only (a write attempt returned CoAP 4.00). Absent from

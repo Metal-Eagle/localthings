@@ -174,9 +174,10 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # it's the *other* subdevices sharing this DTLS session, if any.
         self.subdevices: list[Subdevice] = []
         # Candidates _run_discovery's gate rejected (an unused SmartThings
-        # slot that still answers its seed, e.g. HJcom's /device/2) --
-        # surfaced in diagnostics alongside the materialized ones so a
-        # report shows what was found and why it didn't become an entity.
+        # slot that still answers its seed, e.g. the issue #177 reporter's
+        # /device/2) -- surfaced in diagnostics alongside the materialized
+        # ones so a report shows what was found and why it didn't become an
+        # entity.
         self._skipped_subdevices: list = []
         # Those rejected candidates' raw reps, kept aside for diagnostics
         # only (see _live_subdevice_resources). They are deliberately not in the
@@ -408,9 +409,10 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """GET one subdevice's seed Collection and return its batch,
         normalized to real hrefs. A sibling failing to answer is a debug
         log, never a failed poll -- the master must not go unavailable
-        because a sibling timed out or dropped off (e.g. HJcom's
-        /device/2, a SmartThings-unused component that may not always
-        respond). Blocking -- called from _poll_once, already in executor."""
+        because a sibling timed out or dropped off (e.g. the issue #177
+        reporter's /device/2, a SmartThings-unused component that may not
+        always respond). Blocking -- called from _poll_once, already in
+        executor."""
         sess = self._session
         if sess is None:
             return {}
@@ -543,8 +545,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _run_discovery sees every candidate's state without a second poll
         round trip. `_run_discovery` is what narrows self.subdevices down to
         the ones that are actually live (see discover_partitioned) -- this
-        method doesn't know how to tell an unused SmartThings slot (HJcom's
-        /device/2) from a real sibling, only that something answered.
+        method doesn't know how to tell an unused SmartThings slot (the
+        issue #177 reporter's /device/2) from a real sibling, only that
+        something answered.
         """
         if self._session is None:
             self._connect_session()
@@ -622,8 +625,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # its own /information/vs/0 when it reports one and falling back to
         # the master's registry otherwise. See subdevices.discover_partitioned
         # -- it also gates each candidate down to whether it actually
-        # produced live primary state (HJcom's /device/2, an unused
-        # SmartThings slot, answers its seed but never does), so
+        # produced live primary state (the issue #177 reporter's /device/2,
+        # an unused SmartThings slot, answers its seed but never does), so
         # self.subdevices below is narrowed to the ones that passed, not
         # every candidate _enumerate_subdevices_blocking found. For a device
         # with no candidates (self.subdevices == []) this is exactly the
@@ -641,11 +644,12 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 skip.subdevice.key, skip.subdevice.kind, list(skip.hrefs),
             )
         # Corroborating signal, not a gate (DESIGN-177.md section 4):
-        # /multidevice/vs/0's numofsubdevice is a plain count HJcom's board
-        # reports independently of the liveness gate above. Log, don't
-        # raise, on a disagreement -- only this one board family is known to
-        # expose the resource at all, so a mismatch is a "look into this"
-        # signal for triage, not proof either side is wrong.
+        # /multidevice/vs/0's numofsubdevice is a plain count the issue
+        # #177 reporter's board reports independently of the liveness gate
+        # above. Log, don't raise, on a disagreement -- only this one board
+        # family is known to expose the resource at all, so a mismatch is a
+        # "look into this" signal for triage, not proof either side is
+        # wrong.
         numofsubdevice = self._multidevice.get(
             'x.com.samsung.da.numofsubdevice')
         if numofsubdevice is not None:

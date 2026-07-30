@@ -87,10 +87,10 @@ def _climate_bound(coordinator, subdevice_key: str):
 
 
 # ---------------------------------------------------------------------------
-# HJcom -- ARTIK051_DONGLE_FAC_18K, Pattern A (indexed siblings)
+# Pattern A reporter -- ARTIK051_DONGLE_FAC_18K, indexed siblings
 # ---------------------------------------------------------------------------
 
-async def test_hjcom_materializes_master_and_bedroom_subdevice(hass: HomeAssistant):
+async def test_pattern_a_materializes_master_and_bedroom_subdevice(hass: HomeAssistant):
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_artik051_dongle_fac_18k')
 
@@ -104,11 +104,11 @@ async def test_hjcom_materializes_master_and_bedroom_subdevice(hass: HomeAssista
     assert sub1_climate.href == '/mode/vs/1'
 
 
-async def test_hjcom_device_2_produces_no_entities_at_all(hass: HomeAssistant):
-    """HJcom's /device/2 is the unused SmartThings slot (DESIGN-177.md
-    section 4): it answers its seed with a full-shaped batch, but every
-    climate-state rep on it is empty. It must be recorded as skipped, not
-    materialized, and must contribute zero bound entities."""
+async def test_pattern_a_device_2_produces_no_entities_at_all(hass: HomeAssistant):
+    """The reporter's /device/2 is the unused SmartThings slot
+    (DESIGN-177.md section 4): it answers its seed with a full-shaped
+    batch, but every climate-state rep on it is empty. It must be recorded
+    as skipped, not materialized, and must contribute zero bound entities."""
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_artik051_dongle_fac_18k')
 
