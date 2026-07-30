@@ -73,6 +73,9 @@
       "pouring": {
         "name": "Pouring"
       },
+      "alarm_in_mute": {
+        "name": "Alarm in mute"
+      },
       "power_state": {
         "name": "Power state"
       },
@@ -490,6 +493,14 @@
           "buzzer": "Buzzer"
         }
       },
+      "water_purifier_sound_mode": {
+        "name": "Sound mode",
+        "state": {
+          "voice": "Voice",
+          "fixedtone": "Fixed tone",
+          "mute": "Mute"
+        }
+      },
       "spin_speed": {
         "name": "Spin speed",
         "state": {
@@ -875,6 +886,15 @@
       },
       "waterpurifier_status": {
         "name": "Status"
+      },
+      "cup_state": {
+        "name": "Cup state"
+      },
+      "last_pour_type": {
+        "name": "Last pour type"
+      },
+      "last_pour_capacity": {
+        "name": "Last pour capacity"
       },
       "machine_state": {
         "name": "Machine state",

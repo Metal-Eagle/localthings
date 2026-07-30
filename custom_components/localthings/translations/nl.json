@@ -73,6 +73,9 @@
       "pouring": {
         "name": "Schenken"
       },
+      "alarm_in_mute": {
+        "name": "Alarm bij dempen"
+      },
       "power_state": {
         "name": "Voedingsstatus"
       },
@@ -490,6 +493,14 @@
           "buzzer": "Zoemer"
         }
       },
+      "water_purifier_sound_mode": {
+        "name": "Geluidsmodus",
+        "state": {
+          "voice": "Spraak",
+          "fixedtone": "Vaste toon",
+          "mute": "Dempen"
+        }
+      },
       "spin_speed": {
         "name": "Centrifugesnelheid",
         "state": {
@@ -875,6 +886,15 @@
       },
       "waterpurifier_status": {
         "name": "Status"
+      },
+      "cup_state": {
+        "name": "Kopstatus"
+      },
+      "last_pour_type": {
+        "name": "Laatste schenktype"
+      },
+      "last_pour_capacity": {
+        "name": "Laatste schenkhoeveelheid"
       },
       "machine_state": {
         "name": "Machinestatus",

@@ -138,10 +138,37 @@ def test_registry_reproduces_golden_state_keys_for_water_purifier():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_water_purifier_ailite_25k():
+    """AILITE_WATERPURIFIER_25K (issue #196, RWP70F15ANW) -- a coffee-capable
+    water purifier on an AILITE_DA-REF-WATERPURIFIER board, whose modelNum's
+    'REF' token would otherwise misroute it to the refrigerator registry (see
+    TestBoardTokenAmbiguity's carve-out). Also the first dump to expose
+    /cup/state/vs/0, /statistic/pour/vs/0, and the settings/sound/* trio on
+    this device type, and a hot_water_temperature select that must gate off
+    (no supportedHotTemperatures reported) rather than surface as 'unknown'."""
+    from tests.conftest import _load_device
+    resources = _load_device('water_purifier_ailite_25k')
+    golden = json.loads((GOLDEN / 'water_purifier_ailite_25k.json').read_text())
+    state_keys = _new_state_keys('water_purifier_ailite_25k', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_water_purifier_coffee():
     """TP2X_WATERPURIFIER_20K coffee-capable variant (issue #107) adds
     /favorite/coffee/vs/0, /favorite/hotwater/vs/0, and three static
-    coffee-recipe resources not present in issue #90's original dump."""
+    coffee-recipe resources not present in issue #90's original dump.
+
+    This fixture's /setting/waterpurifier/vs/0 turns out to report no
+    supportedHotTemperatures either (only hotwaterLevel/hotwaterRange, the
+    same shape issue #196 surfaced) -- so hot_water_temperature dropped out
+    of this golden when the #196 fix (see water_purifier.DISPENSE's
+    exists_fn) landed. This fixture was quietly hitting the same 'unknown'
+    bug all along; the registry-level golden just had no way to show it
+    since flatten()'s state dict doesn't model select option membership."""
     from tests.conftest import _load_device
     resources = _load_device('water_purifier_coffee')
     golden = json.loads((GOLDEN / 'water_purifier_coffee.json').read_text())

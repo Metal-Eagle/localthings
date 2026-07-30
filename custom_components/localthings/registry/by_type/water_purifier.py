@@ -15,6 +15,11 @@ REGISTRY = DeviceRegistry(
         water_purifier.FAVORITE_HOTWATER,
         water_purifier.COFFEE,
         water_purifier.LOCK,
+        water_purifier.CUP_STATE,
+        water_purifier.SOUND_MODE,
+        water_purifier.SOUND_OUTPUT,
+        water_purifier.SOUND_VOLUME,
+        water_purifier.STATISTIC_POUR,
         *water_purifier.COVERAGE,
     ]),
 )
