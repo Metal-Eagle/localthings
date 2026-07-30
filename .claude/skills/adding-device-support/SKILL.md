@@ -403,11 +403,16 @@ the dump in this order; each step rules out a different cause.
    for that sibling.
 3. **`subdevices_skipped`** — did we find it and reject it? A candidate lands
    here when its seed(s) answered but it produced no *primary*
-   (non-diagnostic) entity with a populated value. Its `resources` block
-   holds the exact reps the gate judged, so you can check the call
-   yourself. If every power/mode/temperature rep is `{}`, the subdevice is
-   an unused slot and the skip is correct. If they're populated, the gate
-   is wrong — that's a bug worth a fixture. A flat-fallback candidate whose
+   (non-diagnostic), non-meter entity with a populated value. Its
+   `resources` block holds the exact reps the gate judged, so you can check
+   the call yourself. If every power/mode/temperature rep is `{}`, the
+   subdevice is an unused slot and the skip is correct — a populated
+   `/energy/consumption/vs/<n>` alongside them doesn't change that (issue
+   #214: an appliance's lifetime kWh counter shows up under an unused
+   slot's index too, and materializing on it produced a phantom duplicate
+   air conditioner, so cumulative meters are excluded from the gate). If
+   the *operational* reps are populated, the gate is wrong — that's a bug
+   worth a fixture. A flat-fallback candidate whose
    only confirmed href is `/information/vs/0` (never bound to any entity —
    only ever read for device-type resolution) will *always* land here until
    more of its hrefs are confirmed live; that's the gate working as
@@ -430,7 +435,27 @@ the dump in this order; each step rules out a different cause.
 Two things that are *not* the fix: adding a capability for an indexed href
 (see §8), and loosening the liveness gate to "any populated entity" — a
 rejected slot routinely reports a non-`None` *diagnostic* value off an empty
-resource, which is exactly what the primary-entity filter exists to ignore.
+resource (and, on some boards, a populated appliance-level meter), which is
+exactly what the primary-entity and meter filters exist to ignore.
+
+### The mirror image: "I have one subdevice too many"
+
+Same dump, read the other way (issue #214). A duplicate device in HA is
+either a candidate that shouldn't have materialized — check `subdevices`
+for one whose `resources` are all `{}` except a meter/`/information`, which
+is the unused-slot shape from step 3 — or a **leftover registry entry** from
+a release that did materialize it. Those two look identical in the HA UI and
+are told apart by the dump: a leftover shows `subdevices: []` (or no entry
+for that key) while the device is still listed in HA.
+
+Nothing prunes a leftover automatically — subdevice enumeration is one-shot
+and a real sibling can miss a poll, so auto-removal would throw away a live
+subdevice's name/area/automations on a transient miss. The integration
+implements `async_remove_config_entry_device`
+(`custom_components/localthings/__init__.py`) instead, which is what puts a
+working "Delete device" button on anything this entry no longer provides;
+devices it *does* provide refuse removal, since HA would just recreate them.
+Tell the reporter to delete the stale device, don't add a pruning pass.
 
 ## Key files
 - `registry/subdevices.py` — `Subdevice`, enumeration, canonical ⇄ actual href

@@ -985,6 +985,31 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_205_f
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_artik051_krac_18k_slot():
+    """The issue #214 reporter's single-split AR12NXWXCWKNEU: a
+    non-composite ARTIK051_KRAC_18K whose `/device/1` answers a full-shaped
+    batch with every operational rep empty {} and a populated
+    /energy/consumption/vs/1. The lifetime kWh counter used to be enough to
+    pass discover_partitioned's liveness gate, materializing a phantom
+    second air conditioner in HA; a meter is now excluded from that gate
+    (subdevices._has_live_primary_entity), so this golden must stay
+    byte-identical to airconditioner_artik051_krac_18k.json -- master keys
+    only, no `subdevice1_` prefix anywhere -- which is what
+    test_krac_18k_energy_only_slot_is_not_materialized asserts structurally."""
+    name = 'airconditioner_artik051_krac_18k_slot'
+    golden = json.loads((GOLDEN / f'{name}.json').read_text())
+    state_keys = _new_subdevice_aware_state_keys(name)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+    master_golden = json.loads(
+        (GOLDEN / 'airconditioner_artik051_krac_18k.json').read_text()
+    )
+    assert set(state_keys) == set(master_golden['state_keys'])
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier_avt_ww():
     """AVT-WW-TP1-23-AXX500 (issue #190) -- next-gen BESPOKE Cube Air board;
     reports device_type 'unknown' with empty oneUiVersion because 'VTWW' as a

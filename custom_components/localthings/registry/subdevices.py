@@ -60,13 +60,21 @@ fridge's second compartment, ...) baked into a registry field before any
 of those families could use this module at all. `discover_partitioned`
 instead gates at the *entity* layer, after discovery+flattening: a
 candidate is only kept if it produced at least one *primary* (no
-`entity_category`) bound entity whose flattened value isn't `None` -- e.g.
-the Pattern A reporter's /device/2 does flatten to an `alarm_code` value, but
-that entity is diagnostic-category and derived from an empty /alarms/vs/2,
-so it doesn't count. This reuses the same primary/config/diagnostic
-taxonomy every registry already declares (see the adding-device-support
-skill's entity-taxonomy section) instead of adding a second, parallel
-domain-knowledge mechanism.
+`entity_category`), non-meter bound entity whose flattened value isn't
+`None` -- e.g. the Pattern A reporter's /device/2 does flatten to an
+`alarm_code` value, but that entity is diagnostic-category and derived from
+an empty /alarms/vs/2, so it doesn't count. This reuses the same
+primary/config/diagnostic taxonomy every registry already declares (see the
+adding-device-support skill's entity-taxonomy section) instead of adding a
+second, parallel domain-knowledge mechanism.
+
+The meter carve-out is issue #214, and it's the same "an unused slot still
+answers *something*" problem one layer further in: that reporter's
+single-split ARTIK051_KRAC_18K has a /device/1 whose operational reps are
+all empty {} -- the /device/2 shape above -- but which also reports a
+populated /energy/consumption/vs/1, a whole-appliance lifetime kWh counter
+that materialized the slot as a phantom second air conditioner. See
+`_has_live_primary_entity`.
 """
 from __future__ import annotations
 
@@ -447,22 +455,63 @@ class SkippedSubdevice:
     hrefs: tuple[str, ...]
 
 
+# Sensor kinds whose value is a running total the *appliance* keeps rather
+# than a reading of the subdevice's own hardware -- excluded from the
+# liveness gate below (issue #214). HA's own running-total state classes
+# cover most of them; the consumption device classes catch the rest, since a
+# descriptor may deliberately declare no state_class (common.ENERGY_METER's
+# monthly totals reset at each billing boundary, so they aren't
+# `total_increasing`).
+_METER_STATE_CLASSES = frozenset({'total', 'total_increasing'})
+_METER_DEVICE_CLASSES = frozenset({'energy', 'water', 'gas'})
+
+
+def _is_meter(desc) -> bool:
+    """True for a cumulative consumption/counter descriptor -- see the two
+    constants above. Only SensorDesc carries either attribute; everything
+    else answers False through the getattr defaults."""
+    return (
+        getattr(desc, 'state_class', None) in _METER_STATE_CLASSES
+        or getattr(desc, 'device_class', None) in _METER_DEVICE_CLASSES
+    )
+
+
 def _has_live_primary_entity(bound, state: dict) -> bool:
     """True if flattening `bound` (one candidate subdevice's BoundEntity
     list) produced at least one non-`None` value for a *primary* entity --
     `entity_category` unset, HA's own "the user acts on or watches this"
-    tier (see the adding-device-support skill's entity-taxonomy section).
+    tier (see the adding-device-support skill's entity-taxonomy section) --
+    that isn't a cumulative meter (`_is_meter`).
 
-    This is the materialization gate itself (see this module's docstring):
-    the Pattern A reporter's `/device/2` does flatten to one non-`None` value
-    (`alarm_code`), but that entity is `diagnostic`-category and derived
-    from an empty `/alarms/vs/2` -- a config/diagnostic entity reading
-    "something" proves nothing about whether a physical subdevice is actually
-    installed there, so it's deliberately excluded from this check.
+    This is the materialization gate itself (see this module's docstring).
+    Two exclusions, both for the same reason -- the question this answers is
+    "is a physical subdevice installed at this slot?", and neither kind of
+    value can speak to it:
+
+    - **Non-primary entities.** The Pattern A reporter's `/device/2` does
+      flatten to one non-`None` value (`alarm_code`), but that entity is
+      `diagnostic`-category and derived from an empty `/alarms/vs/2` -- a
+      config/diagnostic entity reading "something" proves nothing about
+      whether hardware is there.
+    - **Cumulative meters** (issue #214). An unused slot on the issue #214
+      reporter's ARTIK051_KRAC_18K reports `/energy/consumption/vs/1` with a
+      populated `cumulativePower` while every operational rep on it
+      (`/power/1`, `/mode/1`, `/mode/vs/1`, `/temperature/current/1`,
+      `/temperature/desired/1`, `/airflow/1`, `/humidity/1`) is empty `{}` --
+      i.e. exactly the Pattern A `/device/2` shape plus a lifetime kWh
+      counter. That counter got the slot materialized as a phantom second
+      air conditioner. A single-split AC has one compressor and one energy
+      meter, so a whole-appliance total showing up under a second index is
+      the appliance's own bookkeeping, not evidence of a second indoor unit.
+      A genuinely installed subdevice reports its own operational state too
+      (the Pattern A reporter's real `/device/1` reports power, mode, both
+      temperatures and airflow), and that state is what still passes this
+      gate.
     """
     from .adapter import _key  # see discover_partitioned's deferred-import note
     return any(
-        not b.desc.entity_category and state.get(_key(b)) is not None
+        not b.desc.entity_category and not _is_meter(b.desc)
+        and state.get(_key(b)) is not None
         for b in bound
     )
 

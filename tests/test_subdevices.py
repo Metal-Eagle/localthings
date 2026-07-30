@@ -662,6 +662,79 @@ def test_discover_partitioned_materializes_candidate_with_live_primary_entity():
     assert hrefs == {'/mode/vs/1', '/alarms/vs/1'}
 
 
+def test_discover_partitioned_skips_candidate_whose_only_live_primary_is_a_meter():
+    """A cumulative meter doesn't count as evidence either (issue #214) --
+    the reporter's non-composite ARTIK051_KRAC_18K answers /device/1 with
+    every operational rep empty {} plus a populated /energy/consumption/vs/1,
+    and that lifetime kWh total was enough to materialize a phantom second
+    air conditioner. It's the appliance's own counter, not proof a second
+    indoor unit is installed at that slot."""
+    energy_cap = Capability(
+        href='/energy/consumption/vs/0',
+        entities=(SensorDesc(key='energy_kwh', field='kwh',
+                             device_class='energy',
+                             state_class='total_increasing'),),   # primary, but a meter
+    )
+    climate_cap = Capability(
+        href='/mode/vs/0',
+        entities=(BinarySensorDesc(key='mode', field='m'),),
+    )
+    reg = _FakeRegistry(
+        'airconditioner',
+        {'/energy/consumption/vs/0': [energy_cap], '/mode/vs/0': [climate_cap]},
+    )
+    unit1 = _indexed('1')
+    resources = {
+        '/energy/consumption/vs/0': {'kwh': 1175.2},
+        '/mode/vs/0': {'m': 'Cool'},
+        '/energy/consumption/vs/1': {'kwh': 1175.2},   # populated, but a meter
+        '/mode/vs/1': {},                              # the slot's real state: empty
+    }
+
+    bound, _, materialized, skipped = discover_partitioned(
+        resources, [unit1], lambda r: reg, fallback_capabilities={},
+    )
+    assert materialized == []
+    assert [s.subdevice for s in skipped] == [unit1]
+    assert all(b.subdevice != unit1 for b in bound)
+
+
+def test_discover_partitioned_meter_carve_out_does_not_gate_out_a_live_subdevice():
+    """The carve-out removes one *kind* of evidence, not the subdevice: a
+    candidate reporting its own operational state alongside a meter still
+    materializes, and still gets its meter entity once it does."""
+    energy_cap = Capability(
+        href='/energy/consumption/vs/0',
+        entities=(SensorDesc(key='energy_kwh', field='kwh',
+                             device_class='energy',
+                             state_class='total_increasing'),),
+    )
+    climate_cap = Capability(
+        href='/mode/vs/0',
+        entities=(BinarySensorDesc(key='mode', field='m'),),
+    )
+    reg = _FakeRegistry(
+        'airconditioner',
+        {'/energy/consumption/vs/0': [energy_cap], '/mode/vs/0': [climate_cap]},
+    )
+    unit1 = _indexed('1')
+    resources = {
+        '/energy/consumption/vs/0': {'kwh': 1175.2},
+        '/mode/vs/0': {'m': 'Auto'},
+        '/energy/consumption/vs/1': {'kwh': 1175.2},
+        '/mode/vs/1': {'m': 'Cool'},   # its own state -- this is what counts
+    }
+
+    bound, _, materialized, skipped = discover_partitioned(
+        resources, [unit1], lambda r: reg, fallback_capabilities={},
+    )
+    assert materialized == [unit1]
+    assert skipped == []
+    assert {b.href for b in bound if b.subdevice == unit1} == {
+        '/mode/vs/1', '/energy/consumption/vs/1',
+    }
+
+
 def test_discover_partitioned_skipped_candidate_contributes_no_hot_warm_hrefs():
     """A skipped candidate's hrefs must not appear via tier_log either --
     'no entities, no hot/warm hrefs' (the skip is total, not just
