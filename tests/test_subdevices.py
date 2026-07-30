@@ -206,6 +206,9 @@ class _FakeSession:
             return 0x84, b''
         return 0x45, cbor2.dumps(body)
 
+    def pace(self):
+        pass
+
 
 _DEVCOL_REP = {'rt': ['x.com.samsung.devcol', 'oic.wk.col']}
 
@@ -262,6 +265,57 @@ def test_enumerate_prefixed_from_subdevice_id_list():
     assert [(u.kind, u.key) for u in subdevices] == [('prefixed', _UUID)]
     # Batch echoed the bare (unprefixed) href -- normalized to carry the id.
     assert extra == {f'/{_UUID}/mode/vs/0': {'m': 'cool'}}
+
+
+def test_enumerate_prefixed_falls_back_to_flat_hrefs_when_device0_collection_is_empty():
+    """issue #205: not every prefixed subdevice exposes its own
+    /<uuid>/device/0 Collection -- not even TP2X_FAC_BORA_21K, the board
+    this pattern was built against, always does. When it doesn't,
+    enumeration probes every href the master itself answered this cycle,
+    individually, under the UUID prefix, and keeps whichever ones answer."""
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+        '/mode/vs/0': {'m': 'cool'},
+        '/power/vs/0': {'p': 'On'},
+    }
+    sess = _FakeSession({
+        # (_UUID, 'device', '0') deliberately absent -> Collection probe fails.
+        (_UUID, 'mode', 'vs', '0'): {'mode': 'cool'},
+        # (_UUID, 'power', 'vs', '0') deliberately absent -> drops out.
+    })
+    subdevices, extra = enumerate_subdevices(sess, resources, oic_res_links=[])
+    assert len(subdevices) == 1
+    subdevice = subdevices[0]
+    assert (subdevice.kind, subdevice.key) == ('prefixed', _UUID)
+    assert subdevice.seed_path == ()
+    assert subdevice.flat_hrefs == ('/mode/vs/0',)
+    assert extra == {f'/{_UUID}/mode/vs/0': {'mode': 'cool'}}
+
+
+def test_enumerate_prefixed_flat_fallback_materializes_nothing_when_no_href_answers():
+    """Same posture as every other candidate check in this module: nothing
+    answering means no candidate, not a crash."""
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+        '/mode/vs/0': {'m': 'cool'},
+    }
+    subdevices, extra = enumerate_subdevices(_FakeSession({}), resources, oic_res_links=[])
+    assert subdevices == []
+    assert extra == {}
+
+
+def test_enumerate_prefixed_flat_fallback_probe_log_reports_every_href_tried():
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+        '/mode/vs/0': {'m': 'cool'},
+    }
+    sess = _FakeSession({
+        (_UUID, 'mode', 'vs', '0'): {'mode': 'cool'},
+    })
+    probes: dict[str, bool] = {}
+    enumerate_subdevices(sess, resources, oic_res_links=[], probe_log=probes.__setitem__)
+    assert probes[f'/{_UUID}/device/0'] is False
+    assert probes[f'/{_UUID}/mode/vs/0'] is True
 
 
 def test_enumerate_prefixed_tolerates_redacted_string_id_list():

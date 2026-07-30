@@ -18,11 +18,17 @@ Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, jhkwon19's board).
 `/oic/res` hides the whole appliance tree; `/device/0`'s batch instead
 carries `x.com.samsung.da.subdeviceIdList` on `/subdevices/vs/0`, and that
 same UUID appears as a literal href prefix in `/oic/res`
-(`/<uuid>/file/list/vs/0`, ...). `GET /<uuid>/device/0` returns the second
-subdevice's own Collection batch, confirmed live by the reporter to carry a
-different model/serial than the master (`TP2X_FAC_BORA_RAC_21K`, the
-wall-mounted subdevice, vs. the master's `TP2X_FAC_BORA_21K`, the floor
-subdevice).
+(`/<uuid>/file/list/vs/0`, ...). On jhkwon19's own first unit, `GET
+/<uuid>/device/0` returned the second subdevice's own Collection batch,
+confirmed live to carry a different model/serial than the master
+(`TP2X_FAC_BORA_RAC_21K`, the wall-mounted subdevice, vs. the master's
+`TP2X_FAC_BORA_21K`, the floor subdevice) -- but issue #205, a second
+TP2X_FAC_BORA_21K unit, showed that same `/<uuid>/device/0` probe coming
+back empty, so it isn't a property of the board family, only of the
+individual unit/firmware. When it's empty, `enumerate_subdevices` falls back
+to probing every href the master itself answered this cycle individually
+under the UUID prefix, on the assumption that a composite device's siblings
+share the master's resource surface -- see `Subdevice.flat_hrefs`.
 
 Both are "the same thing wearing different clothes": a logical subdevice is a
 seed collection path to poll, plus an href transform between the canonical
@@ -90,10 +96,19 @@ class Subdevice:
     ('1', '2', ...) or the full subdevice UUID, and `seed_path` is the
     Collection href (as path segments) whose batch response
     enumerates/refreshes that subdevice.
+
+    `flat_hrefs` is non-empty only for a 'prefixed' subdevice that doesn't
+    expose its own Collection at `seed_path` (issue #205 -- not even
+    TP2X_FAC_BORA_21K, the board this pattern was built against, always
+    does). When set, `seed_path` is meaningless (left as `()`) and this
+    subdevice's state comes from GETting each of these canonical hrefs
+    individually under its prefix instead of one Collection batch -- see
+    enumerate_subdevices' fallback and coordinator._poll_subdevice_seed.
     """
     kind: str            # 'main' | 'indexed' | 'prefixed'
     key: str             # ''    | '1'       | '6c2dff6d-ee5c-dad1-6a5e-000000000001'
     seed_path: tuple[str, ...]
+    flat_hrefs: tuple[str, ...] = ()
 
     def to_actual(self, canonical: str) -> str:
         """Canonical registry href (e.g. '/mode/vs/0') -> the real,
@@ -319,11 +334,41 @@ def enumerate_subdevices(
         seed = (sub_id, 'device', '0')
         batch = _get_batch(sess, seed)
         _probed(_seed_href(seed), batch)
-        if not batch:
+        if batch:
+            subdevice = Subdevice(kind='prefixed', key=sub_id, seed_path=seed)
+            fetched.update(normalize_seed_batch(subdevice, batch))
+            subdevices.append(subdevice)
             continue
-        subdevice = Subdevice(kind='prefixed', key=sub_id, seed_path=seed)
-        fetched.update(normalize_seed_batch(subdevice, batch))
-        subdevices.append(subdevice)
+        # Fallback (issue #205): TP2X_FAC_BORA_21K itself -- the board this
+        # pattern was built against -- turns out not to always expose its own
+        # `/<uuid>/device/0` Collection either, so "every prefixed subdevice
+        # has one" doesn't hold even on the reference hardware. With no
+        # Collection to seed from and no per-UUID entry in `/oic/res` to
+        # enumerate hrefs from, the only signal left is that a composite
+        # device's siblings are the same physical board family as the
+        # subdevice this config entry already talks to -- so probe every
+        # href the master itself answered this cycle, individually, under
+        # this UUID's prefix, and keep whichever ones answer. Each is a
+        # plain tolerated-404 RETRIEVE, same posture as every other probe in
+        # this function.
+        flat_hrefs = []
+        first = True
+        for href in sorted(resources):
+            if not first:
+                sess.pace()
+            first = False
+            actual = f'/{sub_id}{href}'
+            rep = _get_property(sess, tuple(actual.strip('/').split('/')))
+            _probed(actual, bool(rep))
+            if rep:
+                flat_hrefs.append(href)
+                fetched[actual] = rep
+        if not flat_hrefs:
+            continue
+        subdevices.append(Subdevice(
+            kind='prefixed', key=sub_id, seed_path=(),
+            flat_hrefs=tuple(flat_hrefs),
+        ))
 
     # --- Pattern A: indexed siblings (ARTIK051_DONGLE_FAC_18K) --------------
     indices = sorted({

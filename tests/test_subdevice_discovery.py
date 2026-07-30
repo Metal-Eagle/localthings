@@ -182,6 +182,119 @@ async def test_fac_bora_2in1_unique_ids_include_subdevice_prefix(hass: HomeAssis
     )
 
 
+# ---------------------------------------------------------------------------
+# jhkwon19 again -- issue #205, same physical unit/UUID as above, but this
+# time /<uuid>/device/0 doesn't answer. Exercises enumerate_subdevices'
+# per-href flat-probe fallback (registry/subdevices.py) against a real
+# capture instead of the synthetic sessions test_subdevices.py uses.
+# ---------------------------------------------------------------------------
+
+async def test_fac_bora_205_flat_fallback_finds_candidate_but_gate_holds_it_back(
+    hass: HomeAssistant,
+):
+    """The fixture's only seeded UUID-prefixed href is /information/vs/0 --
+    the one href ever actually confirmed live under this prefix (issue #177
+    comment 5113518087) -- since nothing else has been confirmed yet for
+    this unit. That's enough for the flat-probe fallback to find a
+    candidate, but /information/vs/0 binds no entity on its own (it's only
+    ever read for device-type resolution, never bound as a capability), so
+    discover_partitioned's liveness gate correctly holds it back rather than
+    materializing a phantom climate card from unconfirmed hrefs. This is the
+    honest current state of issue #205, not a guess at its resolution."""
+    coordinator = _coordinator(hass)
+    await _discover(coordinator, 'airconditioner_fac_bora_205_flat')
+
+    assert coordinator.subdevices == []
+    assert [s.subdevice.key for s in coordinator._skipped_subdevices] == [_SUB_UUID]
+    skipped = coordinator._skipped_subdevices[0].subdevice
+    assert skipped.kind == 'prefixed'
+    assert skipped.seed_path == ()
+    assert skipped.flat_hrefs == ('/information/vs/0',)
+
+    assert coordinator._subdevice_probes[f'/{_SUB_UUID}/device/0'] is False
+    assert coordinator._subdevice_probes[f'/{_SUB_UUID}/information/vs/0'] is True
+
+    # Confirms the master itself is completely unaffected by its sibling's
+    # Collection endpoint not answering -- same guarantee every other
+    # subdevice test in this file relies on.
+    assert _climate_bound(coordinator, None) is not None
+
+
+class _FakeCollectionSession:
+    """Minimal session that only ever answers a Collection GET -- used to
+    prove the flat-mode re-poll path (issue #205) is only taken when
+    flat_hrefs is actually set, not whenever seed_path happens to be
+    unusual."""
+
+    def __init__(self, table):
+        self.table = table
+        self.calls: list[tuple[str, ...]] = []
+
+    def get(self, path, timeout=10.0):
+        self.calls.append(tuple(path))
+        body = self.table.get(tuple(path))
+        if body is None:
+            return 0x84, b''
+        import cbor2
+        return 0x45, cbor2.dumps(body)
+
+    def pace(self):
+        pass
+
+
+def test_poll_subdevice_seed_collection_mode_unaffected_by_flat_fallback(
+    hass: HomeAssistant,
+):
+    """A subdevice with a working Collection endpoint (flat_hrefs empty)
+    keeps re-polling it with a single Collection GET, unchanged by issue
+    #205's fallback."""
+    from custom_components.localthings.registry.subdevices import Subdevice
+
+    coordinator = _coordinator(hass)
+    devcol_rep = {'rt': ['x.com.samsung.devcol', 'oic.wk.col']}
+    sess = _FakeCollectionSession({
+        (_SUB_UUID, 'device', '0'): [
+            devcol_rep, {'href': '/mode/vs/0', 'rep': {'mode': 'cool'}},
+        ],
+    })
+    coordinator._session = sess
+    subdevice = Subdevice(kind='prefixed', key=_SUB_UUID, seed_path=(_SUB_UUID, 'device', '0'))
+
+    result = coordinator._poll_subdevice_seed(subdevice)
+
+    assert result == {f'/{_SUB_UUID}/mode/vs/0': {'mode': 'cool'}}
+    assert sess.calls == [(_SUB_UUID, 'device', '0')]
+
+
+def test_poll_subdevice_seed_flat_mode_polls_each_href_individually(
+    hass: HomeAssistant,
+):
+    """A flat-mode subdevice (issue #205) has no Collection to batch-refresh
+    through, so each confirmed href is GET individually under the prefix on
+    every re-poll -- a href that stops answering just drops out, same
+    "never fail the master's poll over a sibling" posture as the Collection
+    path."""
+    from custom_components.localthings.registry.subdevices import Subdevice
+
+    coordinator = _coordinator(hass)
+    sess = _FakeCollectionSession({
+        (_SUB_UUID, 'mode', 'vs', '0'): {'mode': 'cool'},
+        # (_SUB_UUID, 'power', 'vs', '0') deliberately absent -> drops out.
+    })
+    coordinator._session = sess
+    subdevice = Subdevice(
+        kind='prefixed', key=_SUB_UUID, seed_path=(),
+        flat_hrefs=('/mode/vs/0', '/power/vs/0'),
+    )
+
+    result = coordinator._poll_subdevice_seed(subdevice)
+
+    assert result == {f'/{_SUB_UUID}/mode/vs/0': {'mode': 'cool'}}
+    assert sess.calls == [
+        (_SUB_UUID, 'mode', 'vs', '0'), (_SUB_UUID, 'power', 'vs', '0'),
+    ]
+
+
 async def test_multidevice_probe_never_reaches_discovery_or_the_cache(
     hass: HomeAssistant,
 ):

@@ -414,6 +414,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         sess = self._session
         if sess is None:
             return {}
+        if subdevice.flat_hrefs:
+            return self._poll_subdevice_flat_hrefs(subdevice)
         try:
             code, payload = sess.get(list(subdevice.seed_path), timeout=10.0)
             if code == 0x45 and payload:
@@ -423,6 +425,36 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as e:
             self._log.debug("subdevice %s seed poll failed: %s", subdevice.key, e)
         return {}
+
+    def _poll_subdevice_flat_hrefs(self, subdevice: Subdevice) -> dict[str, dict]:
+        """Re-poll a flat-mode prefixed subdevice's hrefs individually
+        (issue #205) -- it has no Collection endpoint to batch-refresh
+        through (see enumerate_subdevices' fallback), so each canonical
+        href confirmed at enumeration time gets its own GET under the
+        subdevice's prefix. A href failing to answer this cycle just drops
+        out of the result, same "never let a sibling's flakiness fail the
+        master's poll" posture as the Collection path above."""
+        sess = self._session
+        result: dict[str, dict] = {}
+        first = True
+        for href in subdevice.flat_hrefs:
+            if not first:
+                sess.pace()
+            first = False
+            actual = subdevice.to_actual(href)
+            try:
+                path = [s for s in actual.strip('/').split('/')]
+                code, payload = sess.get(path, timeout=10.0)
+                if code == 0x45 and payload:
+                    rep = cbor2.loads(payload)
+                    if isinstance(rep, dict):
+                        result[actual] = rep
+            except Exception as e:
+                self._log.debug(
+                    "subdevice %s flat href %s poll failed: %s",
+                    subdevice.key, href, e,
+                )
+        return result
 
     def _poll_hrefs_blocking(self, hrefs: list[str]) -> dict[str, dict]:
         """GET individual hrefs sequentially. Does not reconnect on failure. Blocking."""
