@@ -313,6 +313,15 @@
       "favorite_hotwater_temperature": {
         "name": "Favorite hot water temperature"
       },
+      "filter_alarm_time": {
+        "name": "Filter alarm interval",
+        "state": {
+          "180": "180 hours",
+          "300": "300 hours",
+          "500": "500 hours",
+          "700": "700 hours"
+        }
+      },
       "finish_sound": {
         "name": "Finish sound",
         "state": {
