@@ -285,8 +285,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # identity resource -- fall back to a generic per-subdevice label
             # rather than leaving the device unnamed. 'Subdevice <n>' only
             # makes sense for an indexed subdevice (the key is a small
-            # ordinal); jhkwon19-pattern (prefixed) subdevices are never more
-            # than one per connection today, so there's no ordinal to show.
+            # ordinal); UUID-prefixed subdevices are never more than one per
+            # connection today, so there's no ordinal to show.
             label = (
                 f'Subdevice {subdevice.key}' if subdevice.kind == 'indexed'
                 else 'Secondary Subdevice'

@@ -4,8 +4,8 @@ more than one logical indoor subdevice -- issue #177.
 Two reporters, two different board families, two genuinely different
 mechanisms for exposing a second indoor subdevice over one IP / one DTLS
 session (see DESIGN-177.md section 1 for the full evidence trail; the two
-diagnostics dumps this was built against are HJcom's and jhkwon19's -- they
-each filed one of the two reports this module unifies):
+diagnostics dumps this was built against are HJcom's and issue #177's other
+reporter's -- they each filed one of the two reports this module unifies):
 
 Pattern A -- indexed siblings (`ARTIK051_DONGLE_FAC_18K`, HJcom's board).
 `/oic/res` lists three complete parallel resource sets whose trailing path
@@ -14,12 +14,12 @@ OCF-standard and vendor hrefs), and `/device/0`'s batch carries only the
 index-0 hrefs -- the sibling subdevices are reachable only via their own
 `/device/<n>` collection.
 
-Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, jhkwon19's board).
+Pattern B -- UUID-prefixed tree (`TP2X_FAC_BORA_21K`, that reporter's board).
 `/oic/res` hides the whole appliance tree; `/device/0`'s batch instead
 carries `x.com.samsung.da.subdeviceIdList` on `/subdevices/vs/0`, and that
 same UUID appears as a literal href prefix in `/oic/res`
 (`/<uuid>/file/list/vs/0`, ...). What's actually been confirmed live on
-jhkwon19's unit is narrower than early issue #177 writeups suggested: a
+that reporter's unit is narrower than early issue #177 writeups suggested: a
 single individual `GET /<uuid>/information/vs/0` was read by hand through
 the debug panel and came back carrying a different model/serial than the
 master (`TP2X_FAC_BORA_RAC_21K`, the wall-mounted subdevice, vs. the
@@ -39,7 +39,7 @@ Both are "the same thing wearing different clothes": a logical subdevice is a
 seed collection path to poll, plus an href transform between the canonical
 href the registry knows (`/mode/vs/0`) and the actual on-the-wire href. The
 detection signals don't overlap on either captured board (HJcom's has no
-`/subdevices/vs/0` at all; jhkwon19's has no `/device/1`), so no
+`/subdevices/vs/0` at all; the other reporter's has no `/device/1`), so no
 disambiguation logic is needed -- `enumerate_subdevices` checks both and
 materializes any candidate whose seed answers with a non-empty batch.
 
@@ -218,8 +218,9 @@ def normalize_seed_batch(subdevice: Subdevice, batch: dict[str, dict]) -> dict[s
     Indexed subdevices need no change -- the device echoes the real `/x/<n>`
     href in its own `/device/<n>` batch (confirmed against HJcom's dump).
     A prefixed subdevice's batch entries may or may not already carry the
-    `/<id>` prefix (unconfirmed which -- jhkwon19's board was never probed
-    live before the subdevice id was known), so it's added when missing.
+    `/<id>` prefix (unconfirmed which -- the Pattern B reporter's board was
+    never probed live before the subdevice id was known), so it's added
+    when missing.
     """
     if subdevice.kind != 'prefixed':
         return batch
@@ -395,7 +396,7 @@ def enumerate_subdevices(
     })
     if not indices:
         # A board that hides its whole tree from /oic/res (Pattern B's
-        # jhkwon19 board does this too, but it has no /device/<n> to find
+        # reporter board does this too, but it has no /device/<n> to find
         # regardless) gives us nothing to enumerate from -- fall back to the
         # bounded speculative probe this replaces from identity.py.
         indices = list(_SPECULATIVE_DEVICE_INDICES)
@@ -479,8 +480,8 @@ def discover_partitioned(
     device's registry claims that literal href) and raise a spurious
     coverage-gap repair. Then one pass per *candidate* subdevice over its own
     canonical view, resolving that subdevice's own device type from its own
-    `/information/vs/0` when it reports one (e.g. jhkwon19's wall subdevice
-    reports `TP2X_FAC_BORA_RAC_21K` -> the 'RAC' board token ->
+    `/information/vs/0` when it reports one (e.g. the Pattern B reporter's
+    wall subdevice reports `TP2X_FAC_BORA_RAC_21K` -> the 'RAC' board token ->
     airconditioner), falling back to the master's registry otherwise --
     every AC family shares the same resource surface, and a sibling that
     fails to answer its own identity resource is still the same appliance

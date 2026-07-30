@@ -138,7 +138,7 @@ async def test_hjcom_sub1_device_info_links_via_device_to_master(hass: HomeAssis
 
 
 # ---------------------------------------------------------------------------
-# jhkwon19 -- TP2X_FAC_BORA_21K, Pattern B (UUID-prefixed tree)
+# Issue #177's Pattern B reporter -- TP2X_FAC_BORA_21K, UUID-prefixed tree
 # ---------------------------------------------------------------------------
 
 _SUB_UUID = '6c2dff6d-ee5c-dad1-6a5e-000000000001'
@@ -191,7 +191,7 @@ async def test_fac_bora_2in1_unique_ids_include_subdevice_prefix(hass: HomeAssis
 
 
 # ---------------------------------------------------------------------------
-# jhkwon19 again -- issue #205, same physical unit/UUID as above, but this
+# Same reporter and physical unit/UUID again -- issue #205, but this
 # time /<uuid>/device/0 doesn't answer. Exercises enumerate_subdevices'
 # per-href flat-probe fallback (registry/subdevices.py) against a real
 # capture instead of the synthetic sessions test_subdevices.py uses.

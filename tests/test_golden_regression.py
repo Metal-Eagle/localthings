@@ -942,7 +942,7 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_cac():
 
 
 def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1():
-    """jhkwon19's TP2X_FAC_BORA_21K (issue #177, Pattern B -- UUID-prefixed
+    """The reporter's TP2X_FAC_BORA_21K (issue #177, Pattern B -- UUID-prefixed
     tree): device0/oic_res are real; the wall-mounted subdevice's own
     /information/vs/0 is real (confirmed live by the reporter), the rest of
     its seed tree is constructed (see the fixture's own seeds_note) -- just
@@ -962,8 +962,8 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_2in1(
 
 
 def test_registry_reproduces_golden_state_keys_for_airconditioner_fac_bora_205_flat():
-    """jhkwon19's same physical TP2X_FAC_BORA_21K unit as the _2in1 fixture
-    above, but a later capture (issue #205) where /<uuid>/device/0 doesn't
+    """The same reporter's same physical TP2X_FAC_BORA_21K unit as the _2in1
+    fixture above, but a later capture (issue #205) where /<uuid>/device/0 doesn't
     answer -- contrary to what that fixture's own seed batch assumed the
     Collection endpoint would do. device0/oic_res are real; the only
     UUID-prefixed data is the one href ever actually confirmed live

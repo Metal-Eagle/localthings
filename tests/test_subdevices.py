@@ -524,8 +524,8 @@ def test_discover_partitioned_main_pass_excludes_subdevice_hrefs_from_unbound():
 
 def test_discover_partitioned_subdevice_resolves_its_own_registry():
     """A subdevice reporting its own /information/vs/0 resolves its own
-    device type (jhkwon19's wall subdevice: TP2X_FAC_BORA_RAC_21K -> RAC ->
-    airconditioner) independent of the master's."""
+    device type (issue #177's real wall subdevice: TP2X_FAC_BORA_RAC_21K ->
+    RAC -> airconditioner) independent of the master's."""
     main_cap = Capability(href='/mode/vs/0', entities=(BinarySensorDesc(key='m', field='x'),))
     sub_cap = Capability(href='/mode/vs/0', entities=(BinarySensorDesc(key='m2', field='x'),))
     main_reg = _FakeRegistry('main_type', {'/mode/vs/0': [main_cap]})
