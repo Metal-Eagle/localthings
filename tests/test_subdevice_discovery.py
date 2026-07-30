@@ -122,7 +122,7 @@ async def test_pattern_a_device_2_produces_no_entities_at_all(hass: HomeAssistan
     assert not any(href.endswith('/2') for href in coordinator._warm_hrefs)
 
 
-async def test_hjcom_sub1_device_info_links_via_device_to_master(hass: HomeAssistant):
+async def test_pattern_a_sub1_device_info_links_via_device_to_master(hass: HomeAssistant):
     coordinator = _coordinator(hass)
     await _discover(coordinator, 'airconditioner_artik051_dongle_fac_18k')
 
@@ -135,6 +135,62 @@ async def test_hjcom_sub1_device_info_links_via_device_to_master(hass: HomeAssis
     # The subdevice's own /information/vs/1 (real, ARTIK051_DONGLE_FAC_RAC_18K)
     # is what names/models this device, not the master's.
     assert info['model'] == 'ARTIK051_DONGLE_FAC_RAC_18K'
+
+
+# ---------------------------------------------------------------------------
+# Issue #214 -- a *non-composite* board whose speculative /device/1 probe
+# answers with an unused slot that reports the appliance's energy counter.
+# ---------------------------------------------------------------------------
+
+async def test_krac_18k_energy_only_slot_is_not_materialized(hass: HomeAssistant):
+    """The issue #214 reporter's single-split AR12NXWXCWKNEU (ARTIK051_KRAC_18K,
+    one indoor unit) answers /device/1 with the Pattern A /device/2 shape --
+    every operational rep empty {} -- plus a populated
+    /energy/consumption/vs/1 carrying a lifetime cumulativePower. That one
+    counter was the only primary entity the candidate flattened to a value
+    for, and it was enough to materialize a phantom second air conditioner
+    device in HA (the duplicate the reporter saw). A cumulative meter is a
+    whole-appliance total, not evidence that hardware is installed at this
+    slot, so the candidate must now be recorded as skipped and contribute
+    nothing: no bound entities, no HA device, no hot/warm hrefs."""
+    coordinator = _coordinator(hass)
+    await _discover(coordinator, 'airconditioner_artik051_krac_18k_slot')
+
+    assert coordinator.subdevices == []
+    assert [s.subdevice.key for s in coordinator._skipped_subdevices] == ['1']
+    # The gate ran against real bindings, not against nothing -- these are the
+    # six hrefs the reporter's own diagnostics reported for the (then
+    # materialized) subdevice, /energy/consumption/vs/1 among them.
+    assert coordinator._skipped_subdevices[0].hrefs == (
+        '/alarms/vs/1', '/diagnosis/vs/1', '/energy/consumption/vs/1',
+        '/humidity/vs/1', '/mode/vs/1', '/temperature/current/1',
+    )
+    assert coordinator._subdevice_probes['/device/1'] is True
+
+    assert not any(b.subdevice.key == '1' for b in coordinator.bound)
+    assert not any(href.endswith('/1') for href in coordinator._hot_hrefs)
+    assert not any(href.endswith('/1') for href in coordinator._warm_hrefs)
+
+    # The master is untouched -- one climate entity, on the master's own
+    # device, exactly as this board behaved before subdevice support existed.
+    assert _climate_bound(coordinator, None) is not None
+    assert _climate_bound(coordinator, '1') is None
+
+
+async def test_krac_18k_slot_state_never_reaches_the_cache(hass: HomeAssistant):
+    """A rejected candidate's reps must not be applied to the state cache
+    either (the same guarantee _live_subdevice_resources gives the Pattern A
+    /device/2 slot): the reporter's /energy/consumption/vs/1 would otherwise
+    sit frozen in `last_resources` -- and in every diagnostics dump built
+    from it -- at its first-discovery value forever, since nothing polls the
+    slot again."""
+    coordinator = _coordinator(hass)
+    await _discover(coordinator, 'airconditioner_artik051_krac_18k_slot')
+
+    assert not any(href.endswith('/1') for href in coordinator.last_resources)
+    # It's kept aside for diagnostics only, which is where a reader can still
+    # check the gate's call for themselves.
+    assert '/energy/consumption/vs/1' in coordinator._skipped_subdevice_resources
 
 
 # ---------------------------------------------------------------------------
