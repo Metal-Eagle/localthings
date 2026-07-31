@@ -34,6 +34,9 @@
       "overload_protection_active": {
         "name": "Overbelastingsbeveiliging actief"
       },
+      "odor_controller_active": {
+        "name": "Geurbeheersing actief"
+      },
       "cycle_active": {
         "name": "Actief"
       },
@@ -645,6 +648,9 @@
       },
       "outdoor_temperature": {
         "name": "Buitentemperatuur"
+      },
+      "odor_controller_progress": {
+        "name": "Voortgang geurbeheersing"
       },
       "panel_status": {
         "name": "Paneelstatus"
