@@ -14,7 +14,7 @@
         "name": "Brander {number} heet oppervlak"
       },
       "burner_pan_detected": {
-        "name": "Brander {number} pan gedetecteerd"
+        "name": "Pan gedetecteerd op brander {number}"
       },
       "cloud_connected": {
         "name": "Verbonden met cloud"
@@ -23,7 +23,7 @@
         "name": "Stofzak vol"
       },
       "cooktop_power": {
-        "name": "Kookplaat voeding"
+        "name": "Voeding kookplaat"
       },
       "cooktop_safety_shutoff_enabled": {
         "name": "Automatische uitschakeling heet oppervlak ingeschakeld"
@@ -74,7 +74,7 @@
         "name": "Schenken"
       },
       "alarm_in_mute": {
-        "name": "Alarm bij dempen"
+        "name": "Alarmdemping"
       },
       "power_state": {
         "name": "Voedingsstatus"
@@ -215,7 +215,7 @@
         }
       },
       "cooler_temperature_setpoint": {
-        "name": "Koeler temperatuur"
+        "name": "Temperatuur koelgedeelte"
       },
       "day_brightness": {
         "name": "Helderheid kast",
@@ -481,24 +481,24 @@
       "sound_mode": {
         "name": "Geluidsmodus",
         "state": {
-          "voice": "Spraak",
+          "voice": "Stem",
           "tone": "Toon",
-          "mute": "Dempen"
+          "mute": "Stil"
         }
       },
       "air_purifier_sound_mode": {
         "name": "Geluidsmodus",
         "state": {
-          "mute": "Dempen",
+          "mute": "Stil",
           "buzzer": "Zoemer"
         }
       },
       "water_purifier_sound_mode": {
         "name": "Geluidsmodus",
         "state": {
-          "voice": "Spraak",
+          "voice": "Stem",
           "fixedtone": "Vaste toon",
-          "mute": "Dempen"
+          "mute": "Stil"
         }
       },
       "spin_speed": {
@@ -561,17 +561,17 @@
           "53": "Intensief",
           "54": "Handdoeken",
           "55": "Sportkleding",
-          "57": "Fijn",
+          "57": "Fijne was",
           "5e": "Spoelen+centrifugeren",
-          "60": "Zelfreinigend+",
+          "60": "Self Clean+",
           "65": "Bonte was",
           "66": "Spijkergoed",
           "7c": "Witte was",
-          "7d": "Beddengoed/Waterdicht",
-          "7e": "Zelfreinigend",
-          "7f": "Wol/Fijn",
+          "7d": "Beddengoed/waterdicht",
+          "7e": "Self Clean",
+          "7f": "Wol/fijne was",
           "86": "Diep wassen",
-          "87": "Downloaden",
+          "87": "Gedownload",
           "8f": "Intensief koud",
           "96": "Minder microvezels"
         }
@@ -629,7 +629,7 @@
         }
       },
       "cooktop_running_state": {
-        "name": "Loopstatus kookplaat"
+        "name": "Bedrijfsstatus kookplaat"
       },
       "cooktop_state": {
         "name": "Status kookplaat"
@@ -662,10 +662,10 @@
         "name": "Status steel"
       },
       "uvc_operation_time": {
-        "name": "UV-C bedrijfstijd"
+        "name": "UV-C-bedrijfstijd"
       },
       "uvc_total_operation_time": {
-        "name": "UV-C totale bedrijfstijd"
+        "name": "Totale UV-C-bedrijfstijd"
       },
       "uvc_finished_time": {
         "name": "UV-C voltooid op"
@@ -759,7 +759,7 @@
         "name": "Geschatte eindtijd"
       },
       "completion_minutes": {
-        "name": "Voltooiingstijd"
+        "name": "Resterende tijd"
       },
       "freezer_temperature": {
         "name": "Vriezertemperatuur"
@@ -840,13 +840,13 @@
         "name": "Vermogen"
       },
       "probe_battery": {
-        "name": "Sonde batterij"
+        "name": "Batterijniveau sonde"
       },
       "probe_target_temperature": {
         "name": "Doeltemperatuur sonde"
       },
       "probe_temperature": {
-        "name": "Temperatuur sonde"
+        "name": "Sondetemperatuur"
       },
       "progress": {
         "name": "Voortgang"
@@ -888,7 +888,7 @@
         "name": "Status"
       },
       "cup_state": {
-        "name": "Kopstatus"
+        "name": "Bekerstatus"
       },
       "last_pour_type": {
         "name": "Laatste schenktype"
@@ -1024,7 +1024,7 @@
         "name": "{instance_name} ingeschakeld"
       },
       "intensive": {
-        "name": "Intensive"
+        "name": "Intensief"
       },
       "lamp": {
         "name": "Lamp"
