@@ -917,9 +917,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Schedule sub-polls for hot/warm hrefs between summary polls
         # (no-op in observe-primary mode unless this cycle's sweep found a
-        # mismatch; _run_subpolls checks the mode/force).
+        # mismatch; _run_subpolls checks the mode/force). A background task,
+        # not async_create_task: this loop is self-limiting (cancelled and
+        # recreated every refresh cycle, see the cancel() above) and owned
+        # entirely by the coordinator, so it has no business being tracked by
+        # HA's own startup/shutdown sequencing -- async_create_task ties it
+        # in regardless, so a subpoll cycle in flight (up to ~27s,
+        # _SUBPOLL_STEP_S x 9 slots) delays both (issue #207).
         if self._hot_hrefs or self._warm_hrefs:
-            self._subpoll_task = self.hass.async_create_task(
+            self._subpoll_task = self.hass.async_create_background_task(
                 self._run_subpolls(force=sweep_mismatch), name="localthings_subpoll"
             )
 
