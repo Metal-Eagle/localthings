@@ -5,8 +5,9 @@ description: >-
   /device/0 diagnostics dump. Use when a device-support issue lands, a device
   raises the "incomplete capability coverage" repair, a diagnostics JSON needs
   triaging, or you're mapping OCF resources to HA entities. Covers reading dumps,
-  routing an unrecognized board family to a registry (modelNum board tokens,
-  resource signatures),
+  routing a device to a registry from its `/oic/d` device type first and an
+  unrecognized board family second (modelNum board tokens, resource
+  signatures),
   OCF-standard vs vendor hrefs, the diagnostic/config/normal entity taxonomy,
   preferring dynamic (device-reported) select options over hardcoded lists,
   ensuring every href is bound or ignored, and locking it in with a fixture +
@@ -64,8 +65,13 @@ by_type   = importlib.import_module('custom_components.localthings.registry.by_t
 discovery = importlib.import_module('custom_components.localthings.registry.discovery')
 adapter   = importlib.import_module('custom_components.localthings.registry.adapter')
 
-resources = json.load(open('dump.json'))['data']['resources']
-reg = by_type.resolve(resources)      # the same entry point the coordinator uses
+data = json.load(open('dump.json'))['data']
+resources = data['resources']
+# identity.device_types is /oic/d's `rt` -- resolve()'s primary signal (see
+# §3). Absent on dumps predating that field; () falls through to model-based
+# detection exactly like a device that reports nothing there.
+device_types = tuple((data.get('identity') or {}).get('device_types') or ())
+reg = by_type.resolve(resources, device_types=device_types)   # the same entry point the coordinator uses
 unbound = []
 bound = discovery.discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
 state = adapter.flatten(bound, resources)   # {entity_key: value}
@@ -90,15 +96,21 @@ loses roughly **half** its entities (measured across the fixture corpus: 843 of
 1510 bound entities survive). So routing is the first thing to fix, and
 `registry/by_type/__init__.py` is deliberately kept boring.
 
-`resolve(resources)` is the only entry point — the coordinator, the config
-flow's probe and the golden-regression harness all call it, so the order can't
-drift between what ships and what the tests assert. Two stages:
+`resolve(resources, device_types=())` is the only entry point — the
+coordinator, the config flow's probe and the golden-regression harness all
+call it, so the order can't drift between what ships and what the tests
+assert. Three stages, most-specific evidence first:
 
-1. **`for_device_by_model(model_num, description)`** — the primary path. Both
-   fields come from `/information/vs/0`. Board-family tokens are matched
-   against `modelNum` first, then `description`, then the fuzzy two-letter
-   consumer-model prefix.
-2. **`for_device_by_resources(resources)`** — for boards that report no
+1. **`for_device_by_oic_type(device_types)`** — the primary path whenever a
+   dump has it. `device_types` is `/oic/d`'s `rt`, looked up against
+   `_OIC_TYPE_TO_KEY`. The device naming its own type beats parsing board
+   part numbers, so this always wins when it hits. **Always check this first
+   when triaging a new dump** — see "Adding an /oic/d device type" below.
+2. **`for_device_by_model(model_num, description)`** — the fallback for
+   everything `/oic/d` doesn't resolve. Both fields come from
+   `/information/vs/0`. Board-family tokens are matched against `modelNum`
+   first, then `description`, then the fuzzy two-letter consumer-model prefix.
+3. **`for_device_by_resources(resources)`** — for boards that report no
    `/information/vs/0` at all. Needs a *distinctive* signature.
 
 **`oneUiVersion` is not consulted.** It looks like the obvious signal — the
@@ -152,15 +164,64 @@ Reach past the table only when the evidence isn't a board token:
   (e.g. `/oven/vs/0` present *and* a `MicroWave*` entry in `supportedModes`),
   never one, or an unrelated family's `/mode/vs/0` will match.
 
-### If the model string identifies nothing
+### Adding an /oic/d device type
 
-Check the diagnostics `identity` block before inventing a rule: it carries
-`/oic/p` and `/oic/d`, which sit outside the `/device/0` dump.
-`identity.device_types` is `/oic/d`'s `rt` — OCF's own device-type
-declaration (`oic.d.airconditioner`). Nothing routes on it yet because no
-captured dump has ever included it; if real hardware turns out to populate it,
-it beats parsing board part numbers and this whole section shrinks. Note in
-the issue when a dump has it.
+`/oic/d`'s `rt` (OCF's own device-type declaration) is the *primary*
+detection path (`for_device_by_oic_type`, stage 1 above) — it sits outside
+the `/device/0` dump, read separately by `registry/identity.read_identity`,
+which fetches three endpoints in one shot:
+- **`/oic/d`** — the device type itself: `n` (device name) and `rt`, a list
+  carrying the generic `oic.wk.d` base type every OCF device has alongside a
+  concrete one (`oic.d.airconditioner`) or a SmartThings vendor extension
+  (`x.com.st.d.stickcleaner`, for categories with no `oic.d.*` equivalent —
+  same prefix convention as `x.com.samsung.da.*` resource fields elsewhere).
+- **`/oic/p`** — platform identity: `mnmn`/`mnmo` (manufacturer/model).
+- **`/oic/res`** — resource discovery, used for subdevice enumeration (§11),
+  not device typing.
+
+None of the three appear in `resources`; find them in diagnostics' `identity`
+block (`identity.device_types`, `identity.manufacturer`, `identity.model`),
+or read live with `read_identity(sess, serial)` if you're driving a device
+directly.
+
+**Whenever you triage a dump, check `identity.device_types` before touching
+`_BOARD_TOKEN_TO_KEY` at all** — the whole point of this stage running first
+is that a real `/oic/d` type makes board-token routing unnecessary. Two
+outcomes:
+- The type is already a key in `_OIC_TYPE_TO_KEY` (`registry/by_type/__init__.py`)
+  → detection already works; an unbound-hrefs gap on this device is a
+  capability-coverage problem (§§4–9), not a routing one.
+- The type is **not yet in the table** → add a row. This is now the
+  integration's primary detection method, and it only stays that way if new
+  types get folded in as real dumps surface them — same discipline that
+  keeps `_BOARD_TOKEN_TO_KEY` current:
+
+```python
+'oic.d.dishwasher': 'dishwasher',
+'x.com.st.d.steamcloset': 'air_dresser',
+```
+
+- A string not yet seen in a dump is still fine to add on the strength of the
+  OCF Smart Home Device Specification's Table 9-1 alone, as long as it has the
+  exact same `oic.d.<category>` shape as an already-confirmed entry — that
+  shape is low-risk ahead of a dump because, unlike a board-token entry,
+  there's no tokenizing or delimiter-spelling judgment call involved.
+- **Only add a row once there's a real registry key on the right** (a key in
+  `_REGISTRY_BY_KEY`). A type naming a product this integration has no
+  registry for stays unmapped rather than getting coerced onto the
+  nearest-sounding one — `oic.d.robotcleaner` names an actual robot vacuum,
+  a different product from the clean/auto-empty *station* `vacuum_station`
+  covers (no vacuum-body capabilities at all; see that registry's own module
+  docstring), so it's deliberately absent even though the string is known.
+- Falls through to `for_device_by_model`/`for_device_by_resources` when
+  `device_types` is empty or maps to nothing — most hardware still doesn't
+  populate `/oic/d` usefully, so those two stages stay load-bearing for
+  everything this one doesn't catch.
+- On a multi-subdevice appliance, `device_types` only ever comes from the
+  *master's* `/oic/d` (`discover_partitioned`'s `oic_device_types` param) —
+  subdevices have no `/oic/d` of their own read today and keep resolving from
+  their own `/information/vs/0`, falling back to the master's whole registry
+  otherwise (§11).
 
 ### Sharing a registry vs adding one
 
@@ -332,6 +393,13 @@ shared module rather than copying.
 
 ## 10. Lock it in
 
+If the dump's diagnostics `identity` block carries a `/oic/d` device type,
+confirm (or add, per "Adding an /oic/d device type" in §3) the matching
+`_OIC_TYPE_TO_KEY` row before considering this device done — routing this
+device by board token today doesn't mean the next report of the same
+appliance family gets the faster, more reliable `/oic/d` path unless the
+table actually has the row.
+
 1. Add a **scrubbed** fixture `tests/fixtures/<type>_device.json`
    (`{"device0": [ {devcol rep}, {href, rep}, ... ]}`) — replace serials, MACs,
    and other PII with placeholders.
@@ -458,6 +526,11 @@ devices it *does* provide refuse removal, since HA would just recreate them.
 Tell the reporter to delete the stale device, don't add a pruning pass.
 
 ## Key files
+- `registry/identity.py` — `read_identity`, `DeviceIdentity.device_types`
+  (`/oic/d`'s `rt`), the primary device-type signal's source.
+- `registry/by_type/__init__.py` — `resolve()`, `for_device_by_oic_type` and
+  `_OIC_TYPE_TO_KEY`, `for_device_by_model` and `_BOARD_TOKEN_TO_KEY`/
+  `_CONSUMER_PREFIX_TO_KEY`, `for_device_by_resources`.
 - `registry/subdevices.py` — `Subdevice`, enumeration, canonical ⇄ actual href
   translation, and the materialization gate for multi-subdevice appliances.
 - `registry/discovery.py` — `discover()`, unbound reporting, pattern caps.

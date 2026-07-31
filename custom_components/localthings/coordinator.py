@@ -634,6 +634,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         bound, device_type_name, materialized, skipped = discover_partitioned(
             resources, self.subdevices, resolve_registry, CAPABILITIES,
             log=unbound.append, tier_log=_tier_log,
+            oic_device_types=self._identity.device_types if self._identity else (),
         )
         self.subdevices = materialized
         self._skipped_subdevices = skipped
@@ -667,12 +668,16 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if device_type_name is not None:
             self._log.debug("device type: %s (modelNum=%r)", device_type_name, model_num)
         else:
-            # Both fields: detection reads each of them (board token, then
-            # consumer-model code), and this line is what a user pastes into
-            # an issue -- modelNum alone doesn't identify a washer or dryer.
+            # All three: detection reads each of them (oic device type, then
+            # board token, then consumer-model code), and this line is what a
+            # user pastes into an issue -- modelNum alone doesn't identify a
+            # washer or dryer, and device_types is often empty even when
+            # populated hardware exists for a type we don't map yet.
             self._log.warning(
-                "unknown device type modelNum=%r description=%r; using common caps",
+                "unknown device type modelNum=%r description=%r device_types=%r; "
+                "using common caps",
                 model_num, description,
+                self._identity.device_types if self._identity else (),
             )
         self.device_type_name = device_type_name
         self.bound = bound

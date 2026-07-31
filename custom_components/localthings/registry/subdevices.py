@@ -80,7 +80,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 import cbor2
 
@@ -519,10 +519,11 @@ def _has_live_primary_entity(bound, state: dict) -> bool:
 def discover_partitioned(
     resources: dict[str, dict],
     subdevices: list['Subdevice'],
-    resolve_registry: Callable[[dict], object],
+    resolve_registry: Callable[..., object],
     fallback_capabilities: dict,
     log: Optional[Callable[[str], None]] = None,
     tier_log: Optional[Callable[[str, str], None]] = None,
+    oic_device_types: Sequence[str] = (),
 ):
     """Bind every href in `resources` (the merged, real-href snapshot -- main
     plus every enumerated subdevice's seed) to entities, partitioned by which
@@ -551,6 +552,15 @@ def discover_partitioned(
     first-discovery time only is a non-issue; getting a phantom subdevice
     silently counted into unbound_hrefs or hot/warm tiers is not.
 
+    `oic_device_types` (from the master's own `/oic/d`, see
+    registry/identity.py) is passed only to the *master's* resolution --
+    subdevices have no `/oic/d` of their own read today (they resolve from
+    their own `/information/vs/0` or fall back to the master's whole
+    registry, as documented above), and blindly applying the master's OCF
+    device type to every subdevice's own model-based resolution would be
+    wrong the moment a composite appliance ever pairs two genuinely
+    different device types under one connection.
+
     Returns `(bound, device_type_name, materialized, skipped)`:
     - `bound`: the concatenated BoundEntity list (main + every materialized
       subdevice).
@@ -575,7 +585,7 @@ def discover_partitioned(
     # owned_elsewhere here too.
     main_view = canonical_view(MAIN, resources, subdevices)
 
-    reg = resolve_registry(main_view)
+    reg = resolve_registry(main_view, device_types=oic_device_types)
     caps, pats = (
         (reg.capabilities, reg.pattern_capabilities) if reg is not None
         else (fallback_capabilities, [])
