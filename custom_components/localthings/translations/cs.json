@@ -10,6 +10,9 @@
       "automatic_operation": {
         "name": "Automatický provoz"
       },
+      "battery_charging": {
+        "name": "Nabíjení"
+      },
       "burner_hot_surface": {
         "name": "Hořák {number} horký povrch"
       },
@@ -78,6 +81,9 @@
       },
       "alarm_in_mute": {
         "name": "Alarm ztlumen"
+      },
+      "child_lock": {
+        "name": "Dětská pojistka"
       },
       "power_state": {
         "name": "Stav napájení"
@@ -295,19 +301,25 @@
           "01": "Normální",
           "06": "Časové sušení",
           "16": "Bavlna",
+          "17": "Super Speed",
           "18": "Syntetika",
           "19": "Jemné prádlo",
           "20": "Žehlení",
+          "21": "Hygienické sušení",
+          "22": "Tiché sušení",
           "23": "Rychlé sušení 35",
           "24": "Studený vzduch",
           "25": "Teplý vzduch",
           "27": "Časové sušení",
+          "29": "AI sušení",
           "1a": "Vlna",
           "1b": "Ložní prádlo",
           "1c": "Košile",
           "1d": "Ručníky",
           "1e": "Outdoor",
-          "1f": "Smíšená náplň"
+          "1f": "Smíšená náplň",
+          "2b": "Sušení bubnu",
+          "4c": "Osvěžení vzduchem"
         }
       },
       "favorite_capacity": {
@@ -603,6 +615,9 @@
       "air_filter_usage_hours": {
         "name": "Hodiny využití filtru"
       },
+      "air_quality_standard": {
+        "name": "Norma kvality vzduchu"
+      },
       "air_sensing_state": {
         "name": "Stav měření kvality vzduchu"
       },
@@ -615,6 +630,9 @@
       "automatic_ventilation_state": {
         "name": "Stav automatického větrání"
       },
+      "battery": {
+        "name": "Baterie"
+      },
       "burner_state": {
         "name": "Stav hořáku {number}"
       },
@@ -623,6 +641,9 @@
       },
       "coffee_brew_status": {
         "name": "Stav přípravy kávy"
+      },
+      "co2": {
+        "name": "CO2"
       },
       "connection_mode": {
         "name": "Režim připojení",
@@ -1002,6 +1023,9 @@
       "display_light": {
         "name": "Podsvícení displeje"
       },
+      "dnd": {
+        "name": "Nerušit"
+      },
       "fast_preheat": {
         "name": "Rychlé předehřátí"
       },
@@ -1085,6 +1109,12 @@
       }
     },
     "time": {
+      "dnd_end": {
+        "name": "Konec režimu Nerušit"
+      },
+      "dnd_start": {
+        "name": "Začátek režimu Nerušit"
+      },
       "led_night_end": {
         "name": "Konec nočního LED osvětlení dvířek"
       },
@@ -1152,7 +1182,8 @@
         "title": "Nastavení zápisu pro dálkové ovládání",
         "description": "Některá zařízení přijímají určité zápisy (např. výchozí dávkování pracího prostředku/aviváže v pračce) i když hlásí vypnuté dálkové ovládání. LocalThings ve výchozím nastavení blokuje každý zápis srozumitelnou chybou, kdykoli zařízení hlásí vypnuté dálkové ovládání, místo aby jej zařízení tiše odmítlo. Povolte toto pouze tehdy, pokud jste ověřili, že zápisy na tomto zařízení skutečně fungují i s vypnutým dálkovým ovládáním – jinak tuto srozumitelnou chybu vyměníte za tiché selhání.",
         "data": {
-          "bypass_remote_control_lock": "Povolit zápis i když je dálkové ovládání hlášeno jako vypnuté"
+          "bypass_remote_control_lock": "Povolit zápis i když je dálkové ovládání hlášeno jako vypnuté",
+          "finish_time_hysteresis_minutes": "Odhadovaný konec -- minimální změna (minuty)"
         }
       },
       "debug_write": {
