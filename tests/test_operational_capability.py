@@ -62,6 +62,34 @@ class TestCompletionMinutes:
         assert desc.rep_fn(rep) is None
 
 
+class TestFinishTime:
+    """issue: remainingTime only has minute resolution, but datetime.now()
+    always carries fresh seconds/microseconds -- an unrounded finish_time
+    changed on nearly every poll even when remainingTime hadn't, flooding
+    the recorder history/logbook with values that looked identical once
+    the UI rounded them down to the minute for display."""
+
+    def test_seconds_and_microseconds_are_zeroed(self):
+        desc = next(e for e in OPERATIONAL_STATE.entities if e.key == 'finish_time')
+        rep = {
+            'x.com.samsung.da.state': 'Run',
+            'x.com.samsung.da.remainingTime': '00:29:00',
+        }
+        result = desc.rep_fn(rep)
+        assert result.second == 0
+        assert result.microsecond == 0
+
+    def test_stable_across_polls_within_same_minute(self):
+        desc = next(e for e in OPERATIONAL_STATE.entities if e.key == 'finish_time')
+        rep = {
+            'x.com.samsung.da.state': 'Run',
+            'x.com.samsung.da.remainingTime': '00:29:00',
+        }
+        first = desc.rep_fn(rep)
+        second = desc.rep_fn(rep)
+        assert first == second
+
+
 class TestDelayFieldFallback:
     def test_reads_delay_end_time_when_delay_start_time_absent(self):
         from custom_components.localthings.registry.capabilities.operational import OPERATIONAL_STATE

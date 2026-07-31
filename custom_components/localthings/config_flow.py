@@ -16,6 +16,9 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     ObjectSelector,
     SelectSelector,
     SelectSelectorConfig,
@@ -31,12 +34,16 @@ from .const import (
     CONF_CA_CERT_PEM, CONF_CA_KEY_PEM,
     CONF_LEAF_CERT_PEM, CONF_LEAF_KEY_PEM,
     CONF_BYPASS_REMOTE_CONTROL,
+    CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
     PROBE_PORT_RANGE, PREFERRED_PROBE_PORTS, LIVENESS_PROBE_TIMEOUT_S,
     PROBE_GET_TIMEOUT_S,
 )
 
 _TEXT = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT))
 _MULTILINE = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True))
+_HYSTERESIS_MINUTES = NumberSelector(NumberSelectorConfig(
+    min=0, max=30, step=1, mode=NumberSelectorMode.BOX,
+))
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -462,6 +469,13 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
                         CONF_BYPASS_REMOTE_CONTROL, False
                     ),
                 ): bool,
+                vol.Required(
+                    CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+                    default=self.config_entry.options.get(
+                        CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+                        DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
+                    ),
+                ): _HYSTERESIS_MINUTES,
             }),
         )
 

@@ -1,6 +1,8 @@
 """Sensor platform for Local Things."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
@@ -12,7 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .observe import MODE_OBSERVE, MODE_POLL
 from .registry.entities import SensorDesc
 
-from .const import DOMAIN
+from .const import CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES, DOMAIN
 from .coordinator import LocalThingsCoordinator
 from .entity import LocalThingsEntity, _is_included
 
@@ -42,6 +44,7 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
         self._attr_state_class = desc.state_class
         if desc.options:
             self._attr_options = list(desc.options)
+        self._hysteresis_value = None
 
     @property
     def native_unit_of_measurement(self):
@@ -52,7 +55,38 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
 
     @property
     def native_value(self):
-        return (self.coordinator.data or {}).get(self._state_key)
+        raw = (self.coordinator.data or {}).get(self._state_key)
+        if not self._bound.desc.hysteresis:
+            return raw
+        return self._apply_hysteresis(raw)
+
+    def _apply_hysteresis(self, raw):
+        """Hold the last value this entity actually reported until a new one
+        differs by at least the configured threshold, regardless of how long
+        that difference has been building up (this is a deadband, not a
+        time-based debounce).
+
+        Values like finish_time are `now() + remaining`, recomputed from
+        scratch every poll -- both wall-clock drift between the device's own
+        remaining-time updates and the device revising its own estimate mid-
+        cycle produce a stream of small, real changes that are individually
+        meaningless but each trigger a recorder/logbook entry. A cycle
+        ending (raw is None) or starting (cache empty) always passes through
+        immediately -- only in-between jitter while a value already exists
+        on both sides gets held back.
+        """
+        threshold_min = self.coordinator.config_entry.options.get(
+            CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES
+        )
+        if (
+            threshold_min
+            and raw is not None
+            and self._hysteresis_value is not None
+            and abs(raw - self._hysteresis_value) < timedelta(minutes=threshold_min)
+        ):
+            return self._hysteresis_value
+        self._hysteresis_value = raw
+        return raw
 
 
 class LocalThingsConnectionModeSensor(CoordinatorEntity[LocalThingsCoordinator], SensorEntity):

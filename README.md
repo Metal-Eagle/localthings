@@ -89,6 +89,15 @@ Entities appear under one HA device per appliance, named `Samsung Appliance (<ip
 
 ---
 
+## Part 4: Per-device settings
+
+Each device has its own **Configure** option in Settings > Devices & Services, under **Device settings**:
+
+- **Allow writes even when remote control is reported off** — by default, LocalThings blocks every write with a clear error whenever a device reports remote control off, rather than letting the device silently reject it. Some devices accept certain writes anyway (e.g. default detergent/softener dosing on a washer) even while reporting remote control off. Only enable this if you've confirmed writes actually work on your device with remote control off — otherwise you trade a clear error for a silent failure.
+- **Estimated finish -- minimum change (minutes)** — a washer/dryer/dishwasher's `finish_time` sensor is recomputed from the device's own remaining-time estimate on every poll, which commonly drifts or gets revised by a minute or two between updates. This setting holds `finish_time` at its last reported value until a new estimate differs by at least this many minutes, cutting down on Home Assistant history/logbook noise from a value that hasn't meaningfully changed. Defaults to `3`; set it to `0` to report every computed change.
+
+---
+
 ## Development
 
 ### Docker Compose dev environment
