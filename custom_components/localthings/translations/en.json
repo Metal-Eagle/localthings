@@ -292,19 +292,25 @@
           "01": "Normal",
           "06": "Time dry",
           "16": "Cotton",
+          "17": "Super Speed",
           "18": "Synthetics",
           "19": "Delicates",
           "20": "Iron dry",
+          "21": "Hygiene Care",
+          "22": "Silent Dry",
           "23": "Quick Dry 35",
           "24": "Cool air",
           "25": "Warm air",
           "27": "Time dry",
+          "29": "AI Dry",
           "1a": "Wool",
           "1b": "Bedding",
           "1c": "Shirts",
           "1d": "Towels",
           "1e": "Outdoor",
-          "1f": "Mixed load"
+          "1f": "Mixed load",
+          "2b": "Self Tub Dry",
+          "4c": "Air Refresh"
         }
       },
       "favorite_capacity": {
