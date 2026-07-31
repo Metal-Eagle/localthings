@@ -131,6 +131,53 @@ class TestConsumerModelKey:
         assert _consumer_model_key('ARTIK051_DONGLE_REF') is None
 
 
+class TestForDeviceByOicType:
+    """Primary device-type detection from /oic/d's `rt`."""
+
+    def test_every_oic_type_resolves_to_a_real_registry(self):
+        from custom_components.localthings.registry.by_type import (
+            _OIC_TYPE_TO_KEY, _REGISTRY_BY_KEY,
+        )
+        for oic_type, key in _OIC_TYPE_TO_KEY.items():
+            assert key in _REGISTRY_BY_KEY, f"{oic_type!r} -> unknown registry {key!r}"
+
+    @pytest.mark.parametrize('oic_type, expected', [
+        ('oic.d.airconditioner', 'airconditioner'),
+        ('oic.d.dryer', 'dryer'),
+        ('oic.d.refrigerator', 'refrigerator'),
+        ('oic.d.washer', 'washer'),
+        ('x.com.st.d.stickcleaner', 'vacuum_station'),
+        ('x.com.st.d.steamcloset', 'air_dresser'),
+    ])
+    def test_known_oic_types_resolve(self, oic_type, expected):
+        from custom_components.localthings.registry.by_type import for_device_by_oic_type
+        reg = for_device_by_oic_type((oic_type,))
+        assert reg is not None
+        assert reg.name == expected
+
+    def test_generic_wk_d_type_alone_resolves_nothing(self):
+        """The generic 'oic.wk.d' base type every OCF device carries
+        alongside its concrete type isn't itself a device type."""
+        from custom_components.localthings.registry.by_type import for_device_by_oic_type
+        assert for_device_by_oic_type(('oic.wk.d',)) is None
+
+    def test_unrecognized_type_returns_none(self):
+        from custom_components.localthings.registry.by_type import for_device_by_oic_type
+        assert for_device_by_oic_type(('oic.d.somethingnew',)) is None
+
+    def test_empty_returns_none(self):
+        from custom_components.localthings.registry.by_type import for_device_by_oic_type
+        assert for_device_by_oic_type(()) is None
+
+    def test_finds_the_concrete_type_alongside_the_generic_one(self):
+        """A real /oic/d `rt` carries both the generic base type and the
+        concrete one, order unspecified -- either position must resolve."""
+        from custom_components.localthings.registry.by_type import for_device_by_oic_type
+        reg = for_device_by_oic_type(('oic.wk.d', 'oic.d.washer'))
+        assert reg is not None
+        assert reg.name == 'washer'
+
+
 class TestForDeviceByModel:
     """Fallback device-type detection for hardware without oneUiVersion."""
 
@@ -580,6 +627,57 @@ class TestOneUiVersionIsNotConsulted:
 
 
 class TestResolve:
+    def test_oic_type_wins_over_model_strings(self):
+        """The device naming its own type via /oic/d beats board-token
+        parsing -- an unrecognizable modelNum with a known oic.d type must
+        still resolve, and a *conflicting* modelNum must lose to it."""
+        from custom_components.localthings.registry.by_type import resolve
+        resources = {
+            '/information/vs/0': {
+                'x.com.samsung.da.modelNum': 'SOME-UNKNOWN-BOARD',
+                'x.com.samsung.da.description': 'SOME-UNKNOWN-BOARD',
+            },
+        }
+        reg = resolve(resources, device_types=('oic.d.washer',))
+        assert reg is not None
+        assert reg.name == 'washer'
+
+        conflicting = resolve(
+            resources={
+                '/information/vs/0': {
+                    'x.com.samsung.da.modelNum': 'TP1X_REF_21K',
+                    'x.com.samsung.da.description': 'TP1X_REF_21K',
+                },
+            },
+            device_types=('oic.d.washer',),
+        )
+        assert conflicting is not None
+        assert conflicting.name == 'washer'
+
+    def test_empty_device_types_falls_back_to_model_strings(self):
+        from custom_components.localthings.registry.by_type import resolve
+        resources = {
+            '/information/vs/0': {
+                'x.com.samsung.da.modelNum': 'TP1X_REF_21K',
+                'x.com.samsung.da.description': 'TP1X_REF_21K',
+            },
+        }
+        reg = resolve(resources, device_types=())
+        assert reg is not None
+        assert reg.name == 'refrigerator'
+
+    def test_unmapped_device_types_falls_back_to_model_strings(self):
+        from custom_components.localthings.registry.by_type import resolve
+        resources = {
+            '/information/vs/0': {
+                'x.com.samsung.da.modelNum': 'TP1X_REF_21K',
+                'x.com.samsung.da.description': 'TP1X_REF_21K',
+            },
+        }
+        reg = resolve(resources, device_types=('oic.wk.d', 'oic.d.somethingnew'))
+        assert reg is not None
+        assert reg.name == 'refrigerator'
+
     def test_prefers_model_strings_over_resource_signature(self, all_device_fixtures):
         """Every fixture with usable model strings resolves the same way
         through `resolve` as through `for_device_by_model` directly."""
