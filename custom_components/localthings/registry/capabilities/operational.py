@@ -90,7 +90,14 @@ def _finish_time(rep):
     total_s = _remaining_seconds(rep.get('x.com.samsung.da.remainingTime'))
     if not total_s:
         return None
-    return datetime.now(timezone.utc) + timedelta(seconds=total_s)
+    # Round to whole minutes -- remainingTime itself only has minute
+    # resolution, but datetime.now() always carries fresh seconds/
+    # microseconds, so an unrounded result changes on nearly every poll
+    # even when the device-reported remaining time hasn't. That floods
+    # the recorder history/logbook with values that look identical once
+    # the UI rounds them down for display.
+    finish = datetime.now(timezone.utc) + timedelta(seconds=total_s)
+    return finish.replace(second=0, microsecond=0)
 
 
 def _completion_minutes(rep):
