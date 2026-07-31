@@ -848,6 +848,29 @@ def test_registry_reproduces_golden_state_keys_for_air_dresser_tp2_20():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_air_dresser_tp1_21():
+    """DA_DF_TP1_21_COMMON AirDresser (model DF3000B, issue #208) -- another
+    board generation routed via the '_DF_' modelNum token fallback into the
+    same air_dresser registry as #162's and #157's boards (its dump also
+    happens to be the first AirDresser one to carry /oic/d's device type,
+    'x.com.st.d.steamcloset' -- see test_by_type.py's
+    TestForDeviceByOicType for that mapping's own coverage). The first
+    AirDresser dump to report /buzzersound/vs/0 (laundry.BUZZER_SOUND,
+    added for this issue -- #162's and #157's boards don't report it at
+    all). Binds cleanly with zero unbound hrefs; course codes for this
+    board's table still aren't identified (same as #162's), so 'cycle'
+    remains the raw code rather than a table-specific translation."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_dresser_tp1_21')
+    golden = json.loads((GOLDEN / 'air_dresser_tp1_21.json').read_text())
+    state_keys = _new_state_keys('air_dresser_tp1_21', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier_vtww():
     """A-VTWW-TP2-21-COMMON BESPOKE Cube Air (issue #151) -- reports no
     oneUiVersion; resolved via the '-VTWW-' modelNum token fallback into
