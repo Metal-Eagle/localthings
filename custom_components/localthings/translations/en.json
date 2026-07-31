@@ -1008,11 +1008,11 @@
       "defrost_delay": {
         "name": "Defrost delay"
       },
-      "dnd": {
-        "name": "Do not disturb"
-      },
       "display_light": {
         "name": "Display light"
+      },
+      "dnd": {
+        "name": "Do not disturb"
       },
       "fast_preheat": {
         "name": "Fast preheat"

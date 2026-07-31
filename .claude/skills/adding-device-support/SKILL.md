@@ -297,6 +297,22 @@ to cross-check (temperature scale, minutes vs. seconds) — being
 syntactically valid but semantically backwards is exactly the case a
 rejection won't catch.
 
+The same unit caveat applies on the **read** side, but with a sharper
+failure mode: a guessed `unit`, `device_class`, or `state_class` on a
+`SensorDesc` silently mislabels the entity in HA forever (every reading,
+every graph, every long-term statistic), with no 4.xx to catch it. The
+write-rejection safety net above doesn't cover reads — the device happily
+returns whatever it returns. So the read-side equivalent of "bind a write
+to the device's own reported range/supported-list" is: leave `unit`/
+`device_class`/`state_class` unset when the dump gives no field that
+nominates one (no `supportedGrades`, no second dump to compare against,
+no family member whose same field is already mapped). Match an
+already-bound descriptor on a sibling family when the underlying field
+and value shape are identical; otherwise expose the reading without an
+HA-level interpretation and let a future reporter or dump confirm it.
+See `air_monitor.AIR_QUALITY`'s docstring for the worked example
+(three dust keys, no `device_class`, no `unit`).
+
 Still never invent an entity or a write from nothing: an opaque encoded
 blob with no supported-values field, no range, and no idle-vs-active diff
 to compare against is a gap for a human, not a guess — leave it unbound, or

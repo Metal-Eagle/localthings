@@ -1008,11 +1008,11 @@
       "defrost_delay": {
         "name": "Ontdooien uitstellen"
       },
-      "dnd": {
-        "name": "Niet storen"
-      },
       "display_light": {
         "name": "Displayverlichting"
+      },
+      "dnd": {
+        "name": "Niet storen"
       },
       "fast_preheat": {
         "name": "Snel voorverwarmen"

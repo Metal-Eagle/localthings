@@ -19,40 +19,32 @@ rule. Same reasoning `air_purifier.AIR_QUALITY` already applies to this
 shape; index 0 is the only slot any family has ever read.
 
 Dust/FineDust/SuperFineDust aren't assigned an HA `device_class`
-(pm10/pm25/pm1) despite the values reading like plausible ug/m3
-particulate readings in a physically consistent order (coarser >= finer):
-Samsung's own two-tier Korean convention (i.e. "fine dust"/"ultra-fine
-dust") maps only to a PM10/PM2.5 pair, and this board's three-tier
-naming doesn't confirm where the extra tier or a PM1 reading actually
-fits. Guessing wrong here would silently mislabel what unit a user reads
-on a graph forever, not just fail one write -- the "worst case is
-rejected" case for a flagged write guess doesn't cover a read-side
-device_class/unit guess, per the skill's own carve-out. Exposed as plain
-measurement sensors named after the device's own field instead (matching
-air_purifier.AIR_QUALITY's existing precedent).
+(pm10/pm25/pm1) or `unit` despite the values reading like plausible
+ug/m3 particulate readings in a physically consistent order (coarser
+>= finer): Samsung's own two-tier Korean convention (i.e. "fine dust"/
+"ultra-fine dust") maps only to a PM10/PM2.5 pair, and this board's
+three-tier naming doesn't confirm where the extra tier or a PM1 reading
+actually fits. The adding-device-support skill's read-side rule says
+leave unit/device_class unset when the dump gives no field that
+nominates one -- a wrong guess would silently mislabel every reading
+forever, and the write-side rejection safety net doesn't cover reads.
+Exposed as plain `measurement` sensors named after the device's own
+field instead (matching air_purifier.AIR_QUALITY's existing precedent).
 """
 from datetime import time as dt_time
 
 from ..capability import Capability
 from ..entities import BinarySensorDesc, SensorDesc, SwitchDesc, TimeDesc
+from .air_purifier import _AIR_QUALITY_SENSORS
 from .common import int_or_none, sensor_item_value
 
-_AIR_QUALITY_SENSORS = (
-    ('dust', 'mdi:blur', 'Dust'),
-    ('fine_dust', 'mdi:blur', 'FineDust'),
-    ('super_fine_dust', 'mdi:blur', 'SuperFineDust'),
-    ('odor', 'mdi:scent', 'Odor'),
-    ('clean_level', 'mdi:air-filter', 'CleanLevel'),
-)
 
 SENSORS = Capability(
     href='/sensors/vs/0',
     poll_tier='warm',
     entities=tuple(
-        # No state_class here, matching air_purifier.AIR_QUALITY's existing
-        # descriptors exactly -- these keys are shared catalog entries with
-        # that capability, so the two should behave identically.
         SensorDesc(key=key, field='x.com.samsung.da.items', icon=icon,
+                   state_class='measurement',
                    value_fn=lambda items, t=sensor_type: sensor_item_value(items, t))
         for key, icon, sensor_type in _AIR_QUALITY_SENSORS
     ) + (

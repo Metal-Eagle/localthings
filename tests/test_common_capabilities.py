@@ -232,13 +232,19 @@ class TestWmSetinfoFlags:
 
 
 class TestKidsLockFallback:
-    def test_generic_read_write(self):
+    def test_generic_is_read_only(self):
+        """Issues #181/#183: the kids-lock resource is read-only on real
+        hardware (writing the *correct* value still 4.05s, and no
+        SwitchDesc device_class='lock' is honored by HA -- the switch
+        platform only accepts 'outlet'/'switch'). KIDS_LOCK_GENERIC and
+        KIDS_LOCK_VS_FALLBACK now share the same shape (BinarySensorDesc,
+        device_class='lock', same key) so both surfaces render with the
+        same polarity: 'On' means open/unlocked."""
         assert common.KIDS_LOCK_GENERIC.href == '/kidslock/0'
         desc = common.KIDS_LOCK_GENERIC.entities[0]
-        assert desc.value_fn(True) is True
-        path, body = desc.write_fn('On', {})
-        assert path == ['kidslock', '0']
-        assert body == {'value': True}
+        assert isinstance(desc, BinarySensorDesc)
+        assert desc.value_fn(False) is True   # value=False -> On=Unlocked
+        assert desc.value_fn(True) is False   # value=True -> Off=Locked
 
     def test_vs_fallback_gated(self):
         assert common.KIDS_LOCK_VS_FALLBACK.match_fn({}, {'/kidslock/vs/0': {}}) is True

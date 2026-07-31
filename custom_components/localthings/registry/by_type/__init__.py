@@ -114,7 +114,7 @@ _BOARD_TOKEN_TO_KEY: dict[str, str] = {
     'VSKR': 'vacuum_station',       # issue #131 -- stick-vacuum clean station
     'DF': 'air_dresser',            # issue #162
     'VSWW': 'vacuum_station',       # issue #219
-    'ASM': 'air_monitor',           # issue #210 -- Air Monitor Plus   
+    'ASM': 'air_monitor',           # issue #210 -- Air Monitor Plus
 }
 
 _TOKEN_SPLIT_RE = re.compile(r'[^A-Z0-9]+')

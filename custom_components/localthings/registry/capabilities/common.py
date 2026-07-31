@@ -228,8 +228,9 @@ def sensor_item_value(items, sensor_type, index=0):
     """Pull one reading out of a `/sensors/vs/0`-style items[] list -- each
     item is `{type, value: [...]}`; `index` picks which slot of a possibly
     multi-value reading to read (index 0 is the raw measurement on every
-    family seen so far). Shared by range_hood.AIR_QUALITY and
-    air_purifier.AIR_QUALITY, which read the same resource shape."""
+    family seen so far). Shared by range_hood.AIR_QUALITY,
+    air_purifier.AIR_QUALITY, and air_monitor.SENSORS, which all read the
+    same resource shape against the same {type, sensor_type} keys."""
     for item in items or ():
         if not isinstance(item, dict):
             continue
@@ -301,11 +302,19 @@ POWER_VS_FALLBACK = Capability(
 KIDS_LOCK_GENERIC = Capability(
     href='/kidslock/0',
     entities=(
-        SwitchDesc(key='child_lock', field='value',
-                   device_class='lock',
-                   value_fn=lambda v: bool(v),
-                   write_fn=lambda p, rep, href=None: (
-                       ['kidslock', '0'], {'value': p == 'On'})),
+        # Read-only like KIDS_LOCK_VS_FALLBACK (issues #181/#183) -- not a
+        # SwitchDesc. SwitchDesc's `device_class='lock'` was never honored
+        # by HA (its switch platform only accepts 'outlet'/'switch'),
+        # leaving a plain switch whose 'On' state meant different things
+        # on different boards. As a BinarySensorDesc with `device_class='lock'`,
+        # both kids-lock surfaces read with the same polarity: 'On' means
+        # open/unlocked, per HA's lock device_class. The inversion in
+        # value_fn here (and in the fallback below) keeps the on-the-wire
+        # truth (value=False on /kidslock/0, kidsLock='Ready' on /kidslock/vs/0
+        # both mean kids lock NOT active) consistent with that polarity.
+        BinarySensorDesc(key='child_lock', field='value',
+                         device_class='lock',
+                         value_fn=lambda v: not bool(v)),
     ),
 )
 
@@ -320,12 +329,12 @@ KIDS_LOCK_VS_FALLBACK = Capability(
         # confirmed this directly: writing the *correct* value ('Run')
         # still 4.05s, and the SmartThings app itself has no control for
         # it either -- the resource is genuinely read-only on this
-        # hardware, not just wrong-valued. binary_sensor's 'lock' device
-        # class is inverted from the switch reading below it used to be:
-        # On means open/unlocked, so value_fn flips to `v == 'Ready'`.
+        # hardware, not just wrong-valued. Polarity matches
+        # KIDS_LOCK_GENERIC above -- 'On' means open/unlocked, so
+        # kidsLock='Ready' (kids lock NOT active) renders as 'On'.
         BinarySensorDesc(key='child_lock', field='x.com.samsung.da.kidsLock',
-                          device_class='lock',
-                          value_fn=lambda v: v == 'Ready'),
+                         device_class='lock',
+                         value_fn=lambda v: v == 'Ready'),
     ),
 )
 
