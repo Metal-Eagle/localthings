@@ -13,6 +13,8 @@
     "energy_kwh",
     "firmware_update",
     "humidity",
+    "odor_controller_active",
+    "odor_controller_progress",
     "power_energy_kwh",
     "power_watts",
     "subdevice_6c2dff6dee5cdad16a5e000000000001_climate",

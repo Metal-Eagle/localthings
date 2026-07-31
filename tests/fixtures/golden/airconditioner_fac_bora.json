@@ -13,6 +13,8 @@
     "energy_kwh",
     "firmware_update",
     "humidity",
+    "odor_controller_active",
+    "odor_controller_progress",
     "power_energy_kwh",
     "power_watts",
     "tropical_night_mode"
