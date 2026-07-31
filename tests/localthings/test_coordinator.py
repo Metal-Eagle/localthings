@@ -15,7 +15,7 @@ from custom_components.localthings.const import (
     SUMMARY_INTERVAL_S,
 )
 from custom_components.localthings.coordinator import (
-    LocalThingsCoordinator, _local_source_port,
+    LocalThingsCoordinator, _is_placeholder_serial, _local_source_port,
 )
 from custom_components.localthings.registry.capabilities.common import (
     remote_control_enabled,
@@ -161,6 +161,44 @@ def test_run_discovery_falls_back_to_host_for_placeholder_serial(
     coordinator = LocalThingsCoordinator(hass, mock_entry)
     coordinator._run_discovery(resources)
     assert coordinator.device_serial == mock_entry.data[CONF_HOST]
+
+
+def test_run_discovery_falls_back_to_host_for_all_f_placeholder_serial(
+    hass: HomeAssistant, mock_entry
+) -> None:
+    """Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
+    reports a flash-unset sentinel instead of 'Nothing(SVC)' -- every
+    character the same repeated hex digit. A washer and a dryer, two
+    different physical units, both reported the literal serialNum
+    'FFFFFFFFFFFFFFF', so without this fallback they'd collide on
+    device_serial exactly like the #83 case above."""
+    resources = {
+        '/information/vs/0': {
+            'x.com.samsung.da.modelNum':
+                'DA_WM_A51_20_COMMON|20221341|30010102001211000103000000000000',
+            'x.com.samsung.da.description':
+                'DA_WM_A51_20_COMMON_DVE50A8800/DC92-02835A_0080',
+            'x.com.samsung.da.serialNum': 'FFFFFFFFFFFFFFF',
+        },
+        '/otninformation/vs/0': {},
+    }
+    coordinator = LocalThingsCoordinator(hass, mock_entry)
+    coordinator._run_discovery(resources)
+    assert coordinator.device_serial == mock_entry.data[CONF_HOST]
+
+
+def test_is_placeholder_serial_catches_all_same_hex_digit():
+    assert _is_placeholder_serial('FFFFFFFFFFFFFFF') is True
+    assert _is_placeholder_serial('ffffffffffffffff') is True
+    assert _is_placeholder_serial('00000000') is True
+
+
+def test_is_placeholder_serial_accepts_real_serials_and_short_runs():
+    assert _is_placeholder_serial('0A1B2C3D4E5F') is False
+    assert _is_placeholder_serial('') is False
+    # Too short to be the flash-unset sentinel -- a real serial could
+    # plausibly repeat one hex digit seven times by chance.
+    assert _is_placeholder_serial('FFFFFFF') is False
 
 
 def test_run_discovery_detects_cooktop_via_resource_signature(
