@@ -58,10 +58,10 @@ class SensorDesc(SamsungEntityDescription):
     unit_fn: Optional[Callable[[dict], str]] = None  # overrides `unit` from the live rep, when set
     options: Optional[tuple] = None  # required by HA when device_class == 'enum'
     # Opt-in: gate this sensor's reported value behind the user-configurable
-    # CONF_FINISH_TIME_DEBOUNCE_MINUTES threshold (see sensor.py). Only for
+    # CONF_FINISH_TIME_HYSTERESIS_MINUTES threshold (see sensor.py). Only for
     # values that are expected to jitter around their "true" value between
     # device-side revisions -- not a general-purpose flag every sensor should set.
-    debounce: bool = False
+    hysteresis: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

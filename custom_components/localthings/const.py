@@ -22,16 +22,16 @@ CONF_LEAF_KEY_PEM  = "leaf_key_pem"
 # read, so devices this doesn't apply to see no behavior change.
 CONF_BYPASS_REMOTE_CONTROL = "bypass_remote_control_lock"
 
-# Options-flow key: minimum change (in minutes) required before a debounced
-# timestamp sensor (currently just finish_time) is allowed to report a new
-# value. Devices commonly revise their own remaining-time estimate by a
-# minute or two throughout a cycle, and finish_time = now() + remaining
-# drifts by the poll interval between those revisions -- both push a fresh
-# state (and a recorder/logbook entry) far more often than the estimate is
-# meaningfully different. 0 disables debouncing (every computed change is
-# reported, today's behavior).
-CONF_FINISH_TIME_DEBOUNCE_MINUTES = "finish_time_debounce_minutes"
-DEFAULT_FINISH_TIME_DEBOUNCE_MINUTES = 3
+# Options-flow key: minimum change (in minutes) required before a
+# hysteresis-gated timestamp sensor (currently just finish_time) is allowed
+# to report a new value. Devices commonly revise their own remaining-time
+# estimate by a minute or two throughout a cycle, and finish_time = now() +
+# remaining drifts by the poll interval between those revisions -- both push
+# a fresh state (and a recorder/logbook entry) far more often than the
+# estimate is meaningfully different. 0 disables the gate (every computed
+# change is reported, today's behavior).
+CONF_FINISH_TIME_HYSTERESIS_MINUTES = "finish_time_hysteresis_minutes"
+DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES = 3
 
 # The DTLS/CoAP local API binds somewhere in this ephemeral range; which port
 # depends on firmware. Newer builds answer on 49154/49155, but older ones have

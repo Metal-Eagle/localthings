@@ -14,7 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .observe import MODE_OBSERVE, MODE_POLL
 from .registry.entities import SensorDesc
 
-from .const import CONF_FINISH_TIME_DEBOUNCE_MINUTES, DEFAULT_FINISH_TIME_DEBOUNCE_MINUTES, DOMAIN
+from .const import CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES, DOMAIN
 from .coordinator import LocalThingsCoordinator
 from .entity import LocalThingsEntity, _is_included
 
@@ -44,7 +44,7 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
         self._attr_state_class = desc.state_class
         if desc.options:
             self._attr_options = list(desc.options)
-        self._debounced_value = None
+        self._hysteresis_value = None
 
     @property
     def native_unit_of_measurement(self):
@@ -56,13 +56,15 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
     @property
     def native_value(self):
         raw = (self.coordinator.data or {}).get(self._state_key)
-        if not self._bound.desc.debounce:
+        if not self._bound.desc.hysteresis:
             return raw
-        return self._debounce(raw)
+        return self._apply_hysteresis(raw)
 
-    def _debounce(self, raw):
-        """Suppress a new value until it differs from the last one this
-        entity actually reported by at least the configured threshold.
+    def _apply_hysteresis(self, raw):
+        """Hold the last value this entity actually reported until a new one
+        differs by at least the configured threshold, regardless of how long
+        that difference has been building up (this is a deadband, not a
+        time-based debounce).
 
         Values like finish_time are `now() + remaining`, recomputed from
         scratch every poll -- both wall-clock drift between the device's own
@@ -74,16 +76,16 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
         on both sides gets held back.
         """
         threshold_min = self.coordinator.config_entry.options.get(
-            CONF_FINISH_TIME_DEBOUNCE_MINUTES, DEFAULT_FINISH_TIME_DEBOUNCE_MINUTES
+            CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES
         )
         if (
             threshold_min
             and raw is not None
-            and self._debounced_value is not None
-            and abs(raw - self._debounced_value) < timedelta(minutes=threshold_min)
+            and self._hysteresis_value is not None
+            and abs(raw - self._hysteresis_value) < timedelta(minutes=threshold_min)
         ):
-            return self._debounced_value
-        self._debounced_value = raw
+            return self._hysteresis_value
+        self._hysteresis_value = raw
         return raw
 
 

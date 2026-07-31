@@ -1,9 +1,9 @@
-"""Unit tests for LocalThingsSensor's debounce gate (finish_time churn)."""
+"""Unit tests for LocalThingsSensor's hysteresis gate (finish_time churn)."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from custom_components.localthings.const import CONF_FINISH_TIME_DEBOUNCE_MINUTES
+from custom_components.localthings.const import CONF_FINISH_TIME_HYSTERESIS_MINUTES
 from custom_components.localthings.registry.capabilities.operational import OPERATIONAL_STATE
 from custom_components.localthings.registry.discovery import BoundEntity
 from custom_components.localthings.sensor import LocalThingsSensor
@@ -22,7 +22,7 @@ class _FakeCoordinator:
     def __init__(self, threshold_minutes):
         self.device_serial = 'TEST-SERIAL'
         self.config_entry = _FakeConfigEntry({
-            CONF_FINISH_TIME_DEBOUNCE_MINUTES: threshold_minutes,
+            CONF_FINISH_TIME_HYSTERESIS_MINUTES: threshold_minutes,
         })
         self.data: dict = {}
 
@@ -59,7 +59,7 @@ def test_change_past_threshold_is_reported():
     assert sensor.native_value == new
 
 
-def test_zero_threshold_disables_debounce():
+def test_zero_threshold_disables_hysteresis():
     sensor, coordinator = _sensor(threshold_minutes=0)
     base = datetime(2026, 7, 31, 17, 0, tzinfo=timezone.utc)
 
@@ -83,8 +83,8 @@ def test_cycle_end_passes_through_immediately():
     assert sensor.native_value is None
 
 
-def test_non_debounced_sensor_is_unaffected():
-    """A SensorDesc without debounce=True reads straight through, unchanged."""
+def test_non_hysteresis_sensor_is_unaffected():
+    """A SensorDesc without hysteresis=True reads straight through, unchanged."""
     machine_state_desc = next(
         e for e in OPERATIONAL_STATE.entities if e.key == 'machine_state'
     )

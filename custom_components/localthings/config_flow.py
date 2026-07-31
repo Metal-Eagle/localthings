@@ -34,14 +34,14 @@ from .const import (
     CONF_CA_CERT_PEM, CONF_CA_KEY_PEM,
     CONF_LEAF_CERT_PEM, CONF_LEAF_KEY_PEM,
     CONF_BYPASS_REMOTE_CONTROL,
-    CONF_FINISH_TIME_DEBOUNCE_MINUTES, DEFAULT_FINISH_TIME_DEBOUNCE_MINUTES,
+    CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
     PROBE_PORT_RANGE, PREFERRED_PROBE_PORTS, LIVENESS_PROBE_TIMEOUT_S,
     PROBE_GET_TIMEOUT_S,
 )
 
 _TEXT = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT))
 _MULTILINE = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True))
-_DEBOUNCE_MINUTES = NumberSelector(NumberSelectorConfig(
+_HYSTERESIS_MINUTES = NumberSelector(NumberSelectorConfig(
     min=0, max=30, step=1, mode=NumberSelectorMode.BOX,
 ))
 
@@ -470,12 +470,12 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
                     ),
                 ): bool,
                 vol.Required(
-                    CONF_FINISH_TIME_DEBOUNCE_MINUTES,
+                    CONF_FINISH_TIME_HYSTERESIS_MINUTES,
                     default=self.config_entry.options.get(
-                        CONF_FINISH_TIME_DEBOUNCE_MINUTES,
-                        DEFAULT_FINISH_TIME_DEBOUNCE_MINUTES,
+                        CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+                        DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
                     ),
-                ): _DEBOUNCE_MINUTES,
+                ): _HYSTERESIS_MINUTES,
             }),
         )
 

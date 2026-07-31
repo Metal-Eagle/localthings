@@ -163,7 +163,7 @@ OPERATIONAL_STATE = Capability(
         # firmware leaves a stale remainingTime after a cycle ends, and
         # freezes it at '00:01:00' when progress reaches 'Finish'.
         SensorDesc(key='finish_time', device_class='timestamp',
-                   debounce=True, rep_fn=_finish_time),
+                   hysteresis=True, rep_fn=_finish_time),
                    
         SensorDesc(key='completion_minutes',
                    icon='mdi:clock-outline', unit='min',
