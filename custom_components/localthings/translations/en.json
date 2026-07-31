@@ -34,6 +34,9 @@
       "overload_protection_active": {
         "name": "Overload protection active"
       },
+      "odor_controller_active": {
+        "name": "Odor controller active"
+      },
       "cycle_active": {
         "name": "Running"
       },
@@ -651,6 +654,9 @@
       },
       "outdoor_temperature": {
         "name": "Outdoor temperature"
+      },
+      "odor_controller_progress": {
+        "name": "Odor controller progress"
       },
       "panel_status": {
         "name": "Panel status"

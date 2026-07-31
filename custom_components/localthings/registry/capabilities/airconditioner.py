@@ -380,6 +380,29 @@ def _option_number_write(prefix):
     return write
 
 
+def _odor_controller_active(rep):
+    """Odor-controller self-clean on/off, from the `SmartCoolClean_<On/Off>`
+    /mode/vs/0 option token -- corroborated against the SmartThings cloud
+    custom.airConditionerOdorController capability's airConditionerOdorController
+    State field, same on/off vocabulary and a matching name ("Smart Cool
+    Clean" mirrors "odor controller"). Unconditional across board
+    generations, same as beep above -- no evidence ties this token to the
+    legacy-vs-newer split _has_option_token gates on. Read-only: no command
+    capability is confirmed, so this stays a sensor rather than a guessed
+    write (the 'don't guess' rule)."""
+    tok = _option_token(rep, 'SmartCoolClean')
+    if tok is None:
+        return None
+    return tok == 'On'
+
+
+def _odor_controller_progress(rep):
+    """0-100 progress of the odor-controller self-clean cycle, from the
+    `ProgressSmartClean_<N>` option token -- mirrors the cloud
+    airConditionerOdorControllerProgress field."""
+    return _int(_option_token(rep, 'ProgressSmartClean'))
+
+
 def _humidity(rep):
     """Relative humidity, preferring the 5%-rounded field where it exists.
 
@@ -582,6 +605,21 @@ CLIMATE = Capability(
                    exists_fn=_has_option_token('FilterTime'),
                    device_class='duration', unit='h',
                    state_class='measurement', icon='mdi:air-filter'),
+        # Odor-controller ("Smart Cool Clean") state + progress -- see
+        # _odor_controller_active's docstring for the cloud-capability
+        # correspondence. Present on TP1X_DA-AC-RAC-01001 (issue reporter's
+        # dump); gating is token presence only, not board generation.
+        BinarySensorDesc(key='odor_controller_active',
+                          rep_fn=_odor_controller_active,
+                          exists_fn=lambda rep, resources: (
+                              _option_token(rep, 'SmartCoolClean') is not None),
+                          icon='mdi:air-filter', entity_category='diagnostic'),
+        SensorDesc(key='odor_controller_progress',
+                   rep_fn=_odor_controller_progress,
+                   exists_fn=lambda rep, resources: (
+                       _option_token(rep, 'ProgressSmartClean') is not None),
+                   unit='%', state_class='measurement',
+                   icon='mdi:progress-check', entity_category='diagnostic'),
     ),
 )
 

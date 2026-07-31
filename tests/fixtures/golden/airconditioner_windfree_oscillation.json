@@ -15,6 +15,8 @@
     "firmware_update",
     "humidity",
     "mute_once",
+    "odor_controller_active",
+    "odor_controller_progress",
     "overload_protection_active",
     "overload_protection_mode",
     "selfcheck_error",

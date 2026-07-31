@@ -810,6 +810,27 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_rac_01001
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_rac_odor_controller():
+    """TP1X_DA-AC-RAC-01001_0000 -- reporter's dump: fan (0-4 wind-strength
+    scale) and WindFree (Nano/NanoSleep convenient-mode codes) already bind
+    via the composite climate entity, no code change needed there. The
+    genuine gap was /mode/vs/0's SmartCoolClean_/ProgressSmartClean_ option
+    tokens (the cloud custom.airConditionerOdorController capability),
+    previously unbound to any entity -- now odor_controller_active/
+    odor_controller_progress."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_tp1x_rac_odor_controller')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_tp1x_rac_odor_controller.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_tp1x_rac_odor_controller', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_dresser():
     """DA_DF_A51_20_COMMON AirDresser (model DF8600T, issue #162) -- reports
     no oneUiVersion; resolved via the '_DF_' modelNum token fallback. Has no
