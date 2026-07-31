@@ -197,16 +197,15 @@ outcomes:
   keeps `_BOARD_TOKEN_TO_KEY` current:
 
 ```python
-'oic.d.dishwasher': 'dishwasher',             # OCF spec
-'x.com.st.d.steamcloset': 'air_dresser',      # AirDresser / steam-closet garment care
+'oic.d.dishwasher': 'dishwasher',
+'x.com.st.d.steamcloset': 'air_dresser',
 ```
 
-- **Mark provenance in a trailing comment.** `# issue #N` for a string seen
-  verbatim in a real dump; `# OCF spec` for one not seen yet but defined by
-  the OCF Smart Home Device Specification's Table 9-1 with the exact same
-  `oic.d.<category>` shape as an already-confirmed entry — that shape is
-  low-risk to add ahead of a dump because, unlike a board-token entry, there's
-  no tokenizing or delimiter-spelling judgment call involved.
+- A string not yet seen in a dump is still fine to add on the strength of the
+  OCF Smart Home Device Specification's Table 9-1 alone, as long as it has the
+  exact same `oic.d.<category>` shape as an already-confirmed entry — that
+  shape is low-risk ahead of a dump because, unlike a board-token entry,
+  there's no tokenizing or delimiter-spelling judgment call involved.
 - **Only add a row once there's a real registry key on the right** (a key in
   `_REGISTRY_BY_KEY`). A type naming a product this integration has no
   registry for stays unmapped rather than getting coerced onto the

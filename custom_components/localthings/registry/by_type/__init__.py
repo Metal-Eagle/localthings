@@ -193,16 +193,6 @@ def _consumer_model_key(description: str) -> Optional[str]:
 # -> registry key. This is the device naming its own type -- no board-part
 # guessing involved -- so it's consulted before modelNum/description at all.
 #
-# Two provenance tiers, marked per entry:
-#   - "issue #N" -- seen verbatim in a real dump.
-#   - "OCF spec" -- not seen in a dump yet, but the OCF Smart Home Device
-#     Specification's Table 9-1 defines this exact `oic.d.*` string for this
-#     exact appliance category, and it's the same 'oic.d.<category>' shape
-#     as every issue-confirmed entry above it. Low-risk to add ahead of a
-#     dump precisely because that shape leaves no plausible alternative
-#     reading -- unlike a board-token table entry, there's no tokenizing or
-#     delimiter-spelling judgment call involved.
-#
 # Every value must already be a key in `_REGISTRY_BY_KEY` (checked by
 # `test_every_oic_type_resolves_to_a_real_registry`). That's why this list
 # stops well short of the full OCF/SmartThings device-type vocabulary: a
@@ -222,14 +212,14 @@ def _consumer_model_key(description: str) -> Optional[str]:
 # elsewhere in this codebase.
 _OIC_TYPE_TO_KEY: dict[str, str] = {
     'oic.d.airconditioner': 'airconditioner',
-    'oic.d.airpurifier': 'air_purifier',          # OCF spec
-    'oic.d.dishwasher': 'dishwasher',             # OCF spec
+    'oic.d.airpurifier': 'air_purifier',
+    'oic.d.dishwasher': 'dishwasher',
     'oic.d.dryer': 'dryer',
-    'oic.d.oven': 'oven',                         # OCF spec
+    'oic.d.oven': 'oven',
     'oic.d.refrigerator': 'refrigerator',
     'oic.d.washer': 'washer',
-    'x.com.st.d.stickcleaner': 'vacuum_station',  # issue #219 -- stick-vacuum clean station
-    'x.com.st.d.steamcloset': 'air_dresser',      # AirDresser / steam-closet garment care
+    'x.com.st.d.stickcleaner': 'vacuum_station',
+    'x.com.st.d.steamcloset': 'air_dresser',
 }
 
 
