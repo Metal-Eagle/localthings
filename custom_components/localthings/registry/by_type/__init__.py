@@ -193,15 +193,39 @@ def _consumer_model_key(description: str) -> Optional[str]:
 # -> registry key. This is the device naming its own type -- no board-part
 # guessing involved -- so it's consulted before modelNum/description at all.
 #
-# Kept as narrow as the board-token table: every entry here is backed by a
-# real dump/issue, not a guess at what the OCF or SmartThings spec might
-# define. `x.com.st.d.*` entries are SmartThings' own vendor extension to
-# the OCF device-type vocabulary (used for categories with no `oic.d.*`
-# equivalent), same prefix convention as the `x.com.samsung.da.*` resource
-# fields elsewhere in this codebase.
+# Two provenance tiers, marked per entry:
+#   - "issue #N" -- seen verbatim in a real dump.
+#   - "OCF spec" -- not seen in a dump yet, but the OCF Smart Home Device
+#     Specification's Table 9-1 defines this exact `oic.d.*` string for this
+#     exact appliance category, and it's the same 'oic.d.<category>' shape
+#     as every issue-confirmed entry above it. Low-risk to add ahead of a
+#     dump precisely because that shape leaves no plausible alternative
+#     reading -- unlike a board-token table entry, there's no tokenizing or
+#     delimiter-spelling judgment call involved.
+#
+# Every value must already be a key in `_REGISTRY_BY_KEY` (checked by
+# `test_every_oic_type_resolves_to_a_real_registry`). That's why this list
+# stops well short of the full OCF/SmartThings device-type vocabulary: a
+# compiled list of `x.com.st.d.*` types will include plenty of device
+# categories (lights, switches, sensors, locks, cameras, TVs, generic energy
+# meters, ...) no Samsung DA appliance dump could ever report and this
+# integration has no registry for -- and 'oic.d.robotcleaner' names an
+# actual robot vacuum, a different product from the clean/auto-empty
+# *station* `vacuum_station` covers (see that registry's own module
+# docstring); mapping it there would misroute a genuine robot-vacuum dump
+# into a registry with no vacuum-body capabilities at all. Add a row only
+# once there's a real registry key on the right-hand side to point at.
+#
+# `x.com.st.d.*` entries are SmartThings' own vendor extension to the OCF
+# device-type vocabulary (used for categories with no `oic.d.*` equivalent),
+# same prefix convention as the `x.com.samsung.da.*` resource fields
+# elsewhere in this codebase.
 _OIC_TYPE_TO_KEY: dict[str, str] = {
     'oic.d.airconditioner': 'airconditioner',
+    'oic.d.airpurifier': 'air_purifier',          # OCF spec
+    'oic.d.dishwasher': 'dishwasher',             # OCF spec
     'oic.d.dryer': 'dryer',
+    'oic.d.oven': 'oven',                         # OCF spec
     'oic.d.refrigerator': 'refrigerator',
     'oic.d.washer': 'washer',
     'x.com.st.d.stickcleaner': 'vacuum_station',  # issue #219 -- stick-vacuum clean station

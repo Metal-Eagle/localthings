@@ -143,7 +143,10 @@ class TestForDeviceByOicType:
 
     @pytest.mark.parametrize('oic_type, expected', [
         ('oic.d.airconditioner', 'airconditioner'),
+        ('oic.d.airpurifier', 'air_purifier'),
+        ('oic.d.dishwasher', 'dishwasher'),
         ('oic.d.dryer', 'dryer'),
+        ('oic.d.oven', 'oven'),
         ('oic.d.refrigerator', 'refrigerator'),
         ('oic.d.washer', 'washer'),
         ('x.com.st.d.stickcleaner', 'vacuum_station'),
@@ -164,6 +167,14 @@ class TestForDeviceByOicType:
     def test_unrecognized_type_returns_none(self):
         from custom_components.localthings.registry.by_type import for_device_by_oic_type
         assert for_device_by_oic_type(('oic.d.somethingnew',)) is None
+
+    def test_robotcleaner_is_not_mapped_to_the_vacuum_station_registry(self):
+        """'oic.d.robotcleaner' names an actual robot vacuum, a different
+        product from the clean/auto-empty station vacuum_station covers (no
+        vacuum-body capabilities at all) -- mapping it there would misroute
+        a genuine robot-vacuum dump."""
+        from custom_components.localthings.registry.by_type import for_device_by_oic_type
+        assert for_device_by_oic_type(('oic.d.robotcleaner',)) is None
 
     def test_empty_returns_none(self):
         from custom_components.localthings.registry.by_type import for_device_by_oic_type
