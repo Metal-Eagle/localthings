@@ -871,6 +871,27 @@ def test_registry_reproduces_golden_state_keys_for_air_dresser_tp1_21():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_air_monitor():
+    """Samsung Air Monitor Plus (ASM-KR-TP1-22-ACMB1M, issue #210) -- a
+    standalone battery-powered air-quality sensor puck, the first device
+    this integration has no controllable-appliance concept for at all (no
+    /power/*, only /energy/battery/vs/0). Routes via both /oic/d
+    ('x.com.st.d.airqualitysensor') and the 'ASM' modelNum board token.
+    Reuses air_purifier.AIR_QUALITY's /sensors/vs/0 decode
+    (common.sensor_item_value) for dust/fine_dust/super_fine_dust/odor/
+    clean_level, adding a CO2 reading those families don't report. Binds
+    cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_monitor')
+    golden = json.loads((GOLDEN / 'air_monitor.json').read_text())
+    state_keys = _new_state_keys('air_monitor', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_purifier_vtww():
     """A-VTWW-TP2-21-COMMON BESPOKE Cube Air (issue #151) -- reports no
     oneUiVersion; resolved via the '-VTWW-' modelNum token fallback into

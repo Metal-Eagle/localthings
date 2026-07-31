@@ -10,6 +10,9 @@
       "automatic_operation": {
         "name": "Automatic operation"
       },
+      "battery_charging": {
+        "name": "Charging"
+      },
       "burner_hot_surface": {
         "name": "Burner {number} hot surface"
       },
@@ -603,6 +606,9 @@
       "air_filter_usage_hours": {
         "name": "Filter usage hours"
       },
+      "air_quality_standard": {
+        "name": "Air quality standard"
+      },
       "air_sensing_state": {
         "name": "Air sensing state"
       },
@@ -615,11 +621,17 @@
       "automatic_ventilation_state": {
         "name": "Automatic ventilation state"
       },
+      "battery": {
+        "name": "Battery"
+      },
       "burner_state": {
         "name": "Burner {number} state"
       },
       "clean_level": {
         "name": "Clean level"
+      },
+      "co2": {
+        "name": "CO2"
       },
       "coffee_brew_status": {
         "name": "Coffee brew status"
@@ -996,6 +1008,9 @@
       "defrost_delay": {
         "name": "Defrost delay"
       },
+      "dnd": {
+        "name": "Do not disturb"
+      },
       "display_light": {
         "name": "Display light"
       },
@@ -1082,6 +1097,12 @@
       }
     },
     "time": {
+      "dnd_end": {
+        "name": "Do not disturb end"
+      },
+      "dnd_start": {
+        "name": "Do not disturb start"
+      },
       "led_night_end": {
         "name": "Door LED night end"
       },
