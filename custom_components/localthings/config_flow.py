@@ -222,8 +222,23 @@ def _is_placeholder_serial(serial: str) -> bool:
     serial` check here (and the equivalent one in coordinator.py's
     `_run_discovery`) doesn't catch it, and two such units get the same
     config-entry unique_id / entity unique_ids and collide (issue #83).
+
+    Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
+    reports a flash-unset sentinel instead -- every character the same
+    repeated hex digit (a washer and a dryer, two different physical
+    units, both reported the literal serialNum 'FFFFFFFFFFFFFFF') -- which
+    the 'nothing' check above doesn't catch either, so the second unit's
+    config flow aborted as already configured.
     """
-    return serial.strip().lower().startswith('nothing')
+    s = serial.strip()
+    if s.lower().startswith('nothing'):
+        return True
+    upper = s.upper()
+    return (
+        len(upper) >= 8
+        and len(set(upper)) == 1
+        and upper[0] in '0123456789ABCDEF'
+    )
 
 
 def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:

@@ -92,12 +92,30 @@ def _is_placeholder_serial(serial: str) -> bool:
     serial` check below doesn't catch it, and `device_serial` feeds both
     the HA device-registry identifier and every entity's unique_id
     (entity.py), so two such units on the same install silently collide
-    and the second one's entities get dropped (issue #83). Mirrors the
-    identical helper in config_flow.py's `_probe_and_validate` -- kept
-    separate rather than imported to avoid pulling the config-flow module
-    into the runtime coordinator's import graph for a two-line check.
+    and the second one's entities get dropped (issue #83).
+
+    Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
+    reports a flash-unset sentinel instead -- every character the same
+    repeated hex digit (a washer and a dryer, two different physical
+    units, both reported the literal serialNum 'FFFFFFFFFFFFFFF') -- which
+    the 'nothing' check above doesn't catch either, so two such units
+    collided on the config-entry unique_id and the second couldn't be
+    added at all.
+
+    Mirrors the identical helper in config_flow.py's `_probe_and_validate`
+    -- kept separate rather than imported to avoid pulling the config-flow
+    module into the runtime coordinator's import graph for a two-line
+    check.
     """
-    return serial.strip().lower().startswith('nothing')
+    s = serial.strip()
+    if s.lower().startswith('nothing'):
+        return True
+    upper = s.upper()
+    return (
+        len(upper) >= 8
+        and len(set(upper)) == 1
+        and upper[0] in '0123456789ABCDEF'
+    )
 
 
 class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -918,9 +936,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Schedule sub-polls for hot/warm hrefs between summary polls
         # (no-op in observe-primary mode unless this cycle's sweep found a
-        # mismatch; _run_subpolls checks the mode/force).
+        # mismatch; _run_subpolls checks the mode/force). A background task,
+        # not async_create_task: this loop is self-limiting (cancelled and
+        # recreated every refresh cycle, see the cancel() above) and owned
+        # entirely by the coordinator, so it has no business being tracked by
+        # HA's own startup/shutdown sequencing -- async_create_task ties it
+        # in regardless, so a subpoll cycle in flight (up to ~27s,
+        # _SUBPOLL_STEP_S x 9 slots) delays both (issue #207).
         if self._hot_hrefs or self._warm_hrefs:
-            self._subpoll_task = self.hass.async_create_task(
+            self._subpoll_task = self.hass.async_create_background_task(
                 self._run_subpolls(force=sweep_mismatch), name="localthings_subpoll"
             )
 

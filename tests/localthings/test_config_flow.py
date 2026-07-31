@@ -539,3 +539,18 @@ def test_is_placeholder_serial_accepts_real_serials():
     from custom_components.localthings.config_flow import _is_placeholder_serial
     assert _is_placeholder_serial('0A1B2C3D4E5F') is False
     assert _is_placeholder_serial('') is False
+
+
+def test_is_placeholder_serial_catches_all_same_hex_digit():
+    """Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
+    reports a flash-unset sentinel instead of 'Nothing(SVC)' -- every
+    character the same repeated hex digit. A washer and a dryer, two
+    different physical units, both reported the literal serialNum
+    'FFFFFFFFFFFFFFF', colliding on the config-entry unique_id."""
+    from custom_components.localthings.config_flow import _is_placeholder_serial
+    assert _is_placeholder_serial('FFFFFFFFFFFFFFF') is True
+    assert _is_placeholder_serial('ffffffffffffffff') is True
+    assert _is_placeholder_serial('00000000') is True
+    # Too short to be the flash-unset sentinel -- a real serial could
+    # plausibly repeat one hex digit seven times by chance.
+    assert _is_placeholder_serial('FFFFFFF') is False

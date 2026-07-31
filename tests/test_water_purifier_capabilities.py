@@ -281,9 +281,17 @@ def test_hotwater_lock_fallback_gating_across_status_lock_states():
     assert fallback.exists_fn({}, {}) is False
 
 
-def test_favorite_hotwater_temperature_options_come_from_live_supported_list():
+def test_favorite_hotwater_temperature_options_come_from_live_show_list():
+    """`supportedList` is only the four fixed presets -- `showList` is a
+    superset that also carries the one custom value (if any) the
+    SmartThings app's "temperatures to display" editor let the user add,
+    and always includes whatever the current default actually is. Reading
+    `supportedList` meant a unit whose default *was* that custom value
+    rendered as 'unknown' in HA (issue #196) -- see the ailite fixture's
+    version of this test below for the case that actually exercises it
+    (this fixture's showList == supportedList, no custom value set)."""
     desc = _desc_coffee('favorite_hotwater_temperature')
-    assert desc.options_field == 'x.com.samsung.da.favorite.supportedList'
+    assert desc.options_field == 'x.com.samsung.da.favorite.showList'
 
 
 def test_coffee_recipe_hrefs_are_ignored_not_guessed():
@@ -359,6 +367,28 @@ def test_ailite_hot_water_temperature_gated_off_without_supported_list():
     register with empty options."""
     state = _state_ailite()
     assert 'hot_water_temperature' not in state
+
+
+def test_ailite_favorite_hotwater_temperature_options_include_the_custom_value():
+    """Issue #196's concrete failure case: the user added a custom 50C value
+    via the SmartThings app's "temperatures to display" editor, so the
+    board's defaultTemperature is now '50'. showList contains '50'
+    ([40, 50, 75, 85, 90]) but supportedList does NOT (still the fixed
+    [40, 75, 85, 90]). Reading options_field='x.com.samsung.da.favorite.supportedList'
+    -- the old behavior -- would register a select whose options list
+    doesn't contain the current default, so HA would render the entity as
+    'unknown'. The descriptor must read from showList so '50' is in
+    options."""
+    desc = _desc_ailite('favorite_hotwater_temperature')
+    assert desc.options_field == 'x.com.samsung.da.favorite.showList'
+    _, resources = _water_purifier_ailite()
+    rep = resources['/favorite/hotwater/vs/0']
+    # defaultTemperature='50' must be a member of the field the descriptor
+    # actually reads -- this is the precise assertion that would fail under
+    # the old supportedList behavior.
+    assert rep['x.com.samsung.da.favorite.defaultTemperature'] == '50'
+    assert '50' in rep[desc.options_field]
+    assert '50' not in rep['x.com.samsung.da.favorite.supportedList']
 
 
 def test_ailite_sound_mode_options_come_from_live_supported_modes():

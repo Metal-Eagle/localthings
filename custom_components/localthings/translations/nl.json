@@ -10,11 +10,17 @@
       "automatic_operation": {
         "name": "Automatische werking"
       },
+      "battery_charging": {
+        "name": "Opladen"
+      },
       "burner_hot_surface": {
         "name": "Brander {number} heet oppervlak"
       },
       "burner_pan_detected": {
         "name": "Pan gedetecteerd op brander {number}"
+      },
+      "child_lock": {
+        "name": "Kinderslot"
       },
       "cloud_connected": {
         "name": "Verbonden met cloud"
@@ -609,6 +615,9 @@
       "air_filter_usage_hours": {
         "name": "Filterverbruik (uren)"
       },
+      "air_quality_standard": {
+        "name": "Luchtkwaliteitsnorm"
+      },
       "air_sensing_state": {
         "name": "Status luchtmeting"
       },
@@ -621,11 +630,17 @@
       "automatic_ventilation_state": {
         "name": "Status automatische ventilatie"
       },
+      "battery": {
+        "name": "Batterij"
+      },
       "burner_state": {
         "name": "Status brander {number}"
       },
       "clean_level": {
         "name": "Reinigingsniveau"
+      },
+      "co2": {
+        "name": "CO2"
       },
       "coffee_brew_status": {
         "name": "Koffiezetstatus"
@@ -1008,6 +1023,9 @@
       "display_light": {
         "name": "Displayverlichting"
       },
+      "dnd": {
+        "name": "Niet storen"
+      },
       "fast_preheat": {
         "name": "Snel voorverwarmen"
       },
@@ -1091,6 +1109,12 @@
       }
     },
     "time": {
+      "dnd_end": {
+        "name": "Einde niet storen"
+      },
+      "dnd_start": {
+        "name": "Start niet storen"
+      },
       "led_night_end": {
         "name": "Einde nachtverlichting deur-LED"
       },

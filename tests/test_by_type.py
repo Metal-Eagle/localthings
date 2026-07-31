@@ -151,6 +151,7 @@ class TestForDeviceByOicType:
         ('oic.d.washer', 'washer'),
         ('x.com.st.d.stickcleaner', 'vacuum_station'),
         ('x.com.st.d.steamcloset', 'air_dresser'),
+        ('x.com.st.d.airqualitysensor', 'air_monitor'),
     ])
     def test_known_oic_types_resolve(self, oic_type, expected):
         from custom_components.localthings.registry.by_type import for_device_by_oic_type
@@ -433,6 +434,19 @@ class TestForDeviceByModel:
         )
         assert reg is not None
         assert reg.name == 'vacuum_station'
+
+    def test_air_monitor_via_asm_token(self):
+        """Issue #210: a standalone air-quality sensor puck
+        (ASM-KR-TP1-22-ACMB1M) reports no oneUiVersion and no
+        washer/dryer/dishwasher consumer prefix; falls back to the 'ASM'
+        token in modelNum onto the air_monitor registry."""
+        from custom_components.localthings.registry.by_type import for_device_by_model
+        reg = for_device_by_model(
+            'ASM-KR-TP1-22-ACMB1M|10243041|75000000001611C40800020000080000',
+            'ASM-KR-TP1-22-ACMB1M',
+        )
+        assert reg is not None
+        assert reg.name == 'air_monitor'
 
     def test_cooktop_via_legacy_model_description(self):
         """Older cooktops identify themselves as ARTIK051_GLOBAL_COOKTOP."""

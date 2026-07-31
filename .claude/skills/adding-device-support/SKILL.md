@@ -270,23 +270,65 @@ sub-polled between summary polls. Pick descriptor types from `entities.py`
 (`SensorDesc`, `SelectDesc`, `SwitchDesc`, `NumberDesc`, `BinarySensorDesc`,
 `TimeDesc`, `ButtonDesc`) — the class selects the HA platform.
 
-**Don't guess.** If a field's meaning or write contract is unclear from the dump
-(opaque encoded blobs, no supported-values list), leave it unbound so it surfaces
-as a gap for a human, or ignore it with a documented reason — never invent an
-entity on a hunch (`ignored.py`'s rule).
+**Educated guesses are fine — flag them, don't hide them.** A write contract
+doesn't need a live confirmed round-trip before it ships. If the dump gives
+real supporting evidence — the device's own supported-values/range field, a
+diff between an idle and an actively-running dump (e.g. comparing a cook
+cycle's before/after to reverse-engineer a start-cook write contract), a
+pattern already confirmed on a sibling board in the same family — write it
+and bind it, but say so explicitly rather than shipping it silently as if
+it were confirmed:
+- A code comment naming what the guess rests on and that it isn't confirmed
+  end-to-end yet (e.g. "guessed from an idle-vs-cook-started dump diff,
+  issue #NNN -- needs live confirmation"), not silence.
+- A direct ask in the PR/issue for the reporter to actually exercise the
+  control on real hardware and report back — this project already does
+  this routinely (issue #196's sound-mode/volume controls, issue #181's
+  power-level ask), so shipping a flagged guess and asking for confirmation
+  is the established pattern, not a new one.
 
-This is a rule about **writes and entities**, not about reading. A speculative
-`GET` of an href a dump doesn't contain is fine and the codebase already relies
-on it: `read_identity` reads `/oic/p`, `/oic/d` and `/oic/res`, and
-`subdevices.enumerate_subdevices` probes `/device/<n>`, `/<uuid>/device/0` and
-`/multidevice/vs/0` on every device — and, when a prefixed candidate's own
-`/<uuid>/device/0` doesn't answer (issue #205: not guaranteed even on the
-board this pattern was built against), every href the master itself
-answered this cycle, individually under that UUID's prefix (see §11). A
-RETRIEVE is non-mutating and a 4.04 is tolerated everywhere in that path, so
-the cost of a wrong guess is one wasted round trip. Guessing a *write*
-against live hardware is the thing this rule forbids — as is materializing
-an entity from a field you can't explain.
+Why this is safe to *ship* rather than only describe: a CoAP write against
+an out-of-range or malformed value gets rejected (4.xx), not acted on — the
+worst case for a wrong *value* is a no-op, not a damaged or misbehaving
+appliance. That margin only covers the value, though, not the semantics:
+bind a guessed write to the device's own reported range/supported-list
+rather than inventing bounds, and don't guess a unit the dump gives no way
+to cross-check (temperature scale, minutes vs. seconds) — being
+syntactically valid but semantically backwards is exactly the case a
+rejection won't catch.
+
+The same unit caveat applies on the **read** side, but with a sharper
+failure mode: a guessed `unit`, `device_class`, or `state_class` on a
+`SensorDesc` silently mislabels the entity in HA forever (every reading,
+every graph, every long-term statistic), with no 4.xx to catch it. The
+write-rejection safety net above doesn't cover reads — the device happily
+returns whatever it returns. So the read-side equivalent of "bind a write
+to the device's own reported range/supported-list" is: leave `unit`/
+`device_class`/`state_class` unset when the dump gives no field that
+nominates one (no `supportedGrades`, no second dump to compare against,
+no family member whose same field is already mapped). Match an
+already-bound descriptor on a sibling family when the underlying field
+and value shape are identical; otherwise expose the reading without an
+HA-level interpretation and let a future reporter or dump confirm it.
+See `air_monitor.AIR_QUALITY`'s docstring for the worked example
+(three dust keys, no `device_class`, no `unit`).
+
+Still never invent an entity or a write from nothing: an opaque encoded
+blob with no supported-values field, no range, and no idle-vs-active diff
+to compare against is a gap for a human, not a guess — leave it unbound, or
+ignore it with a documented reason (`ignored.py`'s rule).
+
+Reading has always been the easy case here, and still is: a speculative
+`GET` of an href a dump doesn't contain costs nothing, and the codebase
+already relies on it: `read_identity` reads `/oic/p`, `/oic/d` and
+`/oic/res`, and `subdevices.enumerate_subdevices` probes `/device/<n>`,
+`/<uuid>/device/0` and `/multidevice/vs/0` on every device — and, when a
+prefixed candidate's own `/<uuid>/device/0` doesn't answer (issue #205: not
+guaranteed even on the board this pattern was built against), every href
+the master itself answered this cycle, individually under that UUID's
+prefix (see §11). A RETRIEVE is non-mutating and a 4.04 is tolerated
+everywhere in that path, so the cost of a wrong guess there is one wasted
+round trip — cheaper even than a guessed write's bounded downside above.
 
 ## 6. Select options: read them from the device, don't hardcode
 

@@ -175,11 +175,23 @@ FAVORITE_HOTWATER = Capability(
                    write_fn=lambda p, rep, href=None: (
                        ['favorite', 'hotwater', 'vs', '0'],
                        {'x.com.samsung.da.switchHotwater': 'Locked' if p == 'On' else 'Unlocked'})),
+        # Issue #196: `supportedList` is only the four *fixed* presets
+        # (e.g. ['40', '75', '85', '90']) -- the SmartThings app also lets
+        # the user add one custom value to their own display list via its
+        # "temperatures to display" editor (a wheel picker bounded by
+        # /setting/waterpurifier/vs/0's hotwaterRange, separate resource),
+        # and that custom value shows up in `showList`
+        # (['40', '50', '75', '85', '90'] here) but never in
+        # `supportedList`. Reading options from `supportedList` meant a
+        # unit whose current default *was* that custom value rendered as
+        # "unknown" -- not a coverage gap, just the wrong field. `showList`
+        # is a superset of `supportedList` that always includes whatever
+        # the current default actually is, custom or not.
         SelectDesc(key='favorite_hotwater_temperature',
                    field='x.com.samsung.da.favorite.defaultTemperature',
                    icon='mdi:thermometer',
                    entity_category='config',
-                   options_field='x.com.samsung.da.favorite.supportedList',
+                   options_field='x.com.samsung.da.favorite.showList',
                    write_fn=lambda p, rep, href=None: (
                        ['favorite', 'hotwater', 'vs', '0'],
                        {'x.com.samsung.da.favorite.defaultTemperature': p})),

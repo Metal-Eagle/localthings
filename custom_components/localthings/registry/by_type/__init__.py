@@ -4,9 +4,10 @@ from typing import Optional, Sequence
 
 from ._base import DeviceRegistry
 from . import (
-    air_dresser, air_purifier, airconditioner, cooktop, dehumidifier,
-    dishwasher, dryer, induction_cooktop, microwave, oven, range as _range,
-    range_hood, refrigerator, vacuum_station, washer, water_purifier,
+    air_dresser, air_monitor, air_purifier, airconditioner, cooktop,
+    dehumidifier, dishwasher, dryer, induction_cooktop, microwave, oven,
+    range as _range, range_hood, refrigerator, vacuum_station, washer,
+    water_purifier,
 )
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
 # `_BOARD_TOKEN_TO_KEY`, `_CONSUMER_PREFIX_TO_KEY`, or `for_device_by_resources`.
 _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'air_dresser': air_dresser.REGISTRY,
+    'air_monitor': air_monitor.REGISTRY,
     'air_purifier': air_purifier.REGISTRY,
     'airconditioner': airconditioner.REGISTRY,
     'cooktop': cooktop.REGISTRY,
@@ -111,7 +113,8 @@ _BOARD_TOKEN_TO_KEY: dict[str, str] = {
     'CT': 'cooktop',
     'VSKR': 'vacuum_station',       # issue #131 -- stick-vacuum clean station
     'DF': 'air_dresser',            # issue #162
-    'VSWW': 'vacuum_station',       # issue #219   
+    'VSWW': 'vacuum_station',       # issue #219
+    'ASM': 'air_monitor',           # issue #210 -- Air Monitor Plus
 }
 
 _TOKEN_SPLIT_RE = re.compile(r'[^A-Z0-9]+')
@@ -219,6 +222,7 @@ _OIC_TYPE_TO_KEY: dict[str, str] = {
     'oic.d.oven': 'oven',
     'oic.d.refrigerator': 'refrigerator',
     'oic.d.washer': 'washer',
+    'x.com.st.d.airqualitysensor': 'air_monitor',
     'x.com.st.d.stickcleaner': 'vacuum_station',
     'x.com.st.d.steamcloset': 'air_dresser',
 }
