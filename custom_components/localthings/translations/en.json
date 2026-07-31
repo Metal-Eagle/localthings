@@ -1138,15 +1138,16 @@
       "init": {
         "title": "LocalThings options",
         "menu_options": {
-          "settings": "Remote control write settings",
+          "settings": "Device settings",
           "debug_write": "Debug: write to a resource"
         }
       },
       "settings": {
-        "title": "Remote control write settings",
-        "description": "Some devices accept certain writes (e.g. default detergent/softener dosing on a washer) even while reporting remote control off. By default, LocalThings blocks every write with a clear error whenever a device reports remote control off, rather than letting the device silently reject it. Only enable this if you've confirmed writes actually work on this device with remote control off -- otherwise you'll trade that clear error for a silent failure.",
+        "title": "Device settings",
+        "description": "Some devices accept certain writes (e.g. default detergent/softener dosing on a washer) even while reporting remote control off. By default, LocalThings blocks every write with a clear error whenever a device reports remote control off, rather than letting the device silently reject it. Only enable this if you've confirmed writes actually work on this device with remote control off -- otherwise you'll trade that clear error for a silent failure.\n\nEstimated finish time is recomputed from the device's remaining-time estimate on every poll, which can drift or get revised by a minute or two between updates. Raise the minimum-change value below to hold the sensor at its last reported value until the estimate moves by at least that many minutes, cutting down on history/logbook noise. Set it to 0 to report every computed change.",
         "data": {
-          "bypass_remote_control_lock": "Allow writes even when remote control is reported off"
+          "bypass_remote_control_lock": "Allow writes even when remote control is reported off",
+          "finish_time_debounce_minutes": "Estimated finish -- minimum change (minutes)"
         }
       },
       "debug_write": {

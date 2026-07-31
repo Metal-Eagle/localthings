@@ -157,6 +157,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(
             hass,
             self._log,
+            config_entry=entry,
             name=f"{DOMAIN}_{entry.data[CONF_HOST]}",
             update_interval=timedelta(seconds=SUMMARY_INTERVAL_S),
         )
