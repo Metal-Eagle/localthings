@@ -292,19 +292,25 @@
           "01": "Normaal",
           "06": "Tijdprogramma",
           "16": "Katoen",
+          "17": "Super Speed",
           "18": "Synthetisch",
           "19": "Fijne was",
           "20": "Strijkdroog",
+          "21": "Hygiënisch drogen",
+          "22": "Stil drogen",
           "23": "Snel drogen 35'",
           "24": "Koude lucht",
           "25": "Warme lucht",
           "27": "Tijdprogramma",
+          "29": "AI drogen",
           "1a": "Wol",
           "1b": "Beddengoed",
           "1c": "Overhemden",
           "1d": "Handdoeken",
           "1e": "Outdoor",
-          "1f": "Gemengde was"
+          "1f": "Gemengde was",
+          "2b": "Zelf trommel drogen",
+          "4c": "Opfrissen"
         }
       },
       "favorite_capacity": {
