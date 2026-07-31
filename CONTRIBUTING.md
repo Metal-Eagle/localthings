@@ -6,10 +6,6 @@ file covers how changes get committed.
 
 ## Commits
 
-- **One commit per issue or logical change.** Don't bundle unrelated fixes
-  into a single commit, even when working through a batch of issues in one
-  sitting — each issue gets its own commit (and its own PR, unless there's a
-  specific reason to combine them).
 - **Author and committer must be the human accountable for the change** —
   never a tool, bot, or AI agent identity — including when the change was
   drafted or applied by an AI coding agent. Set both the author and committer
