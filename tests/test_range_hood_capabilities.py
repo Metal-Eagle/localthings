@@ -99,6 +99,16 @@ def test_fan_write_contract():
     )
     assert desc.write_fn(('speed', '99'), rep) is None
 
+    rep_fallback = {
+        'x.com.samsung.da.hood.settableMinFanSpeed': '0',
+        'x.com.samsung.da.hood.settableMaxFanSpeed': '3',
+    }
+    assert desc.write_fn(('speed', '2'), rep_fallback) == (
+        ['hood', 'fanspeed', 'vs', '0'],
+        {'x.com.samsung.da.hood.fanSpeed': '2'},
+    )
+    assert desc.write_fn(('speed', '4'), rep_fallback) is None
+
 
 def test_lamp_write_contract():
     lamp, brightness = range_hood.HOOD_LAMP.entities
