@@ -16,6 +16,9 @@
       "burner_pan_detected": {
         "name": "Brander {number} pan gedetecteerd"
       },
+      "child_lock": {
+        "name": "Kinderslot"
+      },
       "cloud_connected": {
         "name": "Verbonden met cloud"
       },

@@ -15,9 +15,13 @@ def _reg():
 
 
 def test_kids_lock_vs_value_fn():
+    """binary_sensor's 'lock' device class is inverted from a plain on/off
+    switch: On means open/unlocked (issues #181/#183 -- see
+    TestKidsLockFallback.test_vs_fallback_is_read_only for why this is a
+    binary_sensor at all)."""
     desc = common.KIDS_LOCK_VS_FALLBACK.entities[0]
-    assert desc.value_fn('Lock') is True
-    assert desc.value_fn('Ready') is False
+    assert desc.value_fn('Lock') is False
+    assert desc.value_fn('Ready') is True
 
 
 def test_common_caps_discover_on_dishwasher(dishwasher_resources):
@@ -240,6 +244,16 @@ class TestKidsLockFallback:
         assert common.KIDS_LOCK_VS_FALLBACK.match_fn({}, {'/kidslock/vs/0': {}}) is True
         assert common.KIDS_LOCK_VS_FALLBACK.match_fn(
             {}, {'/kidslock/0': {}, '/kidslock/vs/0': {}}) is False
+
+    def test_vs_fallback_is_read_only(self):
+        """Issues #181/#183: writing this resource 4.05s on real hardware
+        even with the *correct* value ('Run'), and no dump in the fixture
+        corpus has ever reported the value this used to write ('Enable')
+        back -- every one reports 'Ready' or 'Run'. Never a confirmed write
+        contract, so it's a binary_sensor (no write_fn field at all), not
+        a switch."""
+        desc = common.KIDS_LOCK_VS_FALLBACK.entities[0]
+        assert isinstance(desc, BinarySensorDesc)
 
 
 class TestRemoteControlFallback:

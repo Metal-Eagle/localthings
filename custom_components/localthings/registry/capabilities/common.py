@@ -313,12 +313,19 @@ KIDS_LOCK_VS_FALLBACK = Capability(
     href='/kidslock/vs/0',
     match_fn=lambda rep, resources: '/kidslock/0' not in resources,
     entities=(
-        SwitchDesc(key='child_lock', field='x.com.samsung.da.kidsLock',
-                   device_class='lock',
-                   value_fn=lambda v: v != 'Ready',
-                   write_fn=lambda p, rep, href=None: (
-                       ['kidslock', 'vs', '0'],
-                       {'x.com.samsung.da.kidsLock': 'Enable' if p == 'On' else 'Ready'})),
+        # Read-only, not a SwitchDesc (issues #181/#183): the write side of
+        # this capability wrote 'Enable', a value no dump in the fixture
+        # corpus has ever reported back -- every one reports either 'Ready'
+        # or 'Run', so it was never a confirmed contract. #181's reporter
+        # confirmed this directly: writing the *correct* value ('Run')
+        # still 4.05s, and the SmartThings app itself has no control for
+        # it either -- the resource is genuinely read-only on this
+        # hardware, not just wrong-valued. binary_sensor's 'lock' device
+        # class is inverted from the switch reading below it used to be:
+        # On means open/unlocked, so value_fn flips to `v == 'Ready'`.
+        BinarySensorDesc(key='child_lock', field='x.com.samsung.da.kidsLock',
+                          device_class='lock',
+                          value_fn=lambda v: v == 'Ready'),
     ),
 )
 

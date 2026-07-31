@@ -16,6 +16,9 @@
       "burner_pan_detected": {
         "name": "Burner {number} pan detected"
       },
+      "child_lock": {
+        "name": "Child lock"
+      },
       "cloud_connected": {
         "name": "Cloud connected"
       },
