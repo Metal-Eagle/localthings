@@ -149,6 +149,7 @@ class TestForDeviceByOicType:
         ('oic.d.oven', 'oven'),
         ('oic.d.refrigerator', 'refrigerator'),
         ('oic.d.washer', 'washer'),
+        ('x.com.st.d.hood', 'range_hood'),
         ('x.com.st.d.stickcleaner', 'vacuum_station'),
         ('x.com.st.d.steamcloset', 'air_dresser'),
         ('x.com.st.d.airqualitysensor', 'air_monitor'),
@@ -176,6 +177,18 @@ class TestForDeviceByOicType:
         a genuine robot-vacuum dump."""
         from custom_components.localthings.registry.by_type import for_device_by_oic_type
         assert for_device_by_oic_type(('oic.d.robotcleaner',)) is None
+
+    def test_cooktop_is_not_mapped_to_either_cooktop_registry(self):
+        """'oic.d.cooktop' cannot tell the two cooktop families apart.
+
+        A TP1X_DA-KS-COOKTOP induction reports it, but `cooktop` is the
+        unrelated NA9300K gas family (burner state in /mode/vs/0's options
+        array, a different OCF surface -- see by_type/cooktop.py). Mapping the
+        type to either key would misroute the other, and as the primary signal
+        it would override a board token that had it right.
+        """
+        from custom_components.localthings.registry.by_type import for_device_by_oic_type
+        assert for_device_by_oic_type(('oic.d.cooktop',)) is None
 
     def test_empty_returns_none(self):
         from custom_components.localthings.registry.by_type import for_device_by_oic_type
