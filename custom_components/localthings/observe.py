@@ -73,6 +73,9 @@ class ObserveManager:
         self.subscribed_hrefs: set[str] = set()
         self._notified: set[str] = set()
         self._last_notify_ts: float | None = None
+        # Wakes try_enter_observe_mode's grace wait early once enough hrefs
+        # have notified. Guards only `_notified` mutations + the `wait_for`.
+        self._notify_cond = threading.Condition()
         self.fallback_hrefs: set[str] = set()
         self._refresh_task: ObserveRefreshTask | None = None
         self._refresh_stop: threading.Event | None = None
@@ -147,8 +150,10 @@ class ObserveManager:
             return
         if not isinstance(rep, dict):
             return
-        self._notified.add(href)
-        self._last_notify_ts = time.monotonic()
+        with self._notify_cond:
+            self._notified.add(href)
+            self._last_notify_ts = time.monotonic()
+            self._notify_cond.notify_all()
         self.log.debug("observe notify: %s", href)
         self.apply(href, rep, source='observe')
 
@@ -172,10 +177,12 @@ class ObserveManager:
         grace_period_s: float = GRACE_PERIOD_S,
         success_fraction: float = SUCCESS_FRACTION,
     ) -> bool:
-        """Blocking — subscribes to every href then sleeps for the whole
-        grace period. Caller must run this in an executor, never on the
+        """Blocking — subscribes to every href then waits up to
+        `grace_period_s`, returning early once `success_fraction` of hrefs
+        have notified. Caller must run this in an executor, never on the
         event loop."""
-        self._notified.clear()
+        with self._notify_cond:
+            self._notified.clear()
         subscribed: set[str] = set()
         for href in hrefs:
             segs = [s for s in href.strip('/').split('/') if s]
@@ -190,10 +197,18 @@ class ObserveManager:
             self.subscribed_hrefs = set()
             return False
 
-        time.sleep(grace_period_s)
+        def _fraction_reached() -> bool:
+            return (
+                len(set(self._notified) & subscribed) / len(subscribed)
+                >= success_fraction
+            )
 
-        fraction = len(set(self._notified) & subscribed) / len(subscribed)
-        if fraction >= success_fraction:
+        with self._notify_cond:
+            reached = self._notify_cond.wait_for(
+                _fraction_reached, timeout=grace_period_s,
+            )
+
+        if reached:
             self.subscribed_hrefs = subscribed
             self._set_mode(MODE_OBSERVE)
             self.start_refresh_task(session)
