@@ -214,6 +214,16 @@ def _consumer_model_key(description: str) -> Optional[str]:
 # device-type vocabulary (used for categories with no `oic.d.*` equivalent),
 # same prefix convention as the `x.com.samsung.da.*` resource fields
 # elsewhere in this codebase.
+#
+# `oic.d.cooktop` is deliberately absent, and is the one measured type left out.
+# A TP1X_DA-KS-COOKTOP induction reports it, but `cooktop` and
+# `induction_cooktop` are two unrelated registries that happen to share the
+# English word (see by_type/cooktop.py's docstring: the NA9300K gas family keeps
+# burner state in /mode/vs/0's options array, a completely different OCF
+# surface). The OCF type does not distinguish them, so mapping it to either key
+# would silently misroute the other -- and as the *primary* signal it would
+# override a `COOKTOP`/`CT` board token that had it right. Same reasoning as
+# `oic.d.robotcleaner` above: no unambiguous key to point at, so no row.
 _OIC_TYPE_TO_KEY: dict[str, str] = {
     'oic.d.airconditioner': 'airconditioner',
     'oic.d.airpurifier': 'air_purifier',
@@ -223,6 +233,7 @@ _OIC_TYPE_TO_KEY: dict[str, str] = {
     'oic.d.refrigerator': 'refrigerator',
     'oic.d.washer': 'washer',
     'x.com.st.d.airqualitysensor': 'air_monitor',
+    'x.com.st.d.hood': 'range_hood',              # AHD-WW-TP1-22-COMMON
     'x.com.st.d.stickcleaner': 'vacuum_station',
     'x.com.st.d.steamcloset': 'air_dresser',
 }
