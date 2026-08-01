@@ -596,15 +596,109 @@ CLIMATE = Capability(
                    unit='°C', icon='mdi:home-thermometer-outline'),
         # Filter time in tenths of an hour: the token read 1710 while the official
         # Samsung app displayed "171 hours 0 minutes" for the filter on the same
-        # unit, and the .0 matching the app's "0 minutes" pins the scale. Whether
-        # it counts up or down is NOT established -- it was seen rising (171.0 ->
-        # 171.5) while the unit ran, which contradicts the app's "remaining"
-        # wording, so the entity is deliberately named neutrally.
+        # unit, and the .0 matching the app's "0 minutes" pins the scale.
+        #
+        # It counts UP -- running time accumulated since the last filter reset,
+        # not time remaining. An earlier revision of this comment called the
+        # direction unestablished; three independent things now settle it. It was
+        # seen rising while the unit ran (171.0 -> 171.5). FilterAlarmTime_ in the
+        # same options[] blob is the threshold it is measured against (500 on
+        # every unit on record). And across two units on one site, the alarm
+        # tracks the counter in the right direction: at FilterTime_5595 the
+        # /alarms/vs/0 filter entry is live (unsuffixed code 'FilterAlarm', state
+        # 'Created'), while at FilterTime_1915 it is still the
+        # 'FilterAlarm_OFF'/'Deleted' placeholder. That also matches what the app
+        # does at 500 hours -- ask the user to clean the filter and reset it.
+        #
+        # The key stays 'filter_time' rather than becoming something like
+        # filter_time_elapsed: renaming it would change every existing unit's
+        # entity_id and unique_id for a wording improvement.
+        #
+        # (The alarm clearing on its own is the causal proof of the direction
+        # above: the board recomputes it the moment the counter crosses the
+        # threshold, rather than the app clearing counter and alarm separately.)
+        #
+        # ---------------------------------------------------------------------
+        # RESETTING THIS COUNTER: NOT SOLVED YET -- no reset entity here, and
+        # the notes below are so the next attempt starts from the evidence
+        # rather than from scratch. I could not work out how to drive the reset
+        # locally; that is not the same as it being impossible, and none of the
+        # results below rule out a mechanism I simply haven't found.
+        #
+        # What the reset actually is: a *command*, not a value write. Samsung
+        # models it as capability `custom.dustFilter`, command
+        # `resetDustFilter`, no arguments (implemented in several SmartThings HA
+        # forks; not in the core integration). That reframes every failed
+        # attempt below -- nothing changes the counter by writing to it,
+        # because the board zeroes it itself on receiving a command.
+        #
+        # Tried, all against a live unit, all failed:
+        #   * FilterTime_0 via the single-token options merge that works for
+        #     every other setting on this href -- accepted with no error, then
+        #     discarded. Two units, opposite power states, to rule out the
+        #     obvious confound: 5595 -> back to 5595 after 69 s (powered off,
+        #     alarm active) and 1925 -> back to 1925 after 65 s (actively
+        #     cooling).
+        #   * A full options[] read-modify-write with FilterTime_0 substituted,
+        #     instead of the single-token merge -- zero fields changed anywhere.
+        #   * A write to /consumable/vs/0, the board's own filter resource
+        #     (items[{name: FilterProgress, state: N}]) -- discarded. /oic/res
+        #     declares that resource oic.if.s, i.e. read-only, which fits.
+        #   * /actions/vs/0 (x.com.samsung.da.actions, oic.if.a) is the obvious
+        #     local command channel, but publishes no schema: GET returns {} on
+        #     baseline and on oic.if.a, and five POSTs probing the *shape*
+        #     (empty map, empty string, empty array, invalid value, items shape)
+        #     all returned 4.00 with an empty body -- no echo of accepted field
+        #     names, unlike the laundry firmware's "Control fail, <...>". I
+        #     deliberately did not enumerate guessed action names against a live
+        #     appliance: an unknown vocabulary on a channel called "actions" can
+        #     hold a factory reset next to the one we want.
+        #   * /hass/state/vs/0 and /hass/command/vs/0 (advertised in /oic/res,
+        #     and /opt/data/hass.db exists in /file/list) -> 4.04 on every
+        #     interface, so unimplemented scaffolding on this firmware.
+        #   * /file/transfer/vs/0 serves only /mnt/usage.db; selecting another
+        #     path returns 4.05/4.00, so the firmware can't be pulled that way
+        #     to read the action vocabulary out of it.
+        #   * /rm/micomdata/vs/0 (channel toward the MICOM board the physical
+        #     panel talks to) stays empty even after successfully enabling
+        #     remote management.
+        #
+        # What the failures are NOT: a transport, permission or cert problem.
+        # A control write of rmState on /rm/state/vs/0 was accepted (2.04
+        # Changed, value held, restored afterwards), and FilterAlarmTime_ below
+        # is written through the very same options merge and kept. So writes
+        # work; this one value just isn't driven that way.
+        #
+        # Where I'd look next: the action vocabulary for /actions/vs/0 from an
+        # independent source (firmware image, or a capture of what the cloud
+        # sends the device), or the IR path -- the physical remote has a filter
+        # reset (Options -> Filter Reset -> SET), and IRremoteESP8266 decodes
+        # this AC family, though issue #1277's dump doesn't include that button.
+        # ---------------------------------------------------------------------
         SensorDesc(key='filter_time',
                    rep_fn=_option_token_num('FilterTime', divisor=10),
                    exists_fn=_has_option_token('FilterTime'),
                    device_class='duration', unit='h',
                    state_class='measurement', icon='mdi:air-filter'),
+        # The interval FilterTime_ is measured against -- the app offers it as a
+        # four-way radio (180/300/500/700 hours, default 500) next to the filter
+        # reminder. The token value is the hour count verbatim: captured by
+        # watching all 19 resources while the owner stepped through every radio
+        # position, one field changing per step and nothing else moving.
+        #
+        # Static options here, unlike air_filter_threshold on the newer boards
+        # which reads supportedFilterDesiredUsage: options[] tokens carry no
+        # supported-values list anywhere in this board's dump, so there is
+        # nothing to read them from. The four values are the app's own radio
+        # rather than a guess extrapolated from one observed value -- but a
+        # board offering different steps would need this revisited, which is
+        # why the tuple is documented rather than just written down.
+        SelectDesc(key='filter_alarm_time',
+                   rep_fn=lambda rep: _option_token(rep, 'FilterAlarmTime'),
+                   exists_fn=_has_option_token('FilterAlarmTime'),
+                   options=('180', '300', '500', '700'),
+                   write_fn=_option_switch_write('FilterAlarmTime'),
+                   icon='mdi:alarm', entity_category='config'),
         # Odor-controller ("Smart Cool Clean") state + progress -- see
         # _odor_controller_active's docstring for the cloud-capability
         # correspondence. Present on TP1X_DA-AC-RAC-01001 (issue reporter's

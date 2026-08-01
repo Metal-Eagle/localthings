@@ -328,6 +328,15 @@
       "favorite_hotwater_temperature": {
         "name": "Favoriete temperatuur warm water"
       },
+      "filter_alarm_time": {
+        "name": "Filteralarminterval",
+        "state": {
+          "180": "180 uur",
+          "300": "300 uur",
+          "500": "500 uur",
+          "700": "700 uur"
+        }
+      },
       "finish_sound": {
         "name": "Eindgeluid",
         "state": {

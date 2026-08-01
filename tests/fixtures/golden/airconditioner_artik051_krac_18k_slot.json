@@ -9,6 +9,7 @@
     "diagnosis_status",
     "display_light",
     "energy_kwh",
+    "filter_alarm_time",
     "filter_time",
     "good_sleep",
     "humidity",

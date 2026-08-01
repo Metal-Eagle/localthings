@@ -9,8 +9,8 @@ differs from all of them in three ways, each covered below:
 * No ``/mode/convenient/vs/0`` -- the convenient-mode preset is a ``Comode_*``
   token in ``/mode/vs/0``'s ``options`` array.
 * Several settings (SPI, auto clean, air monitoring, beep volume, Good Sleep,
-  outdoor temperature, filter time) are ``options`` tokens too, where newer
-  boards have dedicated resources.
+  outdoor temperature, filter time and its alarm interval) are ``options``
+  tokens too, where newer boards have dedicated resources.
 
 Fan, swing, preset, SPI and beep-volume writes were all confirmed on hardware
 by read-back on the unit this fixture is dumped from. The issue #136 unit is
@@ -103,8 +103,8 @@ def test_token_entities_present_with_calibrated_values():
     state = _state()
     # token/10 hours: 1715 displayed as "171 hours 0 minutes"... at 1710 in the
     # official app on this unit, which pins the scale (the .5 here is a later
-    # reading). Whether it counts up or down is deliberately not asserted --
-    # see the descriptor comment.
+    # reading). It counts up -- see the descriptor comment and
+    # test_filter_alarm_tracks_the_counter_against_its_threshold below.
     assert state['filter_time'] == 171.5
     # token - 55 == 19 C, against a 19.4 C forecast at the time of the dump.
     assert state['outdoor_temperature'] == 19.0
@@ -178,6 +178,82 @@ def test_option_writes_carry_one_token():
     assert _option_number_write('Volume')(70.0, {}) == (
         ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_70']},
     )
+
+
+# -- filter counter and its reset ---------------------------------------------
+
+def _desc(resources, key):
+    """The bound descriptor for `key`, or None when its exists_fn declines it.
+
+    flatten() gives values, not descriptors, so this is how a test reaches a
+    descriptor's own write_fn and options without standing up an HA entity.
+    """
+    bound, _ = _discover(resources)
+    for item in bound:
+        if item.desc.key == key and (
+            item.desc.exists_fn is None
+            or item.desc.exists_fn(resources.get(item.href) or {}, resources)
+        ):
+            return item.desc
+    return None
+
+
+def test_filter_alarm_time_reads_the_threshold_and_writes_one_token():
+    """The interval FilterTime_ is measured against, offered by the app as a
+    180/300/500/700 hour radio. All four were walked on hardware while watching
+    all 19 resources: the token carries the hour count verbatim and each step
+    moved that one field and nothing else, which is also what makes a static
+    options tuple defensible here (the board advertises no supported-values
+    list for options[] tokens)."""
+    state = _state()
+    assert state['filter_alarm_time'] == '500'          # the fixture's own value
+
+    desc = _desc(_load_device(FIXTURE), 'filter_alarm_time')
+    assert desc.options == ('180', '300', '500', '700')
+    assert desc.write_fn('180', {}) == (
+        ['mode', 'vs', '0'],
+        {'x.com.samsung.da.options': ['FilterAlarmTime_180']},
+    )
+
+
+def test_filter_alarm_time_stays_off_boards_with_a_real_threshold_resource():
+    """Newer boards carry air_filter_threshold off supportedFilterDesiredUsage;
+    two thresholds on one device would be a coin flip for the user.
+
+    No non-legacy fixture carries a FilterAlarmTime_ token today (only the two
+    KRAC dumps have one at all), so asserting on an unmodified newer board
+    would pass for the wrong reason -- absent token rather than the
+    board-generation gate. The token is injected to exercise the gate itself,
+    test_absent_token_yields_no_entity's technique in reverse."""
+    newer = _load_device('airconditioner_tp1x_rac')
+    assert _desc(newer, 'filter_alarm_time') is None
+
+    mode = newer['/mode/vs/0']
+    mode['x.com.samsung.da.options'] = [
+        *(mode.get('x.com.samsung.da.options') or []), 'FilterAlarmTime_500',
+    ]
+    assert is_legacy_board(newer) is False
+    assert _desc(newer, 'filter_alarm_time') is None
+
+
+def test_filter_alarm_tracks_the_counter_against_its_threshold():
+    """Why filter_time is read as elapsed rather than remaining: the same
+    options blob carries the threshold, and /alarms/vs/0's filter entry is a
+    'FilterAlarm_OFF'/'Deleted' placeholder below it. The sibling unit on the
+    same site, at FilterTime_5595 against the same FilterAlarmTime_500, instead
+    reported an unsuffixed 'FilterAlarm' in state 'Created'."""
+    resources = _load_device(FIXTURE)
+    options = resources['/mode/vs/0']['x.com.samsung.da.options']
+    assert 'FilterTime_1715' in options
+    assert 'FilterAlarmTime_500' in options
+
+    alarms = resources['/alarms/vs/0']['x.com.samsung.da.items']
+    filter_alarm = next(
+        item for item in alarms
+        if item['x.com.samsung.da.code'].startswith('FilterAlarm')
+    )
+    assert filter_alarm['x.com.samsung.da.code'] == 'FilterAlarm_OFF'
+    assert filter_alarm['x.com.samsung.da.state'] == 'Deleted'
 
 
 # -- climate entity: fan, swing and preset off /airflow/vs/0 ------------------
