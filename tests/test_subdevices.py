@@ -476,7 +476,7 @@ def test_discover_partitioned_binds_main_and_subdevice_separately():
         '/mode/vs/1': {'m': 'sibling'},
     }
 
-    def resolve(_resources):
+    def resolve(_resources, **_kwargs):
         return reg
 
     bound, device_type_name, materialized, skipped = discover_partitioned(
@@ -516,7 +516,7 @@ def test_discover_partitioned_main_pass_excludes_subdevice_hrefs_from_unbound():
 
     unbound = []
     discover_partitioned(
-        resources, [sub1], lambda r: reg, fallback_capabilities={},
+        resources, [sub1], lambda r, **_: reg, fallback_capabilities={},
         log=unbound.append,
     )
     assert unbound == []
@@ -534,7 +534,7 @@ def test_discover_partitioned_subdevice_resolves_its_own_registry():
     sub1 = _indexed('1')
     resources = {'/mode/vs/0': {'x': 1}, '/mode/vs/1': {'x': 2}}
 
-    def resolve(view):
+    def resolve(view, **_kwargs):
         # The subdevice's canonical view is exactly {'/mode/vs/0': {'x': 2}}.
         return sub_reg if view.get('/mode/vs/0', {}).get('x') == 2 else main_reg
 
@@ -563,7 +563,7 @@ def test_discover_partitioned_subdevice_falls_back_to_master_registry():
         '/mode/vs/1': {'x': 2},
     }
 
-    def resolve(view):
+    def resolve(view, **_kwargs):
         return main_reg if view.get('/information/vs/0') else None
 
     bound, _, materialized, skipped = discover_partitioned(
@@ -573,6 +573,52 @@ def test_discover_partitioned_subdevice_falls_back_to_master_registry():
     assert skipped == []
     hrefs = {b.href for b in bound}
     assert '/mode/vs/1' in hrefs
+
+
+def test_discover_partitioned_oic_device_types_resolves_main_pass():
+    """`oic_device_types` reaches the main-pass resolve call as
+    `device_types=`, letting a fake `resolve_registry` mirror the real
+    resolve()'s precedence between /oic/d and model-based detection."""
+    cap = Capability(href='/mode/vs/0', entities=(BinarySensorDesc(key='m', field='x'),))
+    oic_reg = _FakeRegistry('washer', {'/mode/vs/0': [cap]})
+    resources = {'/mode/vs/0': {'x': 1}}
+
+    def resolve(_resources, device_types=()):
+        return oic_reg if 'oic.d.washer' in device_types else None
+
+    bound, device_type_name, _, _ = discover_partitioned(
+        resources, [], resolve, fallback_capabilities={},
+        oic_device_types=('oic.d.washer',),
+    )
+    assert device_type_name == 'washer'
+    assert {b.href for b in bound} == {'/mode/vs/0'}
+
+
+def test_discover_partitioned_oic_device_types_not_applied_to_subdevices():
+    """The master's own /oic/d type must not leak into a subdevice's own
+    resolution -- only main_view's resolve() call receives it, so a fake
+    resolver keyed purely on device_types resolves nothing for the
+    subdevice pass and it falls back to the master's registry, per the
+    documented (and unchanged) subdevice-fallback behavior."""
+    cap = Capability(href='/mode/vs/0', entities=(BinarySensorDesc(key='m', field='x'),))
+    oic_reg = _FakeRegistry('washer', {'/mode/vs/0': [cap]})
+    sub1 = _indexed('1')
+    resources = {'/mode/vs/0': {'x': 1}, '/mode/vs/1': {'x': 2}}
+
+    def resolve(_resources, device_types=()):
+        return oic_reg if 'oic.d.washer' in device_types else None
+
+    bound, device_type_name, materialized, skipped = discover_partitioned(
+        resources, [sub1], resolve, fallback_capabilities={},
+        oic_device_types=('oic.d.washer',),
+    )
+    assert device_type_name == 'washer'
+    assert materialized == [sub1]
+    assert skipped == []
+    # The subdevice's own resolve() call sees no device_types and returns
+    # None, falling back to the master's oic_reg -- same capabilities, so
+    # /mode/vs/1 still binds via that shared registry.
+    assert {b.href for b in bound} == {'/mode/vs/0', '/mode/vs/1'}
 
 
 def test_discover_partitioned_no_subdevices_matches_plain_discover():
@@ -586,7 +632,7 @@ def test_discover_partitioned_no_subdevices_matches_plain_discover():
     resources = {'/mode/vs/0': {'x': 1}}
 
     bound_via_helper, _, materialized, skipped = discover_partitioned(
-        resources, [], lambda r: reg, fallback_capabilities={},
+        resources, [], lambda r, **_: reg, fallback_capabilities={},
     )
     bound_direct = discover(resources, reg.capabilities, reg.pattern_capabilities)
 
@@ -619,7 +665,7 @@ def test_discover_partitioned_skips_candidate_with_no_live_primary_entity():
     }
 
     bound, _, materialized, skipped = discover_partitioned(
-        resources, [unit2], lambda r: reg, fallback_capabilities={},
+        resources, [unit2], lambda r, **_: reg, fallback_capabilities={},
     )
     assert materialized == []
     assert len(skipped) == 1
@@ -654,7 +700,7 @@ def test_discover_partitioned_materializes_candidate_with_live_primary_entity():
     }
 
     bound, _, materialized, skipped = discover_partitioned(
-        resources, [sub1], lambda r: reg, fallback_capabilities={},
+        resources, [sub1], lambda r, **_: reg, fallback_capabilities={},
     )
     assert materialized == [sub1]
     assert skipped == []
@@ -692,7 +738,7 @@ def test_discover_partitioned_skips_candidate_whose_only_live_primary_is_a_meter
     }
 
     bound, _, materialized, skipped = discover_partitioned(
-        resources, [unit1], lambda r: reg, fallback_capabilities={},
+        resources, [unit1], lambda r, **_: reg, fallback_capabilities={},
     )
     assert materialized == []
     assert [s.subdevice for s in skipped] == [unit1]
@@ -726,7 +772,7 @@ def test_discover_partitioned_meter_carve_out_does_not_gate_out_a_live_subdevice
     }
 
     bound, _, materialized, skipped = discover_partitioned(
-        resources, [unit1], lambda r: reg, fallback_capabilities={},
+        resources, [unit1], lambda r, **_: reg, fallback_capabilities={},
     )
     assert materialized == [unit1]
     assert skipped == []
@@ -748,7 +794,7 @@ def test_discover_partitioned_skipped_candidate_contributes_no_hot_warm_hrefs():
 
     tiers = []
     discover_partitioned(
-        resources, [unit2], lambda r: reg, fallback_capabilities={},
+        resources, [unit2], lambda r, **_: reg, fallback_capabilities={},
         tier_log=lambda href, tier: tiers.append(href),
     )
     assert '/mode/vs/2' not in tiers

@@ -56,7 +56,10 @@ def test_energy_saving_and_cooktop_alert_present():
 def test_child_lock_already_reads_correctly():
     """issue #183 also reported child lock as unreadable -- but this dump's
     /kidslock/vs/0 ('Run') and /doors/vs/0's door lock field ('Lock') already
-    agree the door is locked, and the existing common.KIDS_LOCK_VS_FALLBACK
-    already reads that correctly with no code change needed."""
+    agree the door is locked, and common.KIDS_LOCK_VS_FALLBACK already reads
+    that correctly with no further code change needed. Now a read-only
+    binary_sensor (issues #181/#183 -- the write side was never a confirmed
+    contract), whose 'lock' device class is inverted from a switch's plain
+    on/off: False means locked/closed, matching 'Run' here."""
     state = _state()
-    assert state['child_lock'] is True
+    assert state['child_lock'] is False

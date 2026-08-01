@@ -79,6 +79,15 @@ def _hood_fan_write(payload, rep, href=None):
             str(code)
             for code in rep.get('x.com.samsung.da.hood.supportedFanSpeed', ())
         ]
+        if not supported:
+            min_s = rep.get('x.com.samsung.da.hood.settableMinFanSpeed')
+            max_s = rep.get('x.com.samsung.da.hood.settableMaxFanSpeed')
+            if min_s is not None and max_s is not None:
+                try:
+                    mn, mx = int(min_s), int(max_s)
+                    supported = [str(i) for i in range(mn, mx + 1)]
+                except (ValueError, TypeError):
+                    pass
         if value not in supported:
             return None
         return ['hood', 'fanspeed', 'vs', '0'], {

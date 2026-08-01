@@ -810,6 +810,27 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_rac_01001
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_rac_odor_controller():
+    """TP1X_DA-AC-RAC-01001_0000 -- reporter's dump: fan (0-4 wind-strength
+    scale) and WindFree (Nano/NanoSleep convenient-mode codes) already bind
+    via the composite climate entity, no code change needed there. The
+    genuine gap was /mode/vs/0's SmartCoolClean_/ProgressSmartClean_ option
+    tokens (the cloud custom.airConditionerOdorController capability),
+    previously unbound to any entity -- now odor_controller_active/
+    odor_controller_progress."""
+    from tests.conftest import _load_device
+    resources = _load_device('airconditioner_tp1x_rac_odor_controller')
+    golden = json.loads(
+        (GOLDEN / 'airconditioner_tp1x_rac_odor_controller.json').read_text()
+    )
+    state_keys = _new_state_keys('airconditioner_tp1x_rac_odor_controller', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_air_dresser():
     """DA_DF_A51_20_COMMON AirDresser (model DF8600T, issue #162) -- reports
     no oneUiVersion; resolved via the '_DF_' modelNum token fallback. Has no
@@ -841,6 +862,50 @@ def test_registry_reproduces_golden_state_keys_for_air_dresser_tp2_20():
     resources = _load_device('air_dresser_tp2_20')
     golden = json.loads((GOLDEN / 'air_dresser_tp2_20.json').read_text())
     state_keys = _new_state_keys('air_dresser_tp2_20', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_air_dresser_tp1_21():
+    """DA_DF_TP1_21_COMMON AirDresser (model DF3000B, issue #208) -- another
+    board generation routed via the '_DF_' modelNum token fallback into the
+    same air_dresser registry as #162's and #157's boards (its dump also
+    happens to be the first AirDresser one to carry /oic/d's device type,
+    'x.com.st.d.steamcloset' -- see test_by_type.py's
+    TestForDeviceByOicType for that mapping's own coverage). The first
+    AirDresser dump to report /buzzersound/vs/0 (laundry.BUZZER_SOUND,
+    added for this issue -- #162's and #157's boards don't report it at
+    all). Binds cleanly with zero unbound hrefs; course codes for this
+    board's table still aren't identified (same as #162's), so 'cycle'
+    remains the raw code rather than a table-specific translation."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_dresser_tp1_21')
+    golden = json.loads((GOLDEN / 'air_dresser_tp1_21.json').read_text())
+    state_keys = _new_state_keys('air_dresser_tp1_21', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_air_monitor():
+    """Samsung Air Monitor Plus (ASM-KR-TP1-22-ACMB1M, issue #210) -- a
+    standalone battery-powered air-quality sensor puck, the first device
+    this integration has no controllable-appliance concept for at all (no
+    /power/*, only /energy/battery/vs/0). Routes via both /oic/d
+    ('x.com.st.d.airqualitysensor') and the 'ASM' modelNum board token.
+    Reuses air_purifier.AIR_QUALITY's /sensors/vs/0 decode
+    (common.sensor_item_value) for dust/fine_dust/super_fine_dust/odor/
+    clean_level, adding a CO2 reading those families don't report. Binds
+    cleanly with zero unbound hrefs."""
+    from tests.conftest import _load_device
+    resources = _load_device('air_monitor')
+    golden = json.loads((GOLDEN / 'air_monitor.json').read_text())
+    state_keys = _new_state_keys('air_monitor', resources)
     assert set(state_keys) == set(golden['state_keys']), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

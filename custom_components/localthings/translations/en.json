@@ -10,11 +10,17 @@
       "automatic_operation": {
         "name": "Automatic operation"
       },
+      "battery_charging": {
+        "name": "Charging"
+      },
       "burner_hot_surface": {
         "name": "Burner {number} hot surface"
       },
       "burner_pan_detected": {
         "name": "Burner {number} pan detected"
+      },
+      "child_lock": {
+        "name": "Child lock"
       },
       "cloud_connected": {
         "name": "Cloud connected"
@@ -33,6 +39,9 @@
       },
       "overload_protection_active": {
         "name": "Overload protection active"
+      },
+      "odor_controller_active": {
+        "name": "Odor controller active"
       },
       "cycle_active": {
         "name": "Running"
@@ -292,19 +301,25 @@
           "01": "Normal",
           "06": "Time dry",
           "16": "Cotton",
+          "17": "Super Speed",
           "18": "Synthetics",
           "19": "Delicates",
           "20": "Iron dry",
-          "23": "Quick Dry 35",
+          "21": "Hygiene Care",
+          "22": "Silent Dry",
+          "23": "Quick Dry 35'",
           "24": "Cool air",
           "25": "Warm air",
           "27": "Time dry",
+          "29": "AI Dry",
           "1a": "Wool",
           "1b": "Bedding",
           "1c": "Shirts",
           "1d": "Towels",
           "1e": "Outdoor",
-          "1f": "Mixed load"
+          "1f": "Mixed load",
+          "2b": "Self Tub Dry",
+          "4c": "Air Refresh"
         }
       },
       "favorite_capacity": {
@@ -609,6 +624,9 @@
       "air_filter_usage_hours": {
         "name": "Filter usage hours"
       },
+      "air_quality_standard": {
+        "name": "Air quality standard"
+      },
       "air_sensing_state": {
         "name": "Air sensing state"
       },
@@ -621,11 +639,17 @@
       "automatic_ventilation_state": {
         "name": "Automatic ventilation state"
       },
+      "battery": {
+        "name": "Battery"
+      },
       "burner_state": {
         "name": "Burner {number} state"
       },
       "clean_level": {
         "name": "Clean level"
+      },
+      "co2": {
+        "name": "CO2"
       },
       "coffee_brew_status": {
         "name": "Coffee brew status"
@@ -654,6 +678,9 @@
       },
       "outdoor_temperature": {
         "name": "Outdoor temperature"
+      },
+      "odor_controller_progress": {
+        "name": "Odor controller progress"
       },
       "panel_status": {
         "name": "Panel status"
@@ -1005,6 +1032,9 @@
       "display_light": {
         "name": "Display light"
       },
+      "dnd": {
+        "name": "Do not disturb"
+      },
       "fast_preheat": {
         "name": "Fast preheat"
       },
@@ -1088,6 +1118,12 @@
       }
     },
     "time": {
+      "dnd_end": {
+        "name": "Do not disturb end"
+      },
+      "dnd_start": {
+        "name": "Do not disturb start"
+      },
       "led_night_end": {
         "name": "Door LED night end"
       },
@@ -1147,15 +1183,16 @@
       "init": {
         "title": "LocalThings options",
         "menu_options": {
-          "settings": "Remote control write settings",
+          "settings": "Device settings",
           "debug_write": "Debug: write to a resource"
         }
       },
       "settings": {
-        "title": "Remote control write settings",
-        "description": "Some devices accept certain writes (e.g. default detergent/softener dosing on a washer) even while reporting remote control off. By default, LocalThings blocks every write with a clear error whenever a device reports remote control off, rather than letting the device silently reject it. Only enable this if you've confirmed writes actually work on this device with remote control off -- otherwise you'll trade that clear error for a silent failure.",
+        "title": "Device settings",
+        "description": "Some devices accept certain writes (e.g. default detergent/softener dosing on a washer) even while reporting remote control off. By default, LocalThings blocks every write with a clear error whenever a device reports remote control off, rather than letting the device silently reject it. Only enable this if you've confirmed writes actually work on this device with remote control off -- otherwise you'll trade that clear error for a silent failure.\n\nEstimated finish time is recomputed from the device's remaining-time estimate on every poll, which can drift or get revised by a minute or two between updates. Raise the minimum-change value below to hold the sensor at its last reported value until the estimate moves by at least that many minutes, cutting down on history/logbook noise. Set it to 0 to report every computed change.",
         "data": {
-          "bypass_remote_control_lock": "Allow writes even when remote control is reported off"
+          "bypass_remote_control_lock": "Allow writes even when remote control is reported off",
+          "finish_time_hysteresis_minutes": "Estimated finish -- minimum change (minutes)"
         }
       },
       "debug_write": {

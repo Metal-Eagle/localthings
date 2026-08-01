@@ -10,11 +10,17 @@
       "automatic_operation": {
         "name": "Automatische werking"
       },
+      "battery_charging": {
+        "name": "Opladen"
+      },
       "burner_hot_surface": {
         "name": "Brander {number} heet oppervlak"
       },
       "burner_pan_detected": {
-        "name": "Brander {number} pan gedetecteerd"
+        "name": "Pan gedetecteerd op brander {number}"
+      },
+      "child_lock": {
+        "name": "Kinderslot"
       },
       "cloud_connected": {
         "name": "Verbonden met cloud"
@@ -23,7 +29,7 @@
         "name": "Stofzak vol"
       },
       "cooktop_power": {
-        "name": "Kookplaat voeding"
+        "name": "Voeding kookplaat"
       },
       "cooktop_safety_shutoff_enabled": {
         "name": "Automatische uitschakeling heet oppervlak ingeschakeld"
@@ -33,6 +39,9 @@
       },
       "overload_protection_active": {
         "name": "Overbelastingsbeveiliging actief"
+      },
+      "odor_controller_active": {
+        "name": "Geurbeheersing actief"
       },
       "cycle_active": {
         "name": "Actief"
@@ -74,7 +83,7 @@
         "name": "Schenken"
       },
       "alarm_in_mute": {
-        "name": "Alarm bij dempen"
+        "name": "Alarmdemping"
       },
       "power_state": {
         "name": "Voedingsstatus"
@@ -215,7 +224,7 @@
         }
       },
       "cooler_temperature_setpoint": {
-        "name": "Koeler temperatuur"
+        "name": "Temperatuur koelgedeelte"
       },
       "day_brightness": {
         "name": "Helderheid kast",
@@ -292,19 +301,25 @@
           "01": "Normaal",
           "06": "Tijdprogramma",
           "16": "Katoen",
+          "17": "Super Speed",
           "18": "Synthetisch",
           "19": "Fijne was",
           "20": "Strijkdroog",
+          "21": "Hygiënisch drogen",
+          "22": "Stil drogen",
           "23": "Snel drogen 35'",
           "24": "Koude lucht",
           "25": "Warme lucht",
           "27": "Tijdprogramma",
+          "29": "AI drogen",
           "1a": "Wol",
           "1b": "Beddengoed",
           "1c": "Overhemden",
           "1d": "Handdoeken",
           "1e": "Outdoor",
-          "1f": "Gemengde was"
+          "1f": "Gemengde was",
+          "2b": "Zelf trommel drogen",
+          "4c": "Opfrissen"
         }
       },
       "favorite_capacity": {
@@ -490,24 +505,24 @@
       "sound_mode": {
         "name": "Geluidsmodus",
         "state": {
-          "voice": "Spraak",
+          "voice": "Stem",
           "tone": "Toon",
-          "mute": "Dempen"
+          "mute": "Stil"
         }
       },
       "air_purifier_sound_mode": {
         "name": "Geluidsmodus",
         "state": {
-          "mute": "Dempen",
+          "mute": "Stil",
           "buzzer": "Zoemer"
         }
       },
       "water_purifier_sound_mode": {
         "name": "Geluidsmodus",
         "state": {
-          "voice": "Spraak",
+          "voice": "Stem",
           "fixedtone": "Vaste toon",
-          "mute": "Dempen"
+          "mute": "Stil"
         }
       },
       "spin_speed": {
@@ -570,17 +585,17 @@
           "53": "Intensief",
           "54": "Handdoeken",
           "55": "Sportkleding",
-          "57": "Fijn",
+          "57": "Fijne was",
           "5e": "Spoelen+centrifugeren",
-          "60": "Zelfreinigend+",
+          "60": "Self Clean+",
           "65": "Bonte was",
           "66": "Spijkergoed",
           "7c": "Witte was",
-          "7d": "Beddengoed/Waterdicht",
-          "7e": "Zelfreinigend",
-          "7f": "Wol/Fijn",
+          "7d": "Beddengoed/waterdicht",
+          "7e": "Self Clean",
+          "7f": "Wol/fijne was",
           "86": "Diep wassen",
-          "87": "Downloaden",
+          "87": "Gedownload",
           "8f": "Intensief koud",
           "96": "Minder microvezels"
         }
@@ -609,6 +624,9 @@
       "air_filter_usage_hours": {
         "name": "Filterverbruik (uren)"
       },
+      "air_quality_standard": {
+        "name": "Luchtkwaliteitsnorm"
+      },
       "air_sensing_state": {
         "name": "Status luchtmeting"
       },
@@ -621,11 +639,17 @@
       "automatic_ventilation_state": {
         "name": "Status automatische ventilatie"
       },
+      "battery": {
+        "name": "Batterij"
+      },
       "burner_state": {
         "name": "Status brander {number}"
       },
       "clean_level": {
         "name": "Reinigingsniveau"
+      },
+      "co2": {
+        "name": "CO2"
       },
       "coffee_brew_status": {
         "name": "Koffiezetstatus"
@@ -638,7 +662,7 @@
         }
       },
       "cooktop_running_state": {
-        "name": "Loopstatus kookplaat"
+        "name": "Bedrijfsstatus kookplaat"
       },
       "cooktop_state": {
         "name": "Status kookplaat"
@@ -654,6 +678,9 @@
       },
       "outdoor_temperature": {
         "name": "Buitentemperatuur"
+      },
+      "odor_controller_progress": {
+        "name": "Voortgang geurbeheersing"
       },
       "panel_status": {
         "name": "Paneelstatus"
@@ -671,10 +698,10 @@
         "name": "Status steel"
       },
       "uvc_operation_time": {
-        "name": "UV-C bedrijfstijd"
+        "name": "UV-C-bedrijfstijd"
       },
       "uvc_total_operation_time": {
-        "name": "UV-C totale bedrijfstijd"
+        "name": "Totale UV-C-bedrijfstijd"
       },
       "uvc_finished_time": {
         "name": "UV-C voltooid op"
@@ -768,7 +795,7 @@
         "name": "Geschatte eindtijd"
       },
       "completion_minutes": {
-        "name": "Voltooiingstijd"
+        "name": "Resterende tijd"
       },
       "freezer_temperature": {
         "name": "Vriezertemperatuur"
@@ -849,13 +876,13 @@
         "name": "Vermogen"
       },
       "probe_battery": {
-        "name": "Sonde batterij"
+        "name": "Batterijniveau sonde"
       },
       "probe_target_temperature": {
         "name": "Doeltemperatuur sonde"
       },
       "probe_temperature": {
-        "name": "Temperatuur sonde"
+        "name": "Sondetemperatuur"
       },
       "progress": {
         "name": "Voortgang"
@@ -897,7 +924,7 @@
         "name": "Status"
       },
       "cup_state": {
-        "name": "Kopstatus"
+        "name": "Bekerstatus"
       },
       "last_pour_type": {
         "name": "Laatste schenktype"
@@ -1005,6 +1032,9 @@
       "display_light": {
         "name": "Displayverlichting"
       },
+      "dnd": {
+        "name": "Niet storen"
+      },
       "fast_preheat": {
         "name": "Snel voorverwarmen"
       },
@@ -1033,7 +1063,7 @@
         "name": "{instance_name} ingeschakeld"
       },
       "intensive": {
-        "name": "Intensive"
+        "name": "Intensief"
       },
       "lamp": {
         "name": "Lamp"
@@ -1088,6 +1118,12 @@
       }
     },
     "time": {
+      "dnd_end": {
+        "name": "Einde niet storen"
+      },
+      "dnd_start": {
+        "name": "Start niet storen"
+      },
       "led_night_end": {
         "name": "Einde nachtverlichting deur-LED"
       },
@@ -1147,15 +1183,16 @@
       "init": {
         "title": "LocalThings-opties",
         "menu_options": {
-          "settings": "Schrijfinstellingen voor afstandsbediening",
+          "settings": "Apparaatinstellingen",
           "debug_write": "Foutopsporing: naar een resource schrijven"
         }
       },
       "settings": {
-        "title": "Schrijfinstellingen voor afstandsbediening",
-        "description": "Sommige apparaten accepteren bepaalde schrijfbewerkingen (bijvoorbeeld de standaarddosering van wasmiddel of wasverzachter op een wasmachine), ook als ze melden dat de afstandsbediening is uitgeschakeld. LocalThings blokkeert standaard elke schrijfbewerking met een duidelijke foutmelding wanneer een apparaat meldt dat de afstandsbediening is uitgeschakeld, in plaats van het apparaat de opdracht stilzwijgend te laten weigeren. Schakel deze optie alleen in als je hebt bevestigd dat schrijfbewerkingen op dit apparaat echt werken wanneer de afstandsbediening is uitgeschakeld. Anders verruil je de duidelijke foutmelding voor een stille mislukking.",
+        "title": "Apparaatinstellingen",
+        "description": "Sommige apparaten accepteren bepaalde schrijfbewerkingen (bijvoorbeeld de standaarddosering van wasmiddel of wasverzachter op een wasmachine), ook als ze melden dat de afstandsbediening is uitgeschakeld. LocalThings blokkeert standaard elke schrijfbewerking met een duidelijke foutmelding wanneer een apparaat meldt dat de afstandsbediening is uitgeschakeld, in plaats van het apparaat de opdracht stilzwijgend te laten weigeren. Schakel deze optie alleen in als je hebt bevestigd dat schrijfbewerkingen op dit apparaat echt werken wanneer de afstandsbediening is uitgeschakeld. Anders verruil je de duidelijke foutmelding voor een stille mislukking.\n\nDe geschatte eindtijd wordt bij elke poll opnieuw berekend op basis van de resterende tijd die het apparaat opgeeft, wat kan afwijken of met een minuut of wat worden bijgesteld tussen updates. Verhoog de minimale wijziging hieronder om de sensor op zijn laatst gerapporteerde waarde te houden totdat de schatting met minstens dat aantal minuten verandert, wat de ruis in geschiedenis/logboek vermindert. Zet op 0 om elke berekende wijziging te rapporteren.",
         "data": {
-          "bypass_remote_control_lock": "Schrijfbewerkingen toestaan wanneer afstandsbediening als uitgeschakeld wordt gemeld"
+          "bypass_remote_control_lock": "Schrijfbewerkingen toestaan wanneer afstandsbediening als uitgeschakeld wordt gemeld",
+          "finish_time_hysteresis_minutes": "Geschatte eindtijd -- minimale wijziging (minuten)"
         }
       },
       "debug_write": {

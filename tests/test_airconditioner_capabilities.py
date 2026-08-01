@@ -872,3 +872,83 @@ def test_non_legacy_board_energy_kwh_still_uses_plain_wh_scale():
     state = flatten(
         discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
     assert state['energy_kwh'] == round(1686632 / 1000.0, 2)
+
+
+# ---------------------------------------------------------------------------
+# TP1X_DA-AC-RAC-01001_0000, reporter's dump. Reported "fan and WindFree are
+# missing" -- both already work: /wind/strength/vs/0's 0-4 codes match
+# _DEVICE_TO_FAN exactly, and /mode/convenient/vs/0's Nano/NanoSleep codes
+# already resolve dynamically via _preset_to_ha + the existing "nano"/
+# "nanosleep" -> "WindFree"/"WindFree sleep" translation labels -- confirmed
+# below by zero unbound hrefs and the climate entity binding with its usual
+# FAN_MODE/PRESET_MODE features. The real, previously-uncaptured gap was
+# /mode/vs/0's SmartCoolClean_/ProgressSmartClean_ option tokens (the cloud
+# custom.airConditionerOdorController capability) -- see
+# _odor_controller_active's docstring.
+# ---------------------------------------------------------------------------
+
+def _ac_odor_controller():
+    return _resolve('airconditioner_tp1x_rac_odor_controller')
+
+
+def test_odor_controller_no_unbound_hrefs():
+    reg, resources = _ac_odor_controller()
+    unbound = []
+    discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
+    assert unbound == []
+
+
+def test_odor_controller_fan_and_windfree_already_bind():
+    """The actually-reported gap wasn't real: fan speed and the WindFree
+    preset both come from the composite climate entity, which is bound here
+    with its normal fan/preset feature set -- no code change needed for
+    either."""
+    reg, resources = _ac_odor_controller()
+    bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
+    climate = [b for b in bound if isinstance(b.desc, ClimateDesc)]
+    assert len(climate) == 1 and climate[0].href == '/mode/vs/0'
+    assert resources['/wind/strength/vs/0']['x.com.samsung.da.supportedModes'] == [
+        '0', '1', '2', '3', '4']
+    assert resources['/mode/convenient/vs/0']['x.com.samsung.da.supportedModes'] == [
+        'Off', 'Sleep', 'Quiet', 'Speed', 'Nano', 'NanoSleep']
+
+
+def test_odor_controller_state_and_progress_present():
+    reg, resources = _ac_odor_controller()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert state['odor_controller_active'] is False   # SmartCoolClean_Off
+    assert state['odor_controller_progress'] == 0     # ProgressSmartClean_0
+
+
+def test_odor_controller_read_from_option_tokens():
+    assert airconditioner._odor_controller_active(
+        {'x.com.samsung.da.options': ['SmartCoolClean_On']}) is True
+    assert airconditioner._odor_controller_active(
+        {'x.com.samsung.da.options': ['SmartCoolClean_Off']}) is False
+    assert airconditioner._odor_controller_active(
+        {'x.com.samsung.da.options': ['Volume_100']}) is None
+    assert airconditioner._odor_controller_progress(
+        {'x.com.samsung.da.options': ['ProgressSmartClean_42']}) == 42
+    assert airconditioner._odor_controller_progress({}) is None
+
+
+def test_odor_controller_absent_when_no_smartcoolclean_token():
+    """The original issue #17 dump's /mode/vs/0 options carry no
+    SmartCoolClean_/ProgressSmartClean_ tokens -- neither entity binds."""
+    reg, resources = _ac()
+    state = flatten(
+        discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
+    assert 'odor_controller_active' not in state
+    assert 'odor_controller_progress' not in state
+
+
+def test_odor_controller_is_read_only():
+    """No command capability is confirmed for SmartCoolClean -- exposed
+    read-only, same 'don't guess' precedent as CURRENT_LIMIT/ANOMALY_LOAD."""
+    active = next(e for e in airconditioner.CLIMATE.entities
+                  if e.key == 'odor_controller_active')
+    progress = next(e for e in airconditioner.CLIMATE.entities
+                    if e.key == 'odor_controller_progress')
+    assert not hasattr(active, 'write_fn') or active.write_fn is None
+    assert not hasattr(progress, 'write_fn') or progress.write_fn is None

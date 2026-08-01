@@ -16,6 +16,9 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     ObjectSelector,
     SelectSelector,
     SelectSelectorConfig,
@@ -31,12 +34,16 @@ from .const import (
     CONF_CA_CERT_PEM, CONF_CA_KEY_PEM,
     CONF_LEAF_CERT_PEM, CONF_LEAF_KEY_PEM,
     CONF_BYPASS_REMOTE_CONTROL,
+    CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
     PROBE_PORT_RANGE, PREFERRED_PROBE_PORTS, LIVENESS_PROBE_TIMEOUT_S,
     PROBE_GET_TIMEOUT_S,
 )
 
 _TEXT = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT))
 _MULTILINE = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True))
+_HYSTERESIS_MINUTES = NumberSelector(NumberSelectorConfig(
+    min=0, max=30, step=1, mode=NumberSelectorMode.BOX,
+))
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -215,8 +222,23 @@ def _is_placeholder_serial(serial: str) -> bool:
     serial` check here (and the equivalent one in coordinator.py's
     `_run_discovery`) doesn't catch it, and two such units get the same
     config-entry unique_id / entity unique_ids and collide (issue #83).
+
+    Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
+    reports a flash-unset sentinel instead -- every character the same
+    repeated hex digit (a washer and a dryer, two different physical
+    units, both reported the literal serialNum 'FFFFFFFFFFFFFFF') -- which
+    the 'nothing' check above doesn't catch either, so the second unit's
+    config flow aborted as already configured.
     """
-    return serial.strip().lower().startswith('nothing')
+    s = serial.strip()
+    if s.lower().startswith('nothing'):
+        return True
+    upper = s.upper()
+    return (
+        len(upper) >= 8
+        and len(set(upper)) == 1
+        and upper[0] in '0123456789ABCDEF'
+    )
 
 
 def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
@@ -225,6 +247,7 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
     from smartthings_local.protocol.dtls_session import DtlsCoapSession
     from .registry.batch import parse_device0_batch
     from .registry.by_type import resolve as resolve_registry
+    from .registry.identity import read_identity
 
     _LOGGER.debug("Fetching Samsung cloud UUID from %s", _SAMSUNG_CLOUD_HOST)
     try:
@@ -282,7 +305,15 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
             )
             if not serial or _is_placeholder_serial(serial):
                 serial = f"{host}:{port}"
-            recognized_registry = resolve_registry(resources)
+            # /oic/d's device type (read_identity) is the primary detection
+            # signal when a board populates it -- see registry/by_type's
+            # resolve(). read_identity is defensive on every GET it makes, so
+            # a device that doesn't answer /oic/p or /oic/d just yields an
+            # empty device_types tuple here, falling through to the model-
+            # string/resource-signature detection resolve() already did.
+            identity = read_identity(sess, None)
+            recognized_registry = resolve_registry(
+                resources, device_types=identity.device_types)
             return {
                 "port": port,
                 "serial": serial,
@@ -453,6 +484,13 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
                         CONF_BYPASS_REMOTE_CONTROL, False
                     ),
                 ): bool,
+                vol.Required(
+                    CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+                    default=self.config_entry.options.get(
+                        CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+                        DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
+                    ),
+                ): _HYSTERESIS_MINUTES,
             }),
         )
 

@@ -18,6 +18,8 @@
     "motion_detect_wind_active",
     "motion_detect_wind_mode",
     "mute_once",
+    "odor_controller_active",
+    "odor_controller_progress",
     "power_watts",
     "tropical_night_mode"
   ]

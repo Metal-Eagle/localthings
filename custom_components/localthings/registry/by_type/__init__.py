@@ -1,16 +1,17 @@
 """Per-device-type registries."""
 import re
-from typing import Optional
+from typing import Optional, Sequence
 
 from ._base import DeviceRegistry
 from . import (
-    air_dresser, air_purifier, airconditioner, cooktop, dehumidifier,
-    dishwasher, dryer, induction_cooktop, microwave, oven, range as _range,
-    range_hood, refrigerator, vacuum_station, washer, water_purifier,
+    air_dresser, air_monitor, air_purifier, airconditioner, cooktop,
+    dehumidifier, dishwasher, dryer, induction_cooktop, microwave, oven,
+    range as _range, range_hood, refrigerator, vacuum_station, washer,
+    water_purifier,
 )
 
 __all__ = [
-    'DeviceRegistry', 'resolve', 'for_device_by_model',
+    'DeviceRegistry', 'resolve', 'for_device_by_oic_type', 'for_device_by_model',
     'for_device_by_resources', '_board_tokens',
 ]
 
@@ -19,6 +20,7 @@ __all__ = [
 # `_BOARD_TOKEN_TO_KEY`, `_CONSUMER_PREFIX_TO_KEY`, or `for_device_by_resources`.
 _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
     'air_dresser': air_dresser.REGISTRY,
+    'air_monitor': air_monitor.REGISTRY,
     'air_purifier': air_purifier.REGISTRY,
     'airconditioner': airconditioner.REGISTRY,
     'cooktop': cooktop.REGISTRY,
@@ -111,6 +113,8 @@ _BOARD_TOKEN_TO_KEY: dict[str, str] = {
     'CT': 'cooktop',
     'VSKR': 'vacuum_station',       # issue #131 -- stick-vacuum clean station
     'DF': 'air_dresser',            # issue #162
+    'VSWW': 'vacuum_station',       # issue #219
+    'ASM': 'air_monitor',           # issue #210 -- Air Monitor Plus
 }
 
 _TOKEN_SPLIT_RE = re.compile(r'[^A-Z0-9]+')
@@ -186,6 +190,69 @@ def _consumer_model_key(description: str) -> Optional[str]:
         key = _CONSUMER_PREFIX_TO_KEY.get(segment[:2].upper())
         if key is not None:
             return key
+    return None
+
+
+# /oic/d's `rt` (OCF's own device-type declaration, see registry/identity.py)
+# -> registry key. This is the device naming its own type -- no board-part
+# guessing involved -- so it's consulted before modelNum/description at all.
+#
+# Every value must already be a key in `_REGISTRY_BY_KEY` (checked by
+# `test_every_oic_type_resolves_to_a_real_registry`). That's why this list
+# stops well short of the full OCF/SmartThings device-type vocabulary: a
+# compiled list of `x.com.st.d.*` types will include plenty of device
+# categories (lights, switches, sensors, locks, cameras, TVs, generic energy
+# meters, ...) no Samsung DA appliance dump could ever report and this
+# integration has no registry for -- and 'oic.d.robotcleaner' names an
+# actual robot vacuum, a different product from the clean/auto-empty
+# *station* `vacuum_station` covers (see that registry's own module
+# docstring); mapping it there would misroute a genuine robot-vacuum dump
+# into a registry with no vacuum-body capabilities at all. Add a row only
+# once there's a real registry key on the right-hand side to point at.
+#
+# `x.com.st.d.*` entries are SmartThings' own vendor extension to the OCF
+# device-type vocabulary (used for categories with no `oic.d.*` equivalent),
+# same prefix convention as the `x.com.samsung.da.*` resource fields
+# elsewhere in this codebase.
+#
+# `oic.d.cooktop` is deliberately absent, and is the one measured type left out.
+# A TP1X_DA-KS-COOKTOP induction reports it, but `cooktop` and
+# `induction_cooktop` are two unrelated registries that happen to share the
+# English word (see by_type/cooktop.py's docstring: the NA9300K gas family keeps
+# burner state in /mode/vs/0's options array, a completely different OCF
+# surface). The OCF type does not distinguish them, so mapping it to either key
+# would silently misroute the other -- and as the *primary* signal it would
+# override a `COOKTOP`/`CT` board token that had it right. Same reasoning as
+# `oic.d.robotcleaner` above: no unambiguous key to point at, so no row.
+_OIC_TYPE_TO_KEY: dict[str, str] = {
+    'oic.d.airconditioner': 'airconditioner',
+    'oic.d.airpurifier': 'air_purifier',
+    'oic.d.dishwasher': 'dishwasher',
+    'oic.d.dryer': 'dryer',
+    'oic.d.oven': 'oven',
+    'oic.d.refrigerator': 'refrigerator',
+    'oic.d.washer': 'washer',
+    'x.com.st.d.airqualitysensor': 'air_monitor',
+    'x.com.st.d.hood': 'range_hood',              # AHD-WW-TP1-22-COMMON
+    'x.com.st.d.stickcleaner': 'vacuum_station',
+    'x.com.st.d.steamcloset': 'air_dresser',
+}
+
+
+def for_device_by_oic_type(device_types: Sequence[str]) -> Optional[DeviceRegistry]:
+    """Device-type detection from /oic/d's `rt` -- OCF's own device-type
+    declaration.
+
+    The primary path when a dump carries it: the device names its own type,
+    so there's nothing to infer from board part numbers. Most hardware still
+    doesn't populate `/oic/d` usefully -- see `resolve()`'s docstring -- so
+    this only ever helps a minority of dumps, and `for_device_by_model`/
+    `for_device_by_resources` remain load-bearing for everything else.
+    """
+    for device_type in device_types:
+        key = _OIC_TYPE_TO_KEY.get(device_type)
+        if key is not None:
+            return _REGISTRY_BY_KEY[key]
     return None
 
 
@@ -273,16 +340,22 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
     return None
 
 
-def resolve(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
+def resolve(
+    resources: dict[str, dict], device_types: Sequence[str] = (),
+) -> Optional[DeviceRegistry]:
     """Device type for a parsed /device/0 dump, or None if unrecognized.
 
     The single entry point for detection -- the coordinator, the config
     flow's probe and the golden-regression harness all call this, so the
     order can't drift between what ships and what the tests assert.
 
-    Model strings first (`for_device_by_model`), then a distinctive resource
-    signature (`for_device_by_resources`) for boards that report no
-    /information/vs/0 at all.
+    `device_types` (/oic/d's `rt`, read separately from the /device/0 dump --
+    see registry/identity.py) is the primary signal when present: the device
+    naming its own type beats parsing board part numbers. Falls back to model
+    strings (`for_device_by_model`), then a distinctive resource signature
+    (`for_device_by_resources`) for boards that report no /information/vs/0
+    at all -- both unchanged from before /oic/d was ever consulted, since most
+    hardware still doesn't populate it usefully.
 
     `/otninformation/vs/0`'s oneUiVersion is deliberately not consulted. It
     reads like the obvious signal -- the device naming its own type, e.g.
@@ -292,7 +365,11 @@ def resolve(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
     is still reported in diagnostics as a firmware-generation marker.
     """
     info = resources.get('/information/vs/0', {})
-    return for_device_by_model(
-        info.get('x.com.samsung.da.modelNum', ''),
-        info.get('x.com.samsung.da.description', ''),
-    ) or for_device_by_resources(resources)
+    return (
+        for_device_by_oic_type(device_types)
+        or for_device_by_model(
+            info.get('x.com.samsung.da.modelNum', ''),
+            info.get('x.com.samsung.da.description', ''),
+        )
+        or for_device_by_resources(resources)
+    )

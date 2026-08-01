@@ -47,13 +47,13 @@ def _device_types(d: dict) -> tuple[str, ...]:
 
     In OCF this is the one standardized "what am I" field: alongside the
     generic 'oic.wk.d' it carries a concrete type such as 'oic.d.airconditioner'
-    or a Samsung 'x.com.samsung.da.*' equivalent. Nothing routes on it yet --
-    device-type detection currently parses board part numbers out of
-    /information/vs/0's modelNum instead (see registry/by_type/__init__.py) --
-    because no captured dump has ever included it: /device/0 batch responses
-    don't carry /oic/d, and diagnostics didn't report it. It's surfaced in
-    diagnostics so incoming issue reports can tell us whether real hardware
-    populates it usefully enough to route on.
+    or a SmartThings 'x.com.st.d.*' equivalent. `registry/by_type/resolve()`
+    now consults this first, ahead of board-part-number parsing, via
+    `for_device_by_oic_type` and its `_OIC_TYPE_TO_KEY` table -- but only a
+    minority of dumps populate it, so the modelNum/description path stays
+    load-bearing for everything else. It's also kept whole in diagnostics
+    (see `raw` below) so incoming issue reports keep surfacing types that
+    table doesn't know about yet.
     """
     rt = d.get('rt')
     if isinstance(rt, str):
