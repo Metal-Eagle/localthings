@@ -328,6 +328,15 @@
       "favorite_hotwater_temperature": {
         "name": "Oblíbená teplota horké vody"
       },
+      "filter_alarm_time": {
+        "name": "Interval alarmu filtru",
+        "state": {
+          "180": "180 hodin",
+          "300": "300 hodin",
+          "500": "500 hodin",
+          "700": "700 hodin"
+        }
+      },
       "finish_sound": {
         "name": "Zvuk dokončení",
         "state": {
