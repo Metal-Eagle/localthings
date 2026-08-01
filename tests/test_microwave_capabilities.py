@@ -1,6 +1,9 @@
 """Unit tests for the microwave-family capabilities (issue #121/#66 split
 into their own device type instead of being folded into oven.py)."""
-from custom_components.localthings.registry.by_type import for_device_by_model
+from custom_components.localthings.registry.by_type import (
+    for_device_by_model,
+    resolve,
+)
 from custom_components.localthings.registry.capabilities import microwave
 from custom_components.localthings.registry.discovery import discover
 
@@ -37,6 +40,27 @@ def test_microwave_hood_fan_fixture_resolves_and_has_no_unbound_hrefs():
     unbound = []
     discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
     assert unbound == []
+
+
+def test_qooker_fixture_resolves_as_microwave_and_has_no_unbound_hrefs():
+    """Bespoke Qooker MW7500A is microwave-shaped despite both its OCF type
+    and internal board token saying oven."""
+    from tests.conftest import _load_device
+    resources = _load_device('qooker_mw7500a')
+
+    reg = resolve(resources, device_types=('oic.wk.d', 'oic.d.oven'))
+
+    assert reg is not None
+    assert reg.name == 'microwave'
+    unbound = []
+    bound = discover(
+        resources, reg.capabilities, reg.pattern_capabilities,
+        log=unbound.append,
+    )
+    assert unbound == []
+    keys = {entity.desc.key for entity in bound}
+    assert {'cooking_mode', 'power_level', 'setpoint'} <= keys
+    assert 'oven_mode' not in keys
 
 
 # ---------------------------------------------------------------------------

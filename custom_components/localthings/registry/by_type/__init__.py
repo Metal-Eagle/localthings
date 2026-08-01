@@ -296,13 +296,17 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
 def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
     """Detect a device family from a distinctive local-resource signature.
 
-    For boards that ship no ``/information/vs/0`` at all, leaving
-    `for_device_by_model` nothing to read. Some newer cooktops are the
-    original case: their mode resource still identifies them, carrying a
-    DeviceType option and multiple per-burner OperationState options.
+    This is the highest-confidence routing signal: the live capability surface
+    wins over OIC/model metadata when they disagree (Qooker's ``oic.d.oven``
+    declaration is the first verified case). It also types boards that ship no
+    ``/information/vs/0`` at all, leaving `for_device_by_model` nothing to
+    read. Some newer cooktops are the original case: their mode resource still
+    identifies them, carrying a DeviceType option and multiple per-burner
+    OperationState options.
 
     Require two independent shapes for every signature here, never one, so
-    an unrelated family's ``/mode/vs/0`` isn't misclassified.
+    putting this ahead of OIC/model metadata cannot let a common resource
+    misclassify an unrelated family.
     """
     mode = resources.get('/mode/vs/0', {})
     options = mode.get('x.com.samsung.da.options') or ()
@@ -325,9 +329,14 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
     # (issue #74's NE63B8411SS, issue #172's ME8000T -- the resource is simply
     # absent from the dump, not just empty) can't be matched via
     # for_device_by_model's modelNum tokens either. Mode vocabulary alongside
-    # the oven cavity resource (/oven/vs/0) is a safe signature.
+    # the oven cavity resource (/oven/vs/0) is a safe two-resource signature;
+    # it also corrects Qooker's generic oic.d.oven / OVEN metadata (issue
+    # PR #225) when resource detection runs before metadata.
     supported_modes = mode.get('x.com.samsung.da.supportedModes') or ()
-    if '/oven/vs/0' in resources:
+    if not isinstance(supported_modes, (list, tuple)):
+        supported_modes = ()
+    cavity = resources.get('/oven/vs/0')
+    if isinstance(cavity, dict):
         if any(
             m in supported_modes
             for m in ('MicroWave', 'MicroWaveGrill', 'MicroWaveConvection')
@@ -349,13 +358,13 @@ def resolve(
     flow's probe and the golden-regression harness all call this, so the
     order can't drift between what ships and what the tests assert.
 
-    `device_types` (/oic/d's `rt`, read separately from the /device/0 dump --
-    see registry/identity.py) is the primary signal when present: the device
-    naming its own type beats parsing board part numbers. Falls back to model
-    strings (`for_device_by_model`), then a distinctive resource signature
-    (`for_device_by_resources`) for boards that report no /information/vs/0
-    at all -- both unchanged from before /oic/d was ever consulted, since most
-    hardware still doesn't populate it usefully.
+    Distinctive resource signatures run first because they describe the live
+    capability surface a registry must bind. They are deliberately strict in
+    `for_device_by_resources`: each requires multiple independent details, so
+    this can correct misleading metadata (Qooker's generic ``oic.d.oven``)
+    without a common href overriding an unrelated family. When no signature
+    matches, `/oic/d`'s `rt` (read separately from the /device/0 dump -- see
+    registry/identity.py) wins over model-string parsing.
 
     `/otninformation/vs/0`'s oneUiVersion is deliberately not consulted. It
     reads like the obvious signal -- the device naming its own type, e.g.
@@ -366,10 +375,10 @@ def resolve(
     """
     info = resources.get('/information/vs/0', {})
     return (
-        for_device_by_oic_type(device_types)
+        for_device_by_resources(resources)
+        or for_device_by_oic_type(device_types)
         or for_device_by_model(
             info.get('x.com.samsung.da.modelNum', ''),
             info.get('x.com.samsung.da.description', ''),
         )
-        or for_device_by_resources(resources)
     )
