@@ -296,13 +296,12 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
 def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
     """Detect a device family from a distinctive local-resource signature.
 
-    This is the highest-confidence routing signal: the live capability surface
-    wins over OIC/model metadata when they disagree (Qooker's ``oic.d.oven``
-    declaration is the first verified case). It also types boards that ship no
-    ``/information/vs/0`` at all, leaving `for_device_by_model` nothing to
-    read. Some newer cooktops are the original case: their mode resource still
-    identifies them, carrying a DeviceType option and multiple per-burner
-    OperationState options.
+    This runs first as an override path for non-standard devices, not because
+    resource signatures are inherently more trustworthy than OIC/model
+    metadata. It also types boards that ship no ``/information/vs/0`` at all,
+    leaving `for_device_by_model` nothing to read. Some newer cooktops are the
+    original case: their mode resource still identifies them, carrying a
+    DeviceType option and multiple per-burner OperationState options.
 
     Require two independent shapes for every signature here, never one, so
     putting this ahead of OIC/model metadata cannot let a common resource
