@@ -793,31 +793,16 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         session) is unambiguous and always reconnects immediately.
 
         Never defers before the first successful discovery (issue #254).
-        Deferring is a *mid-session* judgement call: it means "keep the
-        entities we already have and try again next cycle," which is only
-        coherent once there are entities to keep. On the very first refresh
-        the same `TimeoutError` means something completely different —
-        `_poll_once` calls `_connect_session`, so `connect()`'s own
-        handshake timeout surfaces here as a `TimeoutError` too, and that is
-        a dead connection, not a slow transfer. Deferring it made
-        `_async_update_data` return `flatten([], {})` == `{}` instead of
-        raising; `DataUpdateCoordinator` counts any non-raising return as
-        success, so `async_config_entry_first_refresh` saw a healthy first
-        refresh, skipped `ConfigEntryNotReady`, and setup forwarded the
-        platforms with `bound` still empty. Every platform enumerates
-        `bound` exactly once in its `async_setup_entry` and has no dynamic
-        add-listener, so the device came up with zero entities: a later
-        cycle would repopulate `bound` (`_discovered` was still False), but
-        nothing would ever add the entities for it, leaving every restored
-        entity stuck `unavailable` until a manual per-device reload.
-
-        This is reachable on a plain Core restart because HA doesn't unload
-        entries on restart, so the device is often still holding the
-        previous run's DTLS association when we reconnect. Returning False
-        here puts a pre-discovery failure back on the normal path: one
-        reconnect attempt, and if that fails too the exception propagates as
-        `UpdateFailed` -> `ConfigEntryNotReady`, so HA retries on its own
-        backoff until the handshake goes through — no reload needed.
+        Deferring is a *mid-session* judgement call — "keep the entities we
+        already have and try again next cycle" — which is only coherent once
+        there are entities to keep. Pre-discovery the same exception type
+        means something else entirely: `_poll_once` calls `_connect_session`,
+        so `connect()`'s own handshake timeout surfaces here as a
+        `TimeoutError` too, and that is a dead connection, not a slow
+        transfer. Deferring it returned an empty dict instead of raising,
+        which `DataUpdateCoordinator` counts as a successful first refresh —
+        and since platforms enumerate `bound` exactly once, the entry loaded
+        with zero entities and stayed that way until a manual reload.
         """
         if not self._discovered:
             return False
@@ -887,7 +872,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except Exception as e2:
                     self._log.error("poll failed after reconnect: %s", e2)
                     snapshot = self._cache.snapshot()
-                    if snapshot:
+                    # `self._discovered` is the same precondition
+                    # `_defer_reconnect_for` applies (issue #254): returning
+                    # degraded-but-successful data is only meaningful once
+                    # there are bound entities to carry it. Pre-discovery the
+                    # cache happens to always be empty -- every apply() site
+                    # is gated on post-discovery state -- so this arm is
+                    # unreachable then, but that is a non-local accident
+                    # across four call sites, not something to rely on.
+                    if self._discovered and snapshot:
                         self._log.debug("Full error:", exc_info=e2)
                         return flatten(self.bound, snapshot)
                     raise UpdateFailed(f"poll failed after reconnect: {e2}") from e2
