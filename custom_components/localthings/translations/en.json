@@ -1,6 +1,9 @@
 {
   "entity": {
     "binary_sensor": {
+      "auto_clean_running": {
+        "name": "Auto clean running"
+      },
       "after_run_active": {
         "name": "After run active"
       },
@@ -615,6 +618,9 @@
       }
     },
     "sensor": {
+      "auto_clean_progress": {
+        "name": "Auto clean progress"
+      },
       "after_run_progress": {
         "name": "After run progress"
       },

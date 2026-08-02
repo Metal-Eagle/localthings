@@ -742,6 +742,25 @@ AUTO_CLEAN = Capability(
                    write_fn=lambda p, rep, href=None: (
                        ['option', 'autoclean', 'vs', '0'],
                        {'x.com.samsung.da.settingStatus': 'On' if p == 'On' else 'Off'})),
+        # The cycle, as opposed to the switch above -- `settingStatus` says the
+        # feature is enabled, which it is whether or not the unit is drying right
+        # now. `status` is the run state, and the resource advertises exactly
+        # Start/Stop in `supportedStatus`. Observed on a TP1X_DA-AC-CAC-01001:
+        # 'Start' with progress 98 while a cycle ran, then 'Stop' with progress 0
+        # the moment it finished.
+        BinarySensorDesc(key='auto_clean_running',
+                         field='x.com.samsung.da.status',
+                         icon='mdi:spray-bottle',
+                         entity_category='diagnostic',
+                         value_fn=lambda v: v == 'Start'),
+        # Percent through that cycle, matching the figure the appliance shows on
+        # its own display (checked against 55% mid-run).
+        SensorDesc(key='auto_clean_progress',
+                   field='x.com.samsung.da.progress',
+                   icon='mdi:progress-clock',
+                   unit='%', state_class='measurement',
+                   entity_category='diagnostic',
+                   value_fn=common.int_or_none),
     ),
 )
 
