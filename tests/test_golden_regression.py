@@ -686,6 +686,22 @@ def test_registry_reproduces_golden_state_keys_for_microwave_mw7300b():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_qooker_mw7500a():
+    """Bespoke Qooker MW7500A uses Samsung's OVEN board/type metadata but
+    proves its microwave semantics through MicroWave mode plus cavity
+    powerLevel. The routing correction must expose microwave state keys
+    without the misleading oven_mode/oven_state entities."""
+    from tests.conftest import _load_device
+    resources = _load_device('qooker_mw7500a')
+    golden = json.loads((GOLDEN / 'qooker_mw7500a.json').read_text())
+    state_keys = _new_state_keys('qooker_mw7500a', resources)
+    assert set(state_keys) == set(golden['state_keys']), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_microwave_me7500d():
     """TP1X_DA-KS-MICROWAVE-01051 plain microwave (model ME7500D, issues
     #137/#142) -- the same microwave registry as MW7300B above, but this

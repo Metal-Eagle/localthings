@@ -716,22 +716,63 @@ class TestResolve:
         assert reg is not None
         assert reg.name == 'refrigerator'
 
-    def test_prefers_model_strings_over_resource_signature(self, all_device_fixtures):
-        """Every fixture with usable model strings resolves the same way
-        through `resolve` as through `for_device_by_model` directly."""
+    def test_prefers_resource_signatures_over_model_strings(self, all_device_fixtures):
+        """A strong live-resource signature wins over model metadata.
+
+        Across the fixture corpus Qooker is the only intentional disagreement:
+        its OVEN model token says oven while its /oven + MicroWave surface says
+        microwave. Locking the disagreement set keeps resource-first routing
+        from silently becoming greedy as new signatures or fixtures land.
+        """
         from custom_components.localthings.registry.by_type import (
-            resolve, for_device_by_model,
+            resolve, for_device_by_model, for_device_by_resources,
         )
+        disagreements = {}
         for name, resources in all_device_fixtures.items():
             info = resources.get('/information/vs/0', {})
+            by_resources = for_device_by_resources(resources)
             by_model = for_device_by_model(
                 info.get('x.com.samsung.da.modelNum', ''),
                 info.get('x.com.samsung.da.description', ''),
             )
-            if by_model is not None:
-                assert resolve(resources) is by_model, name
+            if by_resources is None or by_model is None:
+                continue
+            assert resolve(resources) is by_resources, name
+            if by_resources is not by_model:
+                disagreements[name] = (by_resources.name, by_model.name)
 
-    def test_falls_back_to_resource_signature(self, all_device_fixtures):
+        assert disagreements == {
+            'qooker_mw7500a': ('microwave', 'oven'),
+        }
+
+    def test_qooker_microwave_surface_overrides_generic_oven_oic_type(self):
+        """MW7500A declares oic.d.oven and carries an OVEN board token, but
+        its verified local API exposes MicroWave mode on an oven cavity. That
+        strong two-resource signature must win ahead of generic OIC metadata."""
+        from custom_components.localthings.registry.by_type import (
+            for_device_by_model,
+            for_device_by_oic_type,
+            for_device_by_resources,
+            resolve,
+        )
+        from tests.conftest import _load_device
+
+        resources = _load_device('qooker_mw7500a')
+        info = resources['/information/vs/0']
+        by_resources = for_device_by_resources(resources)
+        by_oic = for_device_by_oic_type(('oic.wk.d', 'oic.d.oven'))
+        by_model = for_device_by_model(
+            info['x.com.samsung.da.modelNum'],
+            info['x.com.samsung.da.description'],
+        )
+        reg = resolve(resources, device_types=('oic.wk.d', 'oic.d.oven'))
+
+        assert by_resources is not None and by_resources.name == 'microwave'
+        assert by_oic is not None and by_oic.name == 'oven'
+        assert by_model is not None and by_model.name == 'oven'
+        assert reg is by_resources
+
+    def test_resource_signature_types_dumps_without_information(self, all_device_fixtures):
         """The three dumps with no /information/vs/0 still type."""
         from custom_components.localthings.registry.by_type import resolve
         for name in ('cooktop', 'range_ne63a6511', 'range_no_info'):
@@ -838,3 +879,27 @@ class TestForDeviceByResources:
         assert reg is not None
         assert reg.name == 'microwave'
 
+    def test_microwave_mode_without_oven_cavity_is_not_matched(self):
+        """The mode vocabulary alone is too common to preempt metadata."""
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': ['MicroWave'],
+            },
+        }
+
+        assert for_device_by_resources(resources) is None
+
+    def test_scalar_supported_modes_is_not_a_microwave_signature(self):
+        """Malformed scalar data must not gain resource-first precedence."""
+        from custom_components.localthings.registry.by_type import for_device_by_resources
+
+        resources = {
+            '/mode/vs/0': {
+                'x.com.samsung.da.supportedModes': 'MicroWave',
+            },
+            '/oven/vs/0': {'x.com.samsung.da.state': 'Ready'},
+        }
+
+        assert for_device_by_resources(resources) is None
