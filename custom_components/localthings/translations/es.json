@@ -219,6 +219,9 @@
       },
       "softener_low": {
         "name": "Poco suavizante"
+      },
+      "auto_clean_running": {
+        "name": "Limpieza automática en curso"
       }
     },
     "button": {
@@ -243,12 +246,44 @@
     },
     "climate": {
       "airconditioner": {
-        "name": "Aire acondicionado"
+        "state_attributes": {
+          "fan_mode": {
+            "state": {
+              "turbo": "Turbo",
+              "max": "Máximo"
+            }
+          },
+          "preset_mode": {
+            "state": {
+              "ai_comfort": "Confort IA",
+              "quiet": "Silencioso",
+              "smart": "Inteligente",
+              "speed": "Rápido",
+              "nano": "WindFree",
+              "nanosleep": "WindFree sueño",
+              "longwind": "Viento prolongado",
+              "motionindirect": "Indirecto al movimiento",
+              "motiondirect": "Directo al movimiento",
+              "drycomfort": "Confort seco",
+              "2step": "2 pasos"
+            }
+          }
+        }
       }
     },
     "fan": {
       "air_purifier_fan": {
-        "name": "Ventilador del purificador de aire"
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "smart": "Inteligente",
+              "max": "Máximo",
+              "mid": "Medio",
+              "windfree": "WindFree",
+              "sleep": "Reposo"
+            }
+          }
+        }
       }
     },
     "number": {
@@ -281,6 +316,9 @@
       },
       "tropical_night_mode": {
         "name": "Modo noche tropical"
+      },
+      "zone_target_temperature": {
+        "name": "Temperatura objetivo de zona"
       }
     },
     "select": {
@@ -319,10 +357,8 @@
       "buzzer_sound": {
         "name": "Volumen",
         "state": {
-          "Volume_Off": "Apagado",
-          "Volume_Low": "Bajo",
-          "Volume_Med": "Medio",
-          "Volume_High": "Alto"
+          "off": "Apagado",
+          "on": "Encendido"
         }
       },
       "discharging_time": {
@@ -398,10 +434,12 @@
           "29": "Secado IA",
           "1a": "Lana",
           "1b": "Ropa de cama",
-          "1c": "Toallas",
-          "1d": "Exterior",
-          "1e": "Camisas",
-          "1f": "Carga mixta"
+          "1c": "Camisas",
+          "1d": "Toallas",
+          "1e": "Exterior",
+          "1f": "Carga mixta",
+          "2b": "Secado de tambor",
+          "4c": "Renovación de aire"
         }
       },
       "favorite_capacity": {
@@ -422,9 +460,8 @@
       "finish_sound": {
         "name": "Alarma de fin de ciclo",
         "state": {
-          "Finish Sound_1": "Beyond The Horizon",
-          "Finish Sound_2": "Beyond The Horizon - Corto",
-          "Finish Sound_3": "La Trucha de Schubert"
+          "off": "Apagado",
+          "on": "Encendido"
         }
       },
       "flex_zone_mode": {
@@ -680,11 +717,7 @@
           "86": "Lavado profundo",
           "87": "Descarga de Programas",
           "8f": "Lavado en frío",
-          "96": "Menos microfibras",
-          "08": "Aclarar + Centrifugar",
-          "74": "Limpieza de Tambor",
-          "06": "Ropa de cama",
-          "A0": "Rápido 15'"
+          "96": "Menos microfibras"
         }
       },
       "washer_dry_level": {
@@ -699,6 +732,9 @@
           "none": "Desactivado",
           "cupboard": "Armario"
         }
+      },
+      "zone_mode": {
+        "name": "Modo de zona"
       }
     },
     "sensor": {
@@ -1041,6 +1077,12 @@
           "icestatus_stop": "Inactiva",
           "icestatus_run": "Haciendo hielo"
         }
+      },
+      "auto_clean_progress": {
+        "name": "Progreso de limpieza automática"
+      },
+      "zone_temperature": {
+        "name": "Temperatura de zona"
       }
     },
     "switch": {
@@ -1202,6 +1244,12 @@
       },
       "wrinkle_prevent": {
         "name": "Anti-arrugas"
+      },
+      "away_mode": {
+        "name": "Modo ausencia"
+      },
+      "zone_power": {
+        "name": "Alimentación de zona"
       }
     },
     "time": {
@@ -1222,6 +1270,11 @@
       },
       "night_start": {
         "name": "Inicio de la luz nocturna"
+      }
+    },
+    "water_heater": {
+      "dhw": {
+        "name": "Agua caliente"
       }
     }
   }
