@@ -1,6 +1,9 @@
 {
   "entity": {
     "binary_sensor": {
+      "auto_clean_running": {
+        "name": "Auto clean actief"
+      },
       "after_run_active": {
         "name": "Nadraaien actief"
       },
@@ -615,6 +618,9 @@
       }
     },
     "sensor": {
+      "auto_clean_progress": {
+        "name": "Auto clean voortgang"
+      },
       "after_run_progress": {
         "name": "Voortgang nadraaien"
       },

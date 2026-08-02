@@ -1,6 +1,9 @@
 {
   "entity": {
     "binary_sensor": {
+      "auto_clean_running": {
+        "name": "Automatické čištění probíhá"
+      },
       "after_run_active": {
         "name": "Dosoušení aktivní"
       },
@@ -615,6 +618,9 @@
       }
     },
     "sensor": {
+      "auto_clean_progress": {
+        "name": "Průběh automatického čištění"
+      },
       "after_run_progress": {
         "name": "Průběh dosoušení"
       },

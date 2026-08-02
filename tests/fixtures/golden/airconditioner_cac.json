@@ -8,6 +8,8 @@
     "air_purify",
     "alarm_code",
     "auto_clean",
+    "auto_clean_progress",
+    "auto_clean_running",
     "clean_level",
     "climate",
     "current_temperature_c",
