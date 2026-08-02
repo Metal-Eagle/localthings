@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, patch
 
 import cbor2
 import pytest
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
@@ -1244,3 +1246,183 @@ def test_local_source_port_non_ipv4_falls_back_to_hash() -> None:
     port = _local_source_port('some-hostname')
     assert port == _local_source_port('some-hostname')
     assert DTLS_LOCAL_PORT_BASE <= port <= DTLS_LOCAL_PORT_BASE + 0xFF
+
+
+# ----------------------------------------------------------------------
+# Issue #254: a pre-discovery poll failure must never look like a
+# successful first refresh.
+# ----------------------------------------------------------------------
+
+
+async def test_first_refresh_timeout_recovers_via_reconnect(
+    hass: HomeAssistant, mock_entry, fridge_resources
+) -> None:
+    """A handshake timeout on the very first poll reconnects instead of
+    being deferred (issue #254).
+
+    `_poll_once` connects when there is no session, so `connect()`'s own
+    handshake timeout arrives here as a `TimeoutError` -- indistinguishable
+    by type from a slow blockwise transfer, but meaning a dead connection.
+    Deferring it returned `flatten([], {})` == `{}` without raising, which
+    `DataUpdateCoordinator` counts as a successful refresh, so the entry
+    loaded with `bound` empty and every platform added zero entities.
+    """
+    calls = {'n': 0}
+
+    def _poll(self):
+        calls['n'] += 1
+        if calls['n'] == 1:
+            raise TimeoutError('DTLS handshake timed out')
+        return fridge_resources
+
+    with (
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session'),
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once', _poll),
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._close_session'),
+    ):
+        await hass.config_entries.async_setup(mock_entry.entry_id)
+        await hass.async_block_till_done()
+
+    # The retry inside the first refresh is what makes this recoverable
+    # without HA having to fail and re-run setup at all.
+    assert calls['n'] == 2
+    assert mock_entry.state is ConfigEntryState.LOADED
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    assert coordinator.bound, "discovery must have run before platforms are forwarded"
+    # The regression this guards is entity-visible, not just state on the
+    # coordinator: platforms enumerate `bound` once and have no dynamic
+    # add-listener, so an empty `bound` at forward time means the device
+    # stays entity-less until a manual reload.
+    assert hass.states.async_all(), "device came up with zero entities"
+
+
+async def test_first_refresh_persistent_timeout_raises_not_ready(
+    hass: HomeAssistant, mock_entry
+) -> None:
+    """When the reconnect times out too, the first refresh must fail so HA
+    retries on its backoff -- not load an entity-less entry (issue #254)."""
+    with (
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session'),
+        patch(
+            'custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once',
+            side_effect=TimeoutError('DTLS handshake timed out'),
+        ),
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._close_session'),
+    ):
+        await hass.config_entries.async_setup(mock_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert mock_entry.state is ConfigEntryState.SETUP_RETRY
+    assert not hass.states.async_all()
+
+
+async def test_first_refresh_timeout_does_not_consume_timeout_budget(
+    hass: HomeAssistant, mock_entry, fridge_resources
+) -> None:
+    """The pre-discovery gate must not leave `_consecutive_poll_timeouts`
+    charged for a failure it already handled by reconnecting -- otherwise a
+    device that stumbles once at startup reaches `_POLL_TIMEOUT_LIMIT` after
+    fewer real mid-session timeouts than the limit names."""
+    calls = {'n': 0}
+
+    def _poll(self):
+        calls['n'] += 1
+        if calls['n'] == 1:
+            raise TimeoutError('DTLS handshake timed out')
+        return fridge_resources
+
+    with (
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session'),
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once', _poll),
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._close_session'),
+    ):
+        await hass.config_entries.async_setup(mock_entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    assert coordinator._consecutive_poll_timeouts == 0
+
+
+async def test_post_discovery_timeout_is_still_deferred(
+    hass: HomeAssistant, mock_entry, mock_coordinator_session
+) -> None:
+    """The issue #254 gate is scoped to the pre-discovery case only: once
+    discovery has run, a lone poll timeout must still be absorbed without a
+    reconnect (the slow-blockwise-transfer behavior `_POLL_TIMEOUT_LIMIT`
+    exists for)."""
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    assert coordinator._discovered
+
+    with (
+        patch(
+            'custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once',
+            side_effect=TimeoutError('GET /device/0 block 11 timeout'),
+        ),
+        patch(
+            'custom_components.localthings.coordinator.LocalThingsCoordinator._close_session',
+        ) as mock_close,
+    ):
+        await coordinator.async_request_refresh()
+        await hass.async_block_till_done()
+
+    mock_close.assert_not_called()
+    assert coordinator._consecutive_poll_timeouts == 1
+    assert coordinator.last_update_success
+
+
+async def test_defer_reconnect_gate_is_false_before_discovery() -> None:
+    """`_defer_reconnect_for` unit-level: the pre-discovery gate wins over
+    every other deferral reason, including a healthy-push session."""
+    coordinator = LocalThingsCoordinator.__new__(LocalThingsCoordinator)
+    coordinator._discovered = False
+    assert coordinator._defer_reconnect_for(TimeoutError('handshake')) is False
+
+
+async def test_session_closed_when_first_refresh_fails(
+    hass: HomeAssistant, mock_entry
+) -> None:
+    """A failed setup must not leak the session it opened. `_poll_once`
+    leaves the session up on a `TimeoutError` by design, and every device's
+    source port is fixed, so an abandoned socket squats the exact port HA's
+    next setup attempt binds."""
+    with (
+        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session'),
+        patch(
+            'custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once',
+            side_effect=TimeoutError('DTLS handshake timed out'),
+        ),
+        patch(
+            'custom_components.localthings.coordinator.LocalThingsCoordinator._close_session',
+        ) as mock_close,
+    ):
+        await hass.config_entries.async_setup(mock_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert mock_entry.state is ConfigEntryState.SETUP_RETRY
+    assert mock_close.called, "failed setup left the DTLS socket open"
+
+
+async def test_close_notify_sent_on_homeassistant_stop(
+    hass: HomeAssistant, mock_entry, mock_coordinator_session
+) -> None:
+    """A plain Core restart must close the DTLS session (issue #254).
+
+    HA does not unload config entries on a Core restart, so `async_close`'s
+    only other caller (`async_unload_entry`) never runs -- leaving the
+    association orphaned on the appliance, which is what makes the *next*
+    run's handshake time out.
+    """
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    with patch.object(
+        coordinator, 'async_close', new=AsyncMock()
+    ) as mock_async_close:
+        hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
+        await hass.async_block_till_done()
+
+    mock_async_close.assert_awaited_once()
