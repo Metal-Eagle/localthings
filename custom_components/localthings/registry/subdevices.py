@@ -350,6 +350,13 @@ def enumerate_subdevices(
     """
     subdevices: list[Subdevice] = []
     fetched: dict[str, dict] = {}
+    # Case-insensitive -- the same UUID can reach here once from
+    # subdeviceIdList and once from an /oic/res link prefix with different
+    # casing (Samsung's own fields disagree on this elsewhere too, e.g. the
+    # redaction-prone subdeviceIdList handling below), and probing it twice
+    # would materialize the same physical subdevice as two Subdevice
+    # candidates under two different keys.
+    probed_ids: set[str] = set()
 
     def _probed(seed_href: str, batch: dict) -> None:
         if probe_log is not None:
@@ -360,6 +367,9 @@ def enumerate_subdevices(
         Pattern B (ids from subdeviceIdList) and Pattern C (ids from
         /oic/res link prefixes) below, which differ only in where the UUID
         came from."""
+        if sub_id.lower() in probed_ids:
+            return
+        probed_ids.add(sub_id.lower())
         seed = (sub_id, 'device', '0')
         batch = _get_batch(sess, seed)
         _probed(_seed_href(seed), batch)
@@ -434,17 +444,20 @@ def enumerate_subdevices(
     # '/<uuid>/multidevice/vs/0' on the reporting board. Its washer tree
     # answers a full Collection at /<uuid>/device/0, exactly Pattern B's
     # transform -- so treat every UUID path prefix seen in /oic/res as a
-    # prefixed-subdevice candidate (minus ones subdeviceIdList already
-    # named). Probing is the same tolerated-404 RETRIEVE as everything else
-    # here, and discover_partitioned's entity-level liveness gate still
-    # decides materialization, so a board that advertises a UUID link
-    # without a live sibling behind it contributes nothing.
+    # prefixed-subdevice candidate. Probing is the same tolerated-404
+    # RETRIEVE as everything else here, and discover_partitioned's
+    # entity-level liveness gate still decides materialization, so a board
+    # that advertises a UUID link without a live sibling behind it
+    # contributes nothing. _probe_prefixed's probed_ids guard -- not a set
+    # difference against `listed` here -- is what keeps an id already named
+    # by subdeviceIdList from being probed and materialized a second time,
+    # since the two sources can disagree on that UUID's case.
     linked = sorted({
         m.group(1)
         for link in _iter_oic_res_hrefs(oic_res_links)
         for m in [_UUID_PREFIX_RE.match(link.get('href', ''))]
         if m
-    } - set(listed))
+    })
     for sub_id in linked:
         _probe_prefixed(sub_id)
 

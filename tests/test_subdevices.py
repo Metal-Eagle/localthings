@@ -451,6 +451,45 @@ def test_enumerate_both_patterns_checked_independently():
     ]
 
 
+def test_enumerate_prefixed_id_named_by_both_subdevice_id_list_and_oic_res_is_not_duplicated():
+    """A board can carry a UUID that is both listed in subdeviceIdList
+    (Pattern B's signal) *and* advertised as an /oic/res link prefix
+    (Pattern C's) -- the TP2X_FAC_BORA_21K reporter's own board does this.
+    The two signals must resolve to one candidate, not two."""
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [_UUID]},
+    }
+    oic_res = [{'di': 'a', 'links': [
+        {'href': f'/{_UUID}/multidevice/vs/0'},
+    ]}]
+    sess = _FakeSession({
+        (_UUID, 'device', '0'): [_DEVCOL_REP, {'href': '/mode/vs/0', 'rep': {'m': 1}}],
+    })
+    subdevices, _extra = enumerate_subdevices(sess, resources, oic_res)
+    assert [(u.kind, u.key) for u in subdevices] == [('prefixed', _UUID)]
+
+
+def test_enumerate_prefixed_id_case_mismatch_between_sources_is_not_duplicated():
+    """subdeviceIdList and an /oic/res link prefix can name the same UUID
+    with different casing -- the match must be case-insensitive, or the
+    same physical subdevice materializes twice under two different keys."""
+    upper_uuid = _UUID.upper()
+    resources = {
+        '/subdevices/vs/0': {'x.com.samsung.da.subdeviceIdList': [upper_uuid]},
+    }
+    oic_res = [{'di': 'a', 'links': [
+        {'href': f'/{_UUID}/multidevice/vs/0'},
+    ]}]
+    sess = _FakeSession({
+        (upper_uuid, 'device', '0'): [_DEVCOL_REP, {'href': '/mode/vs/0', 'rep': {'m': 1}}],
+        (_UUID, 'device', '0'): [_DEVCOL_REP, {'href': '/mode/vs/0', 'rep': {'m': 1}}],
+    })
+    subdevices, _extra = enumerate_subdevices(sess, resources, oic_res)
+    assert len(subdevices) == 1
+    assert subdevices[0].kind == 'prefixed'
+    assert subdevices[0].key.lower() == _UUID
+
+
 # ---------------------------------------------------------------------------
 # discover_partitioned
 # ---------------------------------------------------------------------------
