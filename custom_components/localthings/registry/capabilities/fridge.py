@@ -15,12 +15,17 @@ Multi-instance note: the two door resources (/door/cooler/0 and
 /icemaker/two/vs/0) use named path segments, so they are modelled via
 pattern capabilities that auto-derive distinct entity keys from href segments.
 """
+
 import datetime
 
 from ..capability import Capability
 from ..entities import (
-    BinarySensorDesc, NumberDesc, SelectDesc, SensorDesc,
-    SwitchDesc, TimeDesc,
+    BinarySensorDesc,
+    NumberDesc,
+    SelectDesc,
+    SensorDesc,
+    SwitchDesc,
+    TimeDesc,
 )
 from .common import normalize_temp_unit
 
@@ -41,7 +46,7 @@ def _int(v):
 def _temp_unit(rep):
     """'units': 'C'/'F' (or 'Celsius'/'Fahrenheit') -> '°C'/'°F'. Defaults to
     °F (this module's original assumption) if the device omits the field."""
-    return normalize_temp_unit(rep.get('units'))
+    return normalize_temp_unit(rep.get("units"))
 
 
 # ---------------------------------------------------------------------------
@@ -50,17 +55,23 @@ def _temp_unit(rep):
 
 TEMP_CURRENT_GENERIC = Capability(
     href=None,
-    href_prefix='/temperature/current/',
+    href_prefix="/temperature/current/",
     strip_prefix_in_key=True,
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        SensorDesc(key='temperature', field='temperature',
-                   translation_key='instance_temperature',
-                   use_instance_name=True, icon='mdi:thermometer',
-                   device_class='temperature', unit_fn=_temp_unit,
-                   state_class='measurement'),
+        SensorDesc(
+            key="temperature",
+            field="temperature",
+            translation_key="instance_temperature",
+            use_instance_name=True,
+            icon="mdi:thermometer",
+            device_class="temperature",
+            unit_fn=_temp_unit,
+            state_class="measurement",
+        ),
     ),
 )
+
 
 def _temp_setpoint_write(p, rep, href=None, resources=None):
     """Write temperature — prefer vendor /temperatures/vs/0 when available,
@@ -73,38 +84,46 @@ def _temp_setpoint_write(p, rep, href=None, resources=None):
     """
     if not href:
         return None
-    if resources and '/temperatures/vs/0' in resources:
-        if '/cooler/' in href:
-            item_id = '1'
-        elif '/freezer/' in href:
-            item_id = '0'
+    if resources and "/temperatures/vs/0" in resources:
+        if "/cooler/" in href:
+            item_id = "1"
+        elif "/freezer/" in href:
+            item_id = "0"
         else:
             return None
         return (
-            ['temperatures', 'vs', '0'],
-            {'x.com.samsung.da.items': [
-                {'x.com.samsung.da.id': item_id,
-                 'x.com.samsung.da.desired': str(int(round(float(p))))}
-            ]}
+            ["temperatures", "vs", "0"],
+            {
+                "x.com.samsung.da.items": [
+                    {
+                        "x.com.samsung.da.id": item_id,
+                        "x.com.samsung.da.desired": str(round(float(p))),
+                    }
+                ]
+            },
         )
-    return (
-        [s for s in href.strip('/').split('/') if s],
-        {'temperature': int(round(float(p)))}
-    )
+    return ([s for s in href.strip("/").split("/") if s], {"temperature": round(float(p))})
 
 
 TEMP_SETPOINT = Capability(
     href=None,
-    href_prefix='/temperature/desired/',
+    href_prefix="/temperature/desired/",
     strip_prefix_in_key=True,
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        NumberDesc(key='setpoint', field='temperature',
-                   translation_key='instance_setpoint',
-                   use_instance_name=True, device_class='temperature', unit_fn=_temp_unit,
-                   native_min=-20.0, native_max=50.0,
-                   range_field='range', entity_category='config',
-                   write_fn=_temp_setpoint_write),
+        NumberDesc(
+            key="setpoint",
+            field="temperature",
+            translation_key="instance_setpoint",
+            use_instance_name=True,
+            device_class="temperature",
+            unit_fn=_temp_unit,
+            native_min=-20.0,
+            native_max=50.0,
+            range_field="range",
+            entity_category="config",
+            write_fn=_temp_setpoint_write,
+        ),
     ),
 )
 
@@ -121,21 +140,26 @@ TEMP_SETPOINT = Capability(
 # options list instead, same shape as BEVERAGE_ZONE/PANTRY_ZONE above.
 # ---------------------------------------------------------------------------
 
+
 def _definite_cooler_write(p, rep, href=None):
-    return (['temperature', 'definite', 'cooler', 'vs', '0'],
-            {'x.com.samsung.da.definite.desired': p})
+    return (
+        ["temperature", "definite", "cooler", "vs", "0"],
+        {"x.com.samsung.da.definite.desired": p},
+    )
 
 
 DEFINITE_TEMPERATURE_COOLER = Capability(
-    href='/temperature/definite/cooler/vs/0',
-    poll_tier='warm',
+    href="/temperature/definite/cooler/vs/0",
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='cooler_temperature_setpoint',
-                   field='x.com.samsung.da.definite.desired',
-                   icon='mdi:thermometer',
-                   entity_category='config',
-                   options_field='x.com.samsung.da.definite.supportedList',
-                   write_fn=_definite_cooler_write),
+        SelectDesc(
+            key="cooler_temperature_setpoint",
+            field="x.com.samsung.da.definite.desired",
+            icon="mdi:thermometer",
+            entity_category="config",
+            options_field="x.com.samsung.da.definite.supportedList",
+            write_fn=_definite_cooler_write,
+        ),
     ),
 )
 
@@ -144,16 +168,20 @@ DEFINITE_TEMPERATURE_COOLER = Capability(
 # ---------------------------------------------------------------------------
 
 ICEMAKER_NIGHTTIME = Capability(
-    href='/icemaker/nighttime/vs/0',
-    poll_tier='warm',
+    href="/icemaker/nighttime/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='ice_night_mode', field='ice.night.status',
-                   icon='mdi:weather-night',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['icemaker', 'nighttime', 'vs', '0'],
-                       {'ice.night.status': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="ice_night_mode",
+            field="ice.night.status",
+            icon="mdi:weather-night",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["icemaker", "nighttime", "vs", "0"],
+                {"ice.night.status": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -170,38 +198,50 @@ ICEMAKER_NIGHTTIME = Capability(
 # select, but users still want them labeled with the device's own names.
 # ---------------------------------------------------------------------------
 
+
 def _icemaker_write(field):
     return lambda p, rep, href=None: (
-        [s for s in href.strip('/').split('/') if s],
-        {field: p}
-    ) if href else None
+        ([s for s in href.strip("/").split("/") if s], {field: p}) if href else None
+    )
+
 
 ICEMAKER_GENERIC = Capability(
     href=None,
-    href_prefix='/icemaker/',
-    match_fn=lambda rep, resources: 'x.com.samsung.da.iceMaker.state' in rep,
-    name_field='x.com.samsung.da.iceMaker.name',
-    poll_tier='warm',
+    href_prefix="/icemaker/",
+    match_fn=lambda rep, resources: "x.com.samsung.da.iceMaker.state" in rep,
+    name_field="x.com.samsung.da.iceMaker.name",
+    poll_tier="warm",
     entities=(
-        SensorDesc(key='making_status',
-                   field='x.com.samsung.da.iceMaker.iceMakingStatus',
-                   use_instance_name=True, icon='mdi:cube-outline',
-                   device_class='enum',
-                   options=('icestatus_stop', 'icestatus_run'),
-                   translation_key='ice_making_status',
-                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
-        SwitchDesc(key='enabled', field='x.com.samsung.da.iceMaker.state',
-                   translation_key='instance_enabled',
-                   use_instance_name=True, icon='mdi:cube-outline',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_icemaker_write('x.com.samsung.da.iceMaker.state')),
-        SelectDesc(key='type', field='x.com.samsung.da.iceType.desired',
-                   use_instance_name=True, icon='mdi:cube-outline',
-                   translation_key='ice_type',
-                   entity_category='config',
-                   options_field='x.com.samsung.da.iceType.supported',
-                   exists_fn=lambda rep, resources: bool(rep.get('x.com.samsung.da.iceType.supported')),
-                   write_fn=_icemaker_write('x.com.samsung.da.iceType.desired')),
+        SensorDesc(
+            key="making_status",
+            field="x.com.samsung.da.iceMaker.iceMakingStatus",
+            use_instance_name=True,
+            icon="mdi:cube-outline",
+            device_class="enum",
+            options=("icestatus_stop", "icestatus_run"),
+            translation_key="ice_making_status",
+            value_fn=lambda v: v.lower() if isinstance(v, str) else v,
+        ),
+        SwitchDesc(
+            key="enabled",
+            field="x.com.samsung.da.iceMaker.state",
+            translation_key="instance_enabled",
+            use_instance_name=True,
+            icon="mdi:cube-outline",
+            value_fn=lambda v: v == "On",
+            write_fn=_icemaker_write("x.com.samsung.da.iceMaker.state"),
+        ),
+        SelectDesc(
+            key="type",
+            field="x.com.samsung.da.iceType.desired",
+            use_instance_name=True,
+            icon="mdi:cube-outline",
+            translation_key="ice_type",
+            entity_category="config",
+            options_field="x.com.samsung.da.iceType.supported",
+            exists_fn=lambda rep, resources: bool(rep.get("x.com.samsung.da.iceType.supported")),
+            write_fn=_icemaker_write("x.com.samsung.da.iceType.desired"),
+        ),
     ),
 )
 
@@ -210,17 +250,21 @@ ICEMAKER_GENERIC = Capability(
 # ---------------------------------------------------------------------------
 
 DOOR_ALERT = Capability(
-    href='/settings/sound/alert/door/vs/0',
-    poll_tier='warm',
+    href="/settings/sound/alert/door/vs/0",
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='door_alert', field='alert.door',
-                   icon='mdi:bell-alert',
-                   translation_key='door_alert',
-                   entity_category='config',
-                   options_field='supportedAlert.door',
-                   write_fn=lambda p, rep, href=None: (
-                       ['settings', 'sound', 'alert', 'door', 'vs', '0'],
-                       {'alert.door': p})),
+        SelectDesc(
+            key="door_alert",
+            field="alert.door",
+            icon="mdi:bell-alert",
+            translation_key="door_alert",
+            entity_category="config",
+            options_field="supportedAlert.door",
+            write_fn=lambda p, rep, href=None: (
+                ["settings", "sound", "alert", "door", "vs", "0"],
+                {"alert.door": p},
+            ),
+        ),
     ),
 )
 
@@ -228,27 +272,34 @@ DOOR_ALERT = Capability(
 # Status/lock — auto door opener and fridge sound
 # ---------------------------------------------------------------------------
 
+
 def _status_lock_write(field):
     return lambda p, rep, href=None: (
-        ['status', 'lock', 'vs', '0'],
-        {field: 'On' if p == 'On' else 'Off'}
+        ["status", "lock", "vs", "0"],
+        {field: "On" if p == "On" else "Off"},
     )
 
 
 STATUS_LOCK = Capability(
-    href='/status/lock/vs/0',
-    poll_tier='warm',
+    href="/status/lock/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='auto_door_opener', field='x.com.samsung.da.ado.devicecontrol',
-                   icon='mdi:door-open',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_status_lock_write('x.com.samsung.da.ado.devicecontrol')),
-        SwitchDesc(key='fridge_sound', field='x.com.samsung.da.device.sound',
-                   icon='mdi:volume-high',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_status_lock_write('x.com.samsung.da.device.sound')),
+        SwitchDesc(
+            key="auto_door_opener",
+            field="x.com.samsung.da.ado.devicecontrol",
+            icon="mdi:door-open",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=_status_lock_write("x.com.samsung.da.ado.devicecontrol"),
+        ),
+        SwitchDesc(
+            key="fridge_sound",
+            field="x.com.samsung.da.device.sound",
+            icon="mdi:volume-high",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=_status_lock_write("x.com.samsung.da.device.sound"),
+        ),
     ),
 )
 
@@ -266,16 +317,20 @@ STATUS_LOCK = Capability(
 # ---------------------------------------------------------------------------
 
 DEFROST_DELAY = Capability(
-    href='/defrost/delay/vs/0',
-    poll_tier='warm',
+    href="/defrost/delay/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='defrost_delay', field='x.com.samsung.da.delayDefrost',
-                   icon='mdi:snowflake-off',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['defrost', 'delay', 'vs', '0'],
-                       {'x.com.samsung.da.delayDefrost': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="defrost_delay",
+            field="x.com.samsung.da.delayDefrost",
+            icon="mdi:snowflake-off",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["defrost", "delay", "vs", "0"],
+                {"x.com.samsung.da.delayDefrost": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -284,17 +339,20 @@ DEFROST_DELAY = Capability(
 # above has a confirmed write contract.  Bind the native mirror without another
 # entity so discovery records it as an intentional duplicate.
 DEFROST_DELAY_NATIVE_DUPLICATE = Capability(
-    href='/defrost/delay/0',
+    href="/defrost/delay/0",
 )
 
 DEFROST_BLOCK_STATUS = Capability(
-    href='/defrost/block/vs/0',
-    poll_tier='warm',
+    href="/defrost/block/vs/0",
+    poll_tier="warm",
     entities=(
-        BinarySensorDesc(key='defrost_active', field='x.com.samsung.da.modes',
-                         icon='mdi:snowflake-melt',
-                         entity_category='diagnostic',
-                         value_fn=lambda modes: bool(modes) and modes[0] == 'DEFROST_BLOCK_ON'),
+        BinarySensorDesc(
+            key="defrost_active",
+            field="x.com.samsung.da.modes",
+            icon="mdi:snowflake-melt",
+            entity_category="diagnostic",
+            value_fn=lambda modes: bool(modes) and modes[0] == "DEFROST_BLOCK_ON",
+        ),
     ),
 )
 
@@ -302,28 +360,36 @@ DEFROST_BLOCK_STATUS = Capability(
 # Refrigeration modes (rapid cooling)
 # ---------------------------------------------------------------------------
 
+
 def _refrigeration_write(field_name):
     def _write(p, rep, href=None):
-        if p not in ('On', 'Off'):
+        if p not in ("On", "Off"):
             return None
-        return ['refrigeration', 'vs', '0'], {field_name: p}
+        return ["refrigeration", "vs", "0"], {field_name: p}
+
     return _write
 
 
 REFRIGERATION = Capability(
-    href='/refrigeration/vs/0',
-    poll_tier='warm',
+    href="/refrigeration/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='rapid_fridge', field='x.com.samsung.da.rapidFridge',
-                   icon='mdi:fridge-industrial',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_refrigeration_write('x.com.samsung.da.rapidFridge')),
-        SwitchDesc(key='rapid_freezing', field='x.com.samsung.da.rapidFreezing',
-                   icon='mdi:snowflake',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_refrigeration_write('x.com.samsung.da.rapidFreezing')),
+        SwitchDesc(
+            key="rapid_fridge",
+            field="x.com.samsung.da.rapidFridge",
+            icon="mdi:fridge-industrial",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=_refrigeration_write("x.com.samsung.da.rapidFridge"),
+        ),
+        SwitchDesc(
+            key="rapid_freezing",
+            field="x.com.samsung.da.rapidFreezing",
+            icon="mdi:snowflake",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=_refrigeration_write("x.com.samsung.da.rapidFreezing"),
+        ),
     ),
 )
 
@@ -331,21 +397,25 @@ REFRIGERATION = Capability(
 # Autofill
 # ---------------------------------------------------------------------------
 
+
 def _autofill_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
+    if p not in ("On", "Off"):
         return None
-    return ['autofill', 'vs', '0'], {'x.com.samsung.da.autofill': p}
+    return ["autofill", "vs", "0"], {"x.com.samsung.da.autofill": p}
 
 
 AUTOFILL = Capability(
-    href='/autofill/vs/0',
-    poll_tier='warm',
+    href="/autofill/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='autofill', field='x.com.samsung.da.autofill',
-                   icon='mdi:cup-water',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_autofill_write),
+        SwitchDesc(
+            key="autofill",
+            field="x.com.samsung.da.autofill",
+            icon="mdi:cup-water",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=_autofill_write,
+        ),
     ),
 )
 
@@ -354,16 +424,20 @@ AUTOFILL = Capability(
 # ---------------------------------------------------------------------------
 
 WELCOME_LIGHTING = Capability(
-    href='/proximity/vs/0',
-    poll_tier='warm',
+    href="/proximity/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='welcome_lighting', field='status',
-                   icon='mdi:motion-sensor',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['proximity', 'vs', '0'],
-                       {'status': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="welcome_lighting",
+            field="status",
+            icon="mdi:motion-sensor",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["proximity", "vs", "0"],
+                {"status": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -376,20 +450,20 @@ WELCOME_LIGHTING = Capability(
 # other: writing start preserves duration; writing end recalculates duration.
 # ---------------------------------------------------------------------------
 
-_NIGHT_BRIGHTNESS_OPTIONS = ('33', '66', '100')
+_NIGHT_BRIGHTNESS_OPTIONS = ("33", "66", "100")
 
 
 def _tz_offset(rep) -> datetime.timedelta:
-    s = rep.get('timezone.offset', '+00:00')
+    s = rep.get("timezone.offset", "+00:00")
     try:
-        sign = 1 if s[0] == '+' else -1
-        h, m = map(int, s[1:].split(':'))
+        sign = 1 if s[0] == "+" else -1
+        h, m = map(int, s[1:].split(":"))
         return datetime.timedelta(hours=h, minutes=m) * sign
     except (ValueError, TypeError, IndexError):
         return datetime.timedelta(0)
 
 
-def _parse_night_time(iso_str, offset=datetime.timedelta(0)) -> 'datetime.time | None':
+def _parse_night_time(iso_str, offset=datetime.timedelta(0)) -> "datetime.time | None":
     """Convert a UTC ISO datetime string to local time using offset."""
     if not iso_str:
         return None
@@ -399,81 +473,102 @@ def _parse_night_time(iso_str, offset=datetime.timedelta(0)) -> 'datetime.time |
         return None
 
 
-def _night_start_value(rep) -> 'datetime.time | None':
-    return _parse_night_time(rep.get('night.starttime'), _tz_offset(rep))
+def _night_start_value(rep) -> "datetime.time | None":
+    return _parse_night_time(rep.get("night.starttime"), _tz_offset(rep))
 
 
-def _night_end_value(rep) -> 'datetime.time | None':
-    start_t = _parse_night_time(rep.get('night.starttime'), _tz_offset(rep))
-    duration_str = rep.get('night.duration.minute')
+def _night_end_value(rep) -> "datetime.time | None":
+    start_t = _parse_night_time(rep.get("night.starttime"), _tz_offset(rep))
+    duration_str = rep.get("night.duration.minute")
     if start_t is None or duration_str is None:
         return None
     try:
         duration = int(duration_str)
     except (ValueError, TypeError):
         return None
-    return (datetime.datetime.combine(datetime.date.today(), start_t)
-            + datetime.timedelta(minutes=duration)).time().replace(second=0)
+    return (
+        (
+            datetime.datetime.combine(datetime.date.today(), start_t)
+            + datetime.timedelta(minutes=duration)
+        )
+        .time()
+        .replace(second=0)
+    )
 
 
 def _night_start_write(p, rep, href=None):
     # p is local time; subtract offset to get UTC for storage
     offset = _tz_offset(rep)
     utc_dt = datetime.datetime.combine(datetime.date.today(), p) - offset
-    old_iso = rep.get('night.starttime') or ''
+    old_iso = rep.get("night.starttime") or ""
     try:
         new_dt = datetime.datetime.fromisoformat(old_iso).replace(
-            hour=utc_dt.hour, minute=utc_dt.minute, second=0)
+            hour=utc_dt.hour, minute=utc_dt.minute, second=0
+        )
     except (ValueError, TypeError):
         new_dt = utc_dt
-    return ['cabinet', 'light', 'enhanced', 'vs', '0'], {
-        'night.starttime': new_dt.strftime('%Y-%m-%dT%H:%M:%S'),
+    return ["cabinet", "light", "enhanced", "vs", "0"], {
+        "night.starttime": new_dt.strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
 
 def _night_end_write(p, rep, href=None):
     # duration = end_local - start_local; offset cancels so work in local time
-    start_t = _parse_night_time(rep.get('night.starttime'), _tz_offset(rep))
+    start_t = _parse_night_time(rep.get("night.starttime"), _tz_offset(rep))
     if start_t is None:
         return None
     start_min = start_t.hour * 60 + start_t.minute
     end_min = p.hour * 60 + p.minute
     duration = (end_min - start_min) % (24 * 60)
-    return ['cabinet', 'light', 'enhanced', 'vs', '0'], {
-        'night.duration.minute': str(duration),
+    return ["cabinet", "light", "enhanced", "vs", "0"], {
+        "night.duration.minute": str(duration),
     }
 
 
 CABINET_LIGHT_ENHANCED = Capability(
-    href='/cabinet/light/enhanced/vs/0',
-    poll_tier='warm',
+    href="/cabinet/light/enhanced/vs/0",
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='day_brightness', field='level.brightness.daytime',
-                   icon='mdi:brightness-5',
-                   translation_key='day_brightness',
-                   entity_category='config',
-                   options=_NIGHT_BRIGHTNESS_OPTIONS,
-                   write_fn=lambda p, rep, href=None: (
-                       ['cabinet', 'light', 'enhanced', 'vs', '0'],
-                       {'level.brightness.daytime': p})),
-        SelectDesc(key='brightness_level', field='level.brightness.nighttime',
-                   icon='mdi:brightness-4',
-                   translation_key='brightness_level',
-                   entity_category='config',
-                   options=_NIGHT_BRIGHTNESS_OPTIONS,
-                   write_fn=lambda p, rep, href=None: (
-                       ['cabinet', 'light', 'enhanced', 'vs', '0'],
-                       {'level.brightness.nighttime': p})),
-        TimeDesc(key='night_start', field='',
-                 icon='mdi:clock-start',
-                 entity_category='config',
-                 rep_fn=_night_start_value,
-                 write_fn=_night_start_write),
-        TimeDesc(key='night_end', field='',
-                 icon='mdi:clock-end',
-                 entity_category='config',
-                 rep_fn=_night_end_value,
-                 write_fn=_night_end_write),
+        SelectDesc(
+            key="day_brightness",
+            field="level.brightness.daytime",
+            icon="mdi:brightness-5",
+            translation_key="day_brightness",
+            entity_category="config",
+            options=_NIGHT_BRIGHTNESS_OPTIONS,
+            write_fn=lambda p, rep, href=None: (
+                ["cabinet", "light", "enhanced", "vs", "0"],
+                {"level.brightness.daytime": p},
+            ),
+        ),
+        SelectDesc(
+            key="brightness_level",
+            field="level.brightness.nighttime",
+            icon="mdi:brightness-4",
+            translation_key="brightness_level",
+            entity_category="config",
+            options=_NIGHT_BRIGHTNESS_OPTIONS,
+            write_fn=lambda p, rep, href=None: (
+                ["cabinet", "light", "enhanced", "vs", "0"],
+                {"level.brightness.nighttime": p},
+            ),
+        ),
+        TimeDesc(
+            key="night_start",
+            field="",
+            icon="mdi:clock-start",
+            entity_category="config",
+            rep_fn=_night_start_value,
+            write_fn=_night_start_write,
+        ),
+        TimeDesc(
+            key="night_end",
+            field="",
+            icon="mdi:clock-end",
+            entity_category="config",
+            rep_fn=_night_end_value,
+            write_fn=_night_end_write,
+        ),
     ),
 )
 
@@ -481,29 +576,37 @@ CABINET_LIGHT_ENHANCED = Capability(
 # Cabinet light
 # ---------------------------------------------------------------------------
 
+
 def _cabinet_light_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
+    if p not in ("On", "Off"):
         return None
-    return ['cabinet', 'light', 'total', 'vs', '0'], {
-        'x.com.samsung.da.lightControl': p,
+    return ["cabinet", "light", "total", "vs", "0"], {
+        "x.com.samsung.da.lightControl": p,
     }
 
 
 CABINET_LIGHT = Capability(
-    href='/cabinet/light/total/vs/0',
-    poll_tier='warm',
+    href="/cabinet/light/total/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='cabinet_light_switch', field='x.com.samsung.da.lightControl',
-                   icon='mdi:fridge-outline',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_cabinet_light_write),
-        SwitchDesc(key='cabinet_light_dim', field='light.dimming.status',
-                   icon='mdi:brightness-auto',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['cabinet', 'light', 'total', 'vs', '0'],
-                       {'light.dimming.status': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="cabinet_light_switch",
+            field="x.com.samsung.da.lightControl",
+            icon="mdi:fridge-outline",
+            value_fn=lambda v: v == "On",
+            write_fn=_cabinet_light_write,
+        ),
+        SwitchDesc(
+            key="cabinet_light_dim",
+            field="light.dimming.status",
+            icon="mdi:brightness-auto",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["cabinet", "light", "total", "vs", "0"],
+                {"light.dimming.status": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -511,21 +614,25 @@ CABINET_LIGHT = Capability(
 # Sabbath mode
 # ---------------------------------------------------------------------------
 
+
 def _sabbath_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
+    if p not in ("On", "Off"):
         return None
-    return ['sabbath', 'vs', '0'], {'x.com.samsung.da.sabbathMode': p}
+    return ["sabbath", "vs", "0"], {"x.com.samsung.da.sabbathMode": p}
 
 
 SABBATH = Capability(
-    href='/sabbath/vs/0',
-    poll_tier='warm',
+    href="/sabbath/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='sabbath_mode', field='x.com.samsung.da.sabbathMode',
-                   icon='mdi:hands-pray',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_sabbath_write),
+        SwitchDesc(
+            key="sabbath_mode",
+            field="x.com.samsung.da.sabbathMode",
+            icon="mdi:hands-pray",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=_sabbath_write,
+        ),
     ),
 )
 
@@ -533,20 +640,24 @@ SABBATH = Capability(
 # Beverage zone
 # ---------------------------------------------------------------------------
 
+
 def _bzone_write(p, rep, href=None):
-    return ['specialzone', 'one', 'vs', '0'], {'roomDesiredMode': p}
+    return ["specialzone", "one", "vs", "0"], {"roomDesiredMode": p}
 
 
 BEVERAGE_ZONE = Capability(
-    href='/specialzone/one/vs/0',
-    poll_tier='warm',
+    href="/specialzone/one/vs/0",
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='beverage_zone_mode', field='roomDesiredMode',
-                   icon='mdi:glass-wine',
-                   translation_key='beverage_zone_mode',
-                   entity_category='config',
-                   options_field='roomSupportedModes',
-                   write_fn=_bzone_write),
+        SelectDesc(
+            key="beverage_zone_mode",
+            field="roomDesiredMode",
+            icon="mdi:glass-wine",
+            translation_key="beverage_zone_mode",
+            entity_category="config",
+            options_field="roomSupportedModes",
+            write_fn=_bzone_write,
+        ),
     ),
 )
 
@@ -561,20 +672,24 @@ BEVERAGE_ZONE = Capability(
 # instance turns up.
 # ---------------------------------------------------------------------------
 
+
 def _pantry_write(p, rep, href=None):
-    return ['status', 'pantry', 'one', 'vs', '0'], {'x.com.samsung.da.mode': p}
+    return ["status", "pantry", "one", "vs", "0"], {"x.com.samsung.da.mode": p}
 
 
 PANTRY_ZONE = Capability(
-    href='/status/pantry/one/vs/0',
-    poll_tier='warm',
+    href="/status/pantry/one/vs/0",
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='pantry_zone_mode', field='x.com.samsung.da.mode',
-                   icon='mdi:glass-wine',
-                   translation_key='pantry_zone_mode',
-                   entity_category='config',
-                   options_field='x.com.samsung.da.supportedOptions',
-                   write_fn=_pantry_write),
+        SelectDesc(
+            key="pantry_zone_mode",
+            field="x.com.samsung.da.mode",
+            icon="mdi:glass-wine",
+            translation_key="pantry_zone_mode",
+            entity_category="config",
+            options_field="x.com.samsung.da.supportedOptions",
+            write_fn=_pantry_write,
+        ),
     ),
 )
 
@@ -591,8 +706,9 @@ PANTRY_ZONE = Capability(
 # Write replaces only that item; other flags are preserved.
 # ---------------------------------------------------------------------------
 
+
 def _flex_zone_supported(rep):
-    return set(rep.get('x.com.samsung.da.supportedOptions') or ())
+    return set(rep.get("x.com.samsung.da.supportedOptions") or ())
 
 
 def _flex_zone_current(rep):
@@ -600,46 +716,49 @@ def _flex_zone_current(rep):
     # "first match" and "strip all matches" (in the write below) agree. If a
     # future device ever reports two, this reads the first and the write
     # would drop both -- revisit if that turns up.
-    modes = rep.get('x.com.samsung.da.modes') or []
+    modes = rep.get("x.com.samsung.da.modes") or []
     supported = _flex_zone_supported(rep)
     return next((m for m in modes if m in supported), None)
 
 
 def _flex_zone_write(p, rep, href=None):
     supported = _flex_zone_supported(rep)
-    modes = [m for m in (rep.get('x.com.samsung.da.modes') or []) if m not in supported]
+    modes = [m for m in (rep.get("x.com.samsung.da.modes") or []) if m not in supported]
     modes.append(p)
-    return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': modes}
+    return ["mode", "vs", "0"], {"x.com.samsung.da.modes": modes}
 
 
 FLEX_ZONE = Capability(
-    href='/mode/vs/0',
-    poll_tier='warm',
+    href="/mode/vs/0",
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='flex_zone_mode',
-                   icon='mdi:thermostat',
-                   translation_key='flex_zone_mode',
-                   entity_category='config',
-                   options_field='x.com.samsung.da.supportedOptions',
-                   # A nonempty supportedOptions alone isn't sufficient: the
-                   # kimchi-refrigerator family (issue #26) also populates
-                   # /mode/vs/0's modes/supportedOptions with real data, but
-                   # its tokens carry a "_[n]:[n]" parameter suffix on
-                   # supportedOptions that modes never repeats, so no item
-                   # ever overlaps -- the RF9000/Bespoke-class overlap this
-                   # capability was built for never happens there. Require an
-                   # actual resolvable value instead of just a populated
-                   # list, so this stays absent on that family rather than
-                   # showing a select permanently stuck on "unknown".
-                   exists_fn=lambda rep, resources: _flex_zone_current(rep) is not None,
-                   rep_fn=_flex_zone_current,
-                   write_fn=_flex_zone_write),
+        SelectDesc(
+            key="flex_zone_mode",
+            icon="mdi:thermostat",
+            translation_key="flex_zone_mode",
+            entity_category="config",
+            options_field="x.com.samsung.da.supportedOptions",
+            # A nonempty supportedOptions alone isn't sufficient: the
+            # kimchi-refrigerator family (issue #26) also populates
+            # /mode/vs/0's modes/supportedOptions with real data, but
+            # its tokens carry a "_[n]:[n]" parameter suffix on
+            # supportedOptions that modes never repeats, so no item
+            # ever overlaps -- the RF9000/Bespoke-class overlap this
+            # capability was built for never happens there. Require an
+            # actual resolvable value instead of just a populated
+            # list, so this stays absent on that family rather than
+            # showing a select permanently stuck on "unknown".
+            exists_fn=lambda rep, resources: _flex_zone_current(rep) is not None,
+            rep_fn=_flex_zone_current,
+            write_fn=_flex_zone_write,
+        ),
     ),
 )
 
 # ---------------------------------------------------------------------------
 # Generic door pattern capability (href=None — use as pattern_cap only)
 # ---------------------------------------------------------------------------
+
 
 def _door_open_state(rep):
     """Most /door/* resources report bare `openState`, but the
@@ -648,20 +767,24 @@ def _door_open_state(rep):
     capability still binds either way (href_prefix match doesn't care about
     field names), but a plain `field=` lookup against the wrong key means
     the entity exists and is permanently unavailable -- check both."""
-    v = rep.get('openState')
+    v = rep.get("openState")
     if v is None:
-        v = rep.get('x.com.samsung.da.openState')
-    return v == 'Open'
+        v = rep.get("x.com.samsung.da.openState")
+    return v == "Open"
 
 
 DOOR_GENERIC = Capability(
     href=None,
-    href_prefix='/door/',
-    poll_tier='hot',
+    href_prefix="/door/",
+    poll_tier="hot",
     entities=(
-        BinarySensorDesc(key='open', rep_fn=_door_open_state,
-                         translation_key='instance_open',
-                         use_instance_name=True, device_class='door'),
+        BinarySensorDesc(
+            key="open",
+            rep_fn=_door_open_state,
+            translation_key="instance_open",
+            use_instance_name=True,
+            device_class="door",
+        ),
     ),
 )
 
@@ -705,51 +828,69 @@ DOOR_GENERIC = Capability(
 # abbreviation guesses.
 # ---------------------------------------------------------------------------
 
+
 def _kimchi_mode_write(p, rep, href=None):
-    if not href or p not in (rep.get('x.com.samsung.da.supportMode') or ()):
+    if not href or p not in (rep.get("x.com.samsung.da.supportMode") or ()):
         return None
-    return [s for s in href.strip('/').split('/') if s], {
-        'x.com.samsung.da.currentMode': p,
+    return [s for s in href.strip("/").split("/") if s], {
+        "x.com.samsung.da.currentMode": p,
     }
 
 
 KIMCHI_ZONE = Capability(
     href=None,
-    href_prefix='/status/kimchi/',
+    href_prefix="/status/kimchi/",
     strip_prefix_in_key=True,
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='mode', field='x.com.samsung.da.currentMode',
-                   use_instance_name=True, icon='mdi:fridge-outline',
-                   translation_key='kimchi_zone_mode',
-                   entity_category='config',
-                   options_field='x.com.samsung.da.supportMode',
-                   write_fn=_kimchi_mode_write),
-        SensorDesc(key='ripening_status', field='x.com.samsung.da.ripeStatus',
-                   use_instance_name=True, icon='mdi:progress-clock',
-                   translation_key='kimchi_ripening_status',
-                   entity_category='diagnostic'),
-        SensorDesc(key='ripening_remaining', field='x.com.samsung.da.ripeRemaintime',
-                   use_instance_name=True, icon='mdi:timer-sand',
-                   translation_key='kimchi_ripening_remaining',
-                   entity_category='diagnostic',
-                   # No dump has this nonzero (ripeStatus is always "Off" so
-                   # far) -- device-reported unit unconfirmed, so this stays
-                   # a bare number rather than asserting minutes or hours.
-                   value_fn=_int),
-        SensorDesc(key='rack_count', field='x.com.samsung.da.rackCount',
-                   use_instance_name=True, icon='mdi:tray-full',
-                   translation_key='kimchi_rack_count',
-                   entity_category='diagnostic', enabled_default=False,
-                   value_fn=_int),
+        SelectDesc(
+            key="mode",
+            field="x.com.samsung.da.currentMode",
+            use_instance_name=True,
+            icon="mdi:fridge-outline",
+            translation_key="kimchi_zone_mode",
+            entity_category="config",
+            options_field="x.com.samsung.da.supportMode",
+            write_fn=_kimchi_mode_write,
+        ),
+        SensorDesc(
+            key="ripening_status",
+            field="x.com.samsung.da.ripeStatus",
+            use_instance_name=True,
+            icon="mdi:progress-clock",
+            translation_key="kimchi_ripening_status",
+            entity_category="diagnostic",
+        ),
+        SensorDesc(
+            key="ripening_remaining",
+            field="x.com.samsung.da.ripeRemaintime",
+            use_instance_name=True,
+            icon="mdi:timer-sand",
+            translation_key="kimchi_ripening_remaining",
+            entity_category="diagnostic",
+            # No dump has this nonzero (ripeStatus is always "Off" so
+            # far) -- device-reported unit unconfirmed, so this stays
+            # a bare number rather than asserting minutes or hours.
+            value_fn=_int,
+        ),
+        SensorDesc(
+            key="rack_count",
+            field="x.com.samsung.da.rackCount",
+            use_instance_name=True,
+            icon="mdi:tray-full",
+            translation_key="kimchi_rack_count",
+            entity_category="diagnostic",
+            enabled_default=False,
+            value_fn=_int,
+        ),
     ),
 )
 
 KIMCHI_DOOR_GENERIC = Capability(
     href=None,
-    href_prefix='/kimchidoors/',
+    href_prefix="/kimchidoors/",
     strip_prefix_in_key=True,
-    poll_tier='hot',
+    poll_tier="hot",
     entities=(
         # Not deduped against DOORS_FALLBACK below: on the one reporter
         # (refrigerator_tp2x_ref_20k_kimchi) this binds alongside, the
@@ -758,9 +899,13 @@ KIMCHI_DOOR_GENERIC = Capability(
         # that doesn't share this compartment's "top" instance numbering --
         # a distinct main-cabinet door, not this kimchi drawer's own contact
         # switch reported twice.
-        BinarySensorDesc(key='open', rep_fn=_door_open_state,
-                         translation_key='instance_open',
-                         use_instance_name=True, device_class='door'),
+        BinarySensorDesc(
+            key="open",
+            rep_fn=_door_open_state,
+            translation_key="instance_open",
+            use_instance_name=True,
+            device_class="door",
+        ),
     ),
 )
 
@@ -778,82 +923,97 @@ KIMCHI_DOOR_GENERIC = Capability(
 # where they don't.
 # ---------------------------------------------------------------------------
 
+
 def _any_door_generic(resources):
-    return any(h.startswith('/door/') for h in resources)
+    return any(h.startswith("/door/") for h in resources)
 
 
 DOORS_FALLBACK = Capability(
-    href='/doors/vs/0',
+    href="/doors/vs/0",
     match_fn=lambda rep, resources: not _any_door_generic(resources),
-    poll_tier='hot',
+    poll_tier="hot",
     entities=(
-        BinarySensorDesc(key='door_open', field='x.com.samsung.da.items',
-                         device_class='door',
-                         value_fn=lambda items: any(
-                             i.get('x.com.samsung.da.openState') == 'Open'
-                             for i in (items or []))),
+        BinarySensorDesc(
+            key="door_open",
+            field="x.com.samsung.da.items",
+            device_class="door",
+            value_fn=lambda items: any(
+                i.get("x.com.samsung.da.openState") == "Open" for i in (items or [])
+            ),
+        ),
     ),
 )
 
 
 def _any_temperature_generic(resources):
-    return any(h.startswith('/temperature/') for h in resources)
+    return any(h.startswith("/temperature/") for h in resources)
 
 
 def _temp_item_value(items, keyword):
-    for item in (items or []):
-        if keyword.lower() in (item.get('x.com.samsung.da.description') or '').lower():
-            return _int(item.get('x.com.samsung.da.current'))
+    for item in items or []:
+        if keyword.lower() in (item.get("x.com.samsung.da.description") or "").lower():
+            return _int(item.get("x.com.samsung.da.current"))
     return None
 
 
 def _temp_item_unit(items, keyword):
-    for item in (items or []):
-        if keyword.lower() in (item.get('x.com.samsung.da.description') or '').lower():
-            return normalize_temp_unit(item.get('x.com.samsung.da.unit'))
-    return '°F'
+    for item in items or []:
+        if keyword.lower() in (item.get("x.com.samsung.da.description") or "").lower():
+            return normalize_temp_unit(item.get("x.com.samsung.da.unit"))
+    return "°F"
 
 
 TEMPERATURES_FALLBACK = Capability(
-    href='/temperatures/vs/0',
+    href="/temperatures/vs/0",
     match_fn=lambda rep, resources: not _any_temperature_generic(resources),
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        SensorDesc(key='freezer_temperature', field='x.com.samsung.da.items',
-                   icon='mdi:thermometer',
-                   device_class='temperature', state_class='measurement',
-                   unit_fn=lambda rep: _temp_item_unit(
-                       rep.get('x.com.samsung.da.items'), 'Freezer'),
-                   value_fn=lambda items: _temp_item_value(items, 'Freezer')),
-        SensorDesc(key='fridge_temperature', field='x.com.samsung.da.items',
-                   icon='mdi:thermometer',
-                   device_class='temperature', state_class='measurement',
-                   unit_fn=lambda rep: _temp_item_unit(
-                       rep.get('x.com.samsung.da.items'), 'Fridge'),
-                   value_fn=lambda items: _temp_item_value(items, 'Fridge')),
+        SensorDesc(
+            key="freezer_temperature",
+            field="x.com.samsung.da.items",
+            icon="mdi:thermometer",
+            device_class="temperature",
+            state_class="measurement",
+            unit_fn=lambda rep: _temp_item_unit(rep.get("x.com.samsung.da.items"), "Freezer"),
+            value_fn=lambda items: _temp_item_value(items, "Freezer"),
+        ),
+        SensorDesc(
+            key="fridge_temperature",
+            field="x.com.samsung.da.items",
+            icon="mdi:thermometer",
+            device_class="temperature",
+            state_class="measurement",
+            unit_fn=lambda rep: _temp_item_unit(rep.get("x.com.samsung.da.items"), "Fridge"),
+            value_fn=lambda items: _temp_item_value(items, "Fridge"),
+        ),
     ),
 )
 
 
 def _any_icemaker_unit_generic(resources):
     return any(
-        h.startswith('/icemaker/') and isinstance(r, dict)
-        and 'x.com.samsung.da.iceMaker.state' in r
+        h.startswith("/icemaker/")
+        and isinstance(r, dict)
+        and "x.com.samsung.da.iceMaker.state" in r
         for h, r in resources.items()
     )
 
 
 ICEMAKER_STATUS_FALLBACK = Capability(
-    href='/icemaker/status/vs/0',
+    href="/icemaker/status/vs/0",
     match_fn=lambda rep, resources: not _any_icemaker_unit_generic(resources),
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='ice_maker_enabled', field='x.com.samsung.da.iceMaker',
-                   icon='mdi:cube-outline',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['icemaker', 'status', 'vs', '0'],
-                       {'x.com.samsung.da.iceMaker': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="ice_maker_enabled",
+            field="x.com.samsung.da.iceMaker",
+            icon="mdi:cube-outline",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["icemaker", "status", "vs", "0"],
+                {"x.com.samsung.da.iceMaker": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -862,7 +1022,7 @@ ICEMAKER_STATUS_FALLBACK = Capability(
 # /icemaker/one|two/vs/0 resources.  Its write contract is not advertised, so
 # keep the proven per-unit/vendor controls and bind this as a duplicate only.
 ICEMAKER_STATUS_NATIVE_DUPLICATE = Capability(
-    href='/icemaker/status/0',
+    href="/icemaker/status/0",
 )
 
 # OCF-native /refrigeration/0 (issue #7's unbound_hrefs) -- the odd one out
@@ -875,23 +1035,32 @@ ICEMAKER_STATUS_NATIVE_DUPLICATE = Capability(
 # DEFROST_BLOCK_STATUS's is. No write path confirmed for this href, so
 # these are read-only, unlike REFRIGERATION's switches.
 REFRIGERATION_FALLBACK = Capability(
-    href='/refrigeration/0',
-    poll_tier='warm',
+    href="/refrigeration/0",
+    poll_tier="warm",
     entities=(
-        BinarySensorDesc(key='defrost_active', field='defrost',
-                         icon='mdi:snowflake-melt',
-                         entity_category='diagnostic',
-                         value_fn=lambda v: bool(v),
-                         exists_fn=lambda rep, resources: '/defrost/block/vs/0' not in resources),
-        BinarySensorDesc(key='rapid_fridge', field='rapidCool',
-                         icon='mdi:fridge-industrial',
-                         entity_category='config',
-                         value_fn=lambda v: bool(v),
-                         exists_fn=lambda rep, resources: '/refrigeration/vs/0' not in resources),
-        BinarySensorDesc(key='rapid_freezing', field='rapidFreeze',
-                         icon='mdi:snowflake',
-                         entity_category='config',
-                         value_fn=lambda v: bool(v),
-                         exists_fn=lambda rep, resources: '/refrigeration/vs/0' not in resources),
+        BinarySensorDesc(
+            key="defrost_active",
+            field="defrost",
+            icon="mdi:snowflake-melt",
+            entity_category="diagnostic",
+            value_fn=lambda v: bool(v),
+            exists_fn=lambda rep, resources: "/defrost/block/vs/0" not in resources,
+        ),
+        BinarySensorDesc(
+            key="rapid_fridge",
+            field="rapidCool",
+            icon="mdi:fridge-industrial",
+            entity_category="config",
+            value_fn=lambda v: bool(v),
+            exists_fn=lambda rep, resources: "/refrigeration/vs/0" not in resources,
+        ),
+        BinarySensorDesc(
+            key="rapid_freezing",
+            field="rapidFreeze",
+            icon="mdi:snowflake",
+            entity_category="config",
+            value_fn=lambda v: bool(v),
+            exists_fn=lambda rep, resources: "/refrigeration/vs/0" not in resources,
+        ),
     ),
 )

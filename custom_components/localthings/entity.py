@@ -1,21 +1,21 @@
 """Base entity for Local Things."""
+
 from __future__ import annotations
 
 import re
 
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.const import EntityCategory
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import DOMAIN
+from .coordinator import LocalThingsCoordinator
 from .registry.adapter import _key
 from .registry.batch import is_stub_rep
 from .registry.discovery import BoundEntity, _snake_to_title
 
-from .const import DOMAIN
-from .coordinator import LocalThingsCoordinator
 
-
-def _is_included(bound: BoundEntity, coordinator: 'LocalThingsCoordinator') -> bool:
+def _is_included(bound: BoundEntity, coordinator: LocalThingsCoordinator) -> bool:
     """Return False if the entity should not be registered for this device.
 
     Explicit exists_fn takes priority. Otherwise, if the entity has a field,
@@ -63,7 +63,7 @@ def _derive_name(state_key: str) -> str:
     builds the {instance_name} placeholder those translations interpolate,
     for a device that named its own compartments/ice makers.
     """
-    name = re.sub(r'(\d+)$', lambda m: f' {m.group()}' if int(m.group()) > 0 else '', state_key)
+    name = re.sub(r"(\d+)$", lambda m: f" {m.group()}" if int(m.group()) > 0 else "", state_key)
     return _snake_to_title(name).strip()
 
 
@@ -74,9 +74,9 @@ def _instance_display_name(bound: BoundEntity, state_key: str) -> str:
     source = bound.key_override or state_key
     suffix = f"_{bound.desc.key}"
     if source.endswith(suffix):
-        source = source[:-len(suffix)]
+        source = source[: -len(suffix)]
     elif bound.instance and source.endswith(bound.instance):
-        source = source[:-len(bound.instance)] + bound.instance.replace("_", " ")
+        source = source[: -len(bound.instance)] + bound.instance.replace("_", " ")
     return _derive_name(source)
 
 
@@ -91,9 +91,7 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
         self._state_key = _key(bound)
         self._attr_unique_id = f"{DOMAIN}_{coordinator.device_serial}_{self._state_key}"
         if bound.desc.translation_placeholders is not None:
-            self._attr_translation_placeholders = dict(
-                bound.desc.translation_placeholders
-            )
+            self._attr_translation_placeholders = dict(bound.desc.translation_placeholders)
         elif bound.desc.use_instance_name:
             self._attr_translation_placeholders = {
                 "instance_name": _instance_display_name(bound, self._state_key)

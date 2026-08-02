@@ -18,27 +18,34 @@ the same model with a slightly different token set (no ``Spi``,
 ``FilterTime_5460``, ``OutdoorTemp_81``), which the token entities' presence
 gating handles the same way it handles newer boards.
 """
+
+from typing import ClassVar
+
 from custom_components.localthings.climate import LocalThingsClimate
 from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import (
-    airconditioner, for_device_by_model,
+    airconditioner,
+    for_device_by_model,
 )
 from custom_components.localthings.registry.capabilities.airconditioner import (
-    HREF_AIRFLOW, HREF_WIND_STRENGTH, _option_number_write,
-    _option_switch_write, is_legacy_board,
+    HREF_AIRFLOW,
+    HREF_WIND_STRENGTH,
+    _option_number_write,
+    _option_switch_write,
+    is_legacy_board,
 )
 from custom_components.localthings.registry.discovery import discover
 from custom_components.localthings.registry.entities import ClimateDesc
 from tests.conftest import _load_device
 
-FIXTURE = 'airconditioner_artik051_krac_18k'
-MODEL = 'ARTIK051_KRAC_18K|10193441|60010119001111010100000000000000'
+FIXTURE = "airconditioner_artik051_krac_18k"
+MODEL = "ARTIK051_KRAC_18K|10193441|60010119001111010100000000000000"
 
 
 class _FakeCoordinator:
-    device_serial = 'TEST-KRAC-SERIAL'
-    device_info = {}
-    data = {}
+    device_serial = "TEST-KRAC-SERIAL"
+    device_info: ClassVar[dict] = {}
+    data: ClassVar[dict] = {}
 
     def __init__(self, resources):
         self.last_resources = resources
@@ -59,8 +66,9 @@ class _FakeCoordinator:
 
 def _discover(resources, registry=airconditioner.REGISTRY):
     unbound = []
-    bound = discover(resources, registry.capabilities,
-                     registry.pattern_capabilities, log=unbound.append)
+    bound = discover(
+        resources, registry.capabilities, registry.pattern_capabilities, log=unbound.append
+    )
     return bound, unbound
 
 
@@ -72,24 +80,24 @@ def _state(fixture=FIXTURE):
 
 def _climate(resources, coordinator=None):
     bound, _ = _discover(resources)
-    climate_bound = next(
-        item for item in bound if isinstance(item.desc, ClimateDesc)
-    )
+    climate_bound = next(item for item in bound if isinstance(item.desc, ClimateDesc))
     return LocalThingsClimate(
-        coordinator or _FakeCoordinator(resources), climate_bound,
+        coordinator or _FakeCoordinator(resources),
+        climate_bound,
     )
 
 
 # -- device type --------------------------------------------------------------
+
 
 def test_krac_model_resolves_to_the_airconditioner_registry():
     """The '_RAC_' token check can't see '_KRAC_' -- the 'K' sits between the
     underscore and 'RAC' -- and the consumer-prefix fallback only covers
     washers/dryers/dishwashers, so this model resolved to 'unknown' and
     exposed nothing but power."""
-    registry = for_device_by_model(MODEL, 'ARTIK051_KRAC_18K')
+    registry = for_device_by_model(MODEL, "ARTIK051_KRAC_18K")
     assert registry is not None
-    assert registry.name == 'airconditioner'
+    assert registry.name == "airconditioner"
 
 
 def test_no_unbound_hrefs():
@@ -99,20 +107,21 @@ def test_no_unbound_hrefs():
 
 # -- option-token entities ----------------------------------------------------
 
+
 def test_token_entities_present_with_calibrated_values():
     state = _state()
     # token/10 hours: 1715 displayed as "171 hours 0 minutes"... at 1710 in the
     # official app on this unit, which pins the scale (the .5 here is a later
     # reading). It counts up -- see the descriptor comment and
     # test_filter_alarm_tracks_the_counter_against_its_threshold below.
-    assert state['filter_time'] == 171.5
+    assert state["filter_time"] == 171.5
     # token - 55 == 19 C, against a 19.4 C forecast at the time of the dump.
-    assert state['outdoor_temperature'] == 19.0
-    assert state['beep'] is True
-    assert state['good_sleep'] == 0.0
-    assert state['spi'] is False
-    assert state['auto_clean_legacy'] is False
-    assert state['air_monitoring'] is False
+    assert state["outdoor_temperature"] == 19.0
+    assert state["beep"] is True
+    assert state["good_sleep"] == 0.0
+    assert state["spi"] is False
+    assert state["auto_clean_legacy"] is False
+    assert state["air_monitoring"] is False
 
 
 def test_token_entities_stay_off_newer_boards():
@@ -120,9 +129,15 @@ def test_token_entities_stay_off_newer_boards():
     while also exposing those settings as dedicated resources -- ungated, the
     token entities would duplicate them (auto clean) or apply a scale
     calibrated on another board generation (outdoor temperature)."""
-    state = _state('airconditioner_tp1x_rac')
-    for key in ('spi', 'auto_clean_legacy', 'air_monitoring',
-                'good_sleep', 'outdoor_temperature', 'filter_time'):
+    state = _state("airconditioner_tp1x_rac")
+    for key in (
+        "spi",
+        "auto_clean_legacy",
+        "air_monitoring",
+        "good_sleep",
+        "outdoor_temperature",
+        "filter_time",
+    ):
         assert key not in state, key
 
 
@@ -136,7 +151,7 @@ def test_climate_legacy_airflow_gate_agrees_with_is_legacy_board():
     assert is_legacy_board(legacy_resources) is True
     assert _climate(legacy_resources)._legacy_airflow() == legacy_resources[HREF_AIRFLOW]
 
-    newer_resources = _load_device('airconditioner_tp1x_rac')
+    newer_resources = _load_device("airconditioner_tp1x_rac")
     assert is_legacy_board(newer_resources) is False
     assert _climate(newer_resources)._legacy_airflow() == {}
     assert HREF_WIND_STRENGTH in newer_resources
@@ -145,12 +160,12 @@ def test_climate_legacy_airflow_gate_agrees_with_is_legacy_board():
 def test_absent_token_yields_no_entity():
     """The issue #136 unit of this same model reports no Spi token."""
     resources = _load_device(FIXTURE)
-    options = resources['/mode/vs/0']['x.com.samsung.da.options']
-    resources['/mode/vs/0']['x.com.samsung.da.options'] = [
-        option for option in options if not option.startswith('Spi_')
+    options = resources["/mode/vs/0"]["x.com.samsung.da.options"]
+    resources["/mode/vs/0"]["x.com.samsung.da.options"] = [
+        option for option in options if not option.startswith("Spi_")
     ]
     bound, _ = _discover(resources)
-    assert 'spi' not in flatten(bound, resources)
+    assert "spi" not in flatten(bound, resources)
 
 
 def test_humidity_reads_the_vendor_field_and_treats_zero_as_unknown():
@@ -158,29 +173,32 @@ def test_humidity_reads_the_vendor_field_and_treats_zero_as_unknown():
     only carries a reading while Air monitoring is on, and the unit switches
     that back off by itself after about a minute."""
     resources = _load_device(FIXTURE)
-    assert resources['/humidity/vs/0']['x.com.samsung.da.humidity'] == '0'
+    assert resources["/humidity/vs/0"]["x.com.samsung.da.humidity"] == "0"
     bound, _ = _discover(resources)
-    assert flatten(bound, resources)['humidity'] is None
+    assert flatten(bound, resources)["humidity"] is None
 
-    resources['/humidity/vs/0']['x.com.samsung.da.humidity'] = '51'
+    resources["/humidity/vs/0"]["x.com.samsung.da.humidity"] = "51"
     bound, _ = _discover(resources)
-    assert flatten(bound, resources)['humidity'] == 51.0
+    assert flatten(bound, resources)["humidity"] == 51.0
 
 
 def test_option_writes_carry_one_token():
     """Both go through option_write's single-token merge, the same mechanism
     the display light already uses on this href. Confirmed on hardware by
     read-back: Spi_On/Spi_Off, and the volume token surviving a write."""
-    assert _option_switch_write('Spi')('On', {}) == (
-        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Spi_On']},
+    assert _option_switch_write("Spi")("On", {}) == (
+        ["mode", "vs", "0"],
+        {"x.com.samsung.da.options": ["Spi_On"]},
     )
     # The number platform hands over a float; the device wants an integer token.
-    assert _option_number_write('Volume')(70.0, {}) == (
-        ['mode', 'vs', '0'], {'x.com.samsung.da.options': ['Volume_70']},
+    assert _option_number_write("Volume")(70.0, {}) == (
+        ["mode", "vs", "0"],
+        {"x.com.samsung.da.options": ["Volume_70"]},
     )
 
 
 # -- filter counter and its reset ---------------------------------------------
+
 
 def _desc(resources, key):
     """The bound descriptor for `key`, or None when its exists_fn declines it.
@@ -206,13 +224,13 @@ def test_filter_alarm_time_reads_the_threshold_and_writes_one_token():
     options tuple defensible here (the board advertises no supported-values
     list for options[] tokens)."""
     state = _state()
-    assert state['filter_alarm_time'] == '500'          # the fixture's own value
+    assert state["filter_alarm_time"] == "500"  # the fixture's own value
 
-    desc = _desc(_load_device(FIXTURE), 'filter_alarm_time')
-    assert desc.options == ('180', '300', '500', '700')
-    assert desc.write_fn('180', {}) == (
-        ['mode', 'vs', '0'],
-        {'x.com.samsung.da.options': ['FilterAlarmTime_180']},
+    desc = _desc(_load_device(FIXTURE), "filter_alarm_time")
+    assert desc.options == ("180", "300", "500", "700")
+    assert desc.write_fn("180", {}) == (
+        ["mode", "vs", "0"],
+        {"x.com.samsung.da.options": ["FilterAlarmTime_180"]},
     )
 
 
@@ -225,15 +243,16 @@ def test_filter_alarm_time_stays_off_boards_with_a_real_threshold_resource():
     would pass for the wrong reason -- absent token rather than the
     board-generation gate. The token is injected to exercise the gate itself,
     test_absent_token_yields_no_entity's technique in reverse."""
-    newer = _load_device('airconditioner_tp1x_rac')
-    assert _desc(newer, 'filter_alarm_time') is None
+    newer = _load_device("airconditioner_tp1x_rac")
+    assert _desc(newer, "filter_alarm_time") is None
 
-    mode = newer['/mode/vs/0']
-    mode['x.com.samsung.da.options'] = [
-        *(mode.get('x.com.samsung.da.options') or []), 'FilterAlarmTime_500',
+    mode = newer["/mode/vs/0"]
+    mode["x.com.samsung.da.options"] = [
+        *(mode.get("x.com.samsung.da.options") or []),
+        "FilterAlarmTime_500",
     ]
     assert is_legacy_board(newer) is False
-    assert _desc(newer, 'filter_alarm_time') is None
+    assert _desc(newer, "filter_alarm_time") is None
 
 
 def test_filter_alarm_tracks_the_counter_against_its_threshold():
@@ -243,36 +262,36 @@ def test_filter_alarm_tracks_the_counter_against_its_threshold():
     same site, at FilterTime_5595 against the same FilterAlarmTime_500, instead
     reported an unsuffixed 'FilterAlarm' in state 'Created'."""
     resources = _load_device(FIXTURE)
-    options = resources['/mode/vs/0']['x.com.samsung.da.options']
-    assert 'FilterTime_1715' in options
-    assert 'FilterAlarmTime_500' in options
+    options = resources["/mode/vs/0"]["x.com.samsung.da.options"]
+    assert "FilterTime_1715" in options
+    assert "FilterAlarmTime_500" in options
 
-    alarms = resources['/alarms/vs/0']['x.com.samsung.da.items']
+    alarms = resources["/alarms/vs/0"]["x.com.samsung.da.items"]
     filter_alarm = next(
-        item for item in alarms
-        if item['x.com.samsung.da.code'].startswith('FilterAlarm')
+        item for item in alarms if item["x.com.samsung.da.code"].startswith("FilterAlarm")
     )
-    assert filter_alarm['x.com.samsung.da.code'] == 'FilterAlarm_OFF'
-    assert filter_alarm['x.com.samsung.da.state'] == 'Deleted'
+    assert filter_alarm["x.com.samsung.da.code"] == "FilterAlarm_OFF"
+    assert filter_alarm["x.com.samsung.da.state"] == "Deleted"
 
 
 # -- climate entity: fan, swing and preset off /airflow/vs/0 ------------------
 
+
 def test_fan_mode_reads_the_airflow_speed_level():
     entity = _climate(_load_device(FIXTURE))
-    assert entity.fan_mode == 'high'          # speedLevel 3 in the fixture
+    assert entity.fan_mode == "high"  # speedLevel 3 in the fixture
     # No supportedModes on this resource, so the full 0-4 scale is offered.
-    assert entity.fan_modes == ['auto', 'low', 'medium', 'high', 'turbo']
+    assert entity.fan_modes == ["auto", "low", "medium", "high", "turbo"]
 
 
 def test_swing_mode_reads_the_airflow_direction():
     resources = _load_device(FIXTURE)
     entity = _climate(resources)
-    assert entity.swing_mode == 'off'         # 'Fix' in the fixture
+    assert entity.swing_mode == "off"  # 'Fix' in the fixture
 
-    resources[HREF_AIRFLOW]['x.com.samsung.da.direction'] = 'All'
-    assert _climate(resources).swing_mode == 'both'
-    assert 'both' in _climate(resources).swing_modes
+    resources[HREF_AIRFLOW]["x.com.samsung.da.direction"] = "All"
+    assert _climate(resources).swing_mode == "both"
+    assert "both" in _climate(resources).swing_modes
 
 
 async def test_fan_and_swing_writes_target_the_airflow_resource():
@@ -280,32 +299,37 @@ async def test_fan_and_swing_writes_target_the_airflow_resource():
     coordinator = _FakeCoordinator(resources)
     entity = _climate(resources, coordinator)
 
-    await entity.async_set_fan_mode('turbo')
-    await entity.async_set_swing_mode('both')
+    await entity.async_set_fan_mode("turbo")
+    await entity.async_set_swing_mode("both")
 
     assert [payload for _, payload in coordinator.commands] == [
-        ('fan_legacy', '4'), ('swing_legacy', 'All'),
+        ("fan_legacy", "4"),
+        ("swing_legacy", "All"),
     ]
 
 
 def test_preset_comes_from_the_comode_token():
     resources = _load_device(FIXTURE)
     entity = _climate(resources)
-    assert entity.preset_mode == 'none'       # Comode_Off in the fixture
+    assert entity.preset_mode == "none"  # Comode_Off in the fixture
     # Codes learned by driving this unit through its cloud integration and
     # reading the token back. They go through the same dynamic resolver as a
     # real convenient resource's supportedModes, so 'Nano' resolves to the
     # existing 'nano' preset -- already labelled WindFree in the catalog.
     assert entity.preset_modes == [
-        'none', 'nano', 'quiet', 'comfort', '2step', 'speed',
+        "none",
+        "nano",
+        "quiet",
+        "comfort",
+        "2step",
+        "speed",
     ]
 
-    options = resources['/mode/vs/0']['x.com.samsung.da.options']
-    resources['/mode/vs/0']['x.com.samsung.da.options'] = [
-        'Comode_Nano' if option.startswith('Comode_') else option
-        for option in options
+    options = resources["/mode/vs/0"]["x.com.samsung.da.options"]
+    resources["/mode/vs/0"]["x.com.samsung.da.options"] = [
+        "Comode_Nano" if option.startswith("Comode_") else option for option in options
     ]
-    assert _climate(resources).preset_mode == 'nano'
+    assert _climate(resources).preset_mode == "nano"
 
 
 async def test_preset_write_uses_the_token_path():
@@ -313,21 +337,21 @@ async def test_preset_write_uses_the_token_path():
     coordinator = _FakeCoordinator(resources)
     entity = _climate(resources, coordinator)
 
-    await entity.async_set_preset_mode('nano')
+    await entity.async_set_preset_mode("nano")
 
-    assert coordinator.commands[-1][1] == ('preset_legacy', 'Nano')
+    assert coordinator.commands[-1][1] == ("preset_legacy", "Nano")
 
 
 async def test_newer_boards_keep_the_resource_paths():
     """The legacy fallbacks are gated on this board's resource shape, so a
     board with /wind/* and /mode/convenient/vs/0 must be untouched by them."""
-    resources = _load_device('airconditioner_tp1x_rac')
+    resources = _load_device("airconditioner_tp1x_rac")
     coordinator = _FakeCoordinator(resources)
     entity = _climate(resources, coordinator)
 
-    await entity.async_set_fan_mode('high')
-    await entity.async_set_swing_mode('off')
-    await entity.async_set_preset_mode('quiet')   # from its own supportedModes
+    await entity.async_set_fan_mode("high")
+    await entity.async_set_swing_mode("off")
+    await entity.async_set_preset_mode("quiet")  # from its own supportedModes
 
     kinds = [payload[0] for _, payload in coordinator.commands]
-    assert kinds == ['fan', 'swing', 'preset']
+    assert kinds == ["fan", "swing", "preset"]

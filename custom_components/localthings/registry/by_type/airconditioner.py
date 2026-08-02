@@ -16,31 +16,34 @@ uses unconditionally.
 
 Reuses dishwasher.DIAGNOSIS for /diagnosis/vs/0.
 """
+
 from ..capabilities import airconditioner, common, dishwasher, ignored
 from ._base import DeviceRegistry, _build
 
 REGISTRY = DeviceRegistry(
-    name='airconditioner',
-    capabilities=_build([
-        *ignored.IGNORED,
-        *[c for c in common.UNIVERSAL if c is not common.ENERGY_METER],
-        airconditioner.ENERGY_METER_GENERIC,
-        airconditioner.ENERGY_METER_LEGACY,
-        dishwasher.DIAGNOSIS,
-        airconditioner.CLIMATE,
-        airconditioner.AIR_PURIFY,
-        airconditioner.AUTO_CLEAN,
-        airconditioner.AIR_FILTER,
-        airconditioner.AIR_QUALITY,
-        airconditioner.DISPLAY_LIGHT,
-        airconditioner.MUTE_ONCE,
-        airconditioner.CURRENT_LIMIT,
-        airconditioner.ANOMALY_LOAD,
-        airconditioner.ABSENCE_POWER_SAVING,
-        airconditioner.MOTION_DETECT_WIND,
-        airconditioner.CURRENT_TEMPERATURE,
-        airconditioner.CURRENT_TEMPERATURE_VS,
-        airconditioner.HUMIDITY,
-        *airconditioner.COVERAGE,
-    ]),
+    name="airconditioner",
+    capabilities=_build(
+        [
+            *ignored.IGNORED,
+            *[c for c in common.UNIVERSAL if c is not common.ENERGY_METER],
+            airconditioner.ENERGY_METER_GENERIC,
+            airconditioner.ENERGY_METER_LEGACY,
+            dishwasher.DIAGNOSIS,
+            airconditioner.CLIMATE,
+            airconditioner.AIR_PURIFY,
+            airconditioner.AUTO_CLEAN,
+            airconditioner.AIR_FILTER,
+            airconditioner.AIR_QUALITY,
+            airconditioner.DISPLAY_LIGHT,
+            airconditioner.MUTE_ONCE,
+            airconditioner.CURRENT_LIMIT,
+            airconditioner.ANOMALY_LOAD,
+            airconditioner.ABSENCE_POWER_SAVING,
+            airconditioner.MOTION_DETECT_WIND,
+            airconditioner.CURRENT_TEMPERATURE,
+            airconditioner.CURRENT_TEMPERATURE_VS,
+            airconditioner.HUMIDITY,
+            *airconditioner.COVERAGE,
+        ]
+    ),
 )

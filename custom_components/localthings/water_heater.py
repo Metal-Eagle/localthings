@@ -35,6 +35,7 @@ it drives. This entity is named through the catalog like every other
 descriptor here, via the DHW descriptor's `translation_key='dhw'`
 (entity.water_heater.dhw.name -> "Hot water").
 """
+
 from __future__ import annotations
 
 import logging
@@ -52,30 +53,33 @@ from homeassistant.const import STATE_OFF, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .registry.capabilities.ehs import (
-    HREF_DHW_MODE as MODE_HREF,
-    HREF_DHW_POWER as POWER_HREF,
-    HREF_DHW_TEMPERATURE as TEMPERATURE_HREF,
-)
-from .registry.capabilities.common import normalize_temp_unit
-from .registry.entities import WaterHeaterDesc
-
 from .const import DOMAIN
 from .coordinator import LocalThingsCoordinator
 from .entity import LocalThingsEntity, _is_included
+from .registry.capabilities.common import normalize_temp_unit
+from .registry.capabilities.ehs import (
+    HREF_DHW_MODE as MODE_HREF,
+)
+from .registry.capabilities.ehs import (
+    HREF_DHW_POWER as POWER_HREF,
+)
+from .registry.capabilities.ehs import (
+    HREF_DHW_TEMPERATURE as TEMPERATURE_HREF,
+)
+from .registry.entities import WaterHeaterDesc
 
 _LOGGER = logging.getLogger(__name__)
 
-_MODES_FIELD = 'x.com.samsung.da.modes'
-_SUPPORTED_FIELD = 'x.com.samsung.da.supportedModes'
+_MODES_FIELD = "x.com.samsung.da.modes"
+_SUPPORTED_FIELD = "x.com.samsung.da.supportedModes"
 
 # Device mode <-> HA water_heater operation state -- see the module
 # docstring above for the SmartThings-cloud precedent this mirrors.
 _DEVICE_TO_STATE: dict[str, str] = {
-    'Eco': STATE_ECO,
-    'Std': STATE_HEAT_PUMP,
-    'Force': STATE_HIGH_DEMAND,
-    'Power': STATE_PERFORMANCE,
+    "Eco": STATE_ECO,
+    "Std": STATE_HEAT_PUMP,
+    "Force": STATE_HIGH_DEMAND,
+    "Power": STATE_PERFORMANCE,
 }
 _STATE_TO_DEVICE = {v: k for k, v in _DEVICE_TO_STATE.items()}
 
@@ -148,7 +152,7 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
         return self.coordinator.resource(self._bound.subdevice.to_actual(href)) or {}
 
     def _is_on(self) -> bool:
-        return str(self._rep(POWER_HREF).get('x.com.samsung.da.power', '')).lower() == 'on'
+        return str(self._rep(POWER_HREF).get("x.com.samsung.da.power", "")).lower() == "on"
 
     def _supported(self) -> list[str]:
         return list(self._rep(MODE_HREF).get(_SUPPORTED_FIELD) or [])
@@ -160,25 +164,28 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
         _LOGGER.warning(
             "%s: device DHW mode %r has no HA mapping and was dropped; "
             "please file an issue with your diagnostics dump",
-            self.entity_id, code,
+            self.entity_id,
+            code,
         )
 
     # -- temperature --------------------------------------------------------
 
     @property
     def temperature_unit(self) -> str:
-        raw = self._rep(TEMPERATURE_HREF).get('x.com.samsung.da.unit')
-        return (UnitOfTemperature.FAHRENHEIT
-                if normalize_temp_unit(raw, '°C') == '°F'
-                else UnitOfTemperature.CELSIUS)
+        raw = self._rep(TEMPERATURE_HREF).get("x.com.samsung.da.unit")
+        return (
+            UnitOfTemperature.FAHRENHEIT
+            if normalize_temp_unit(raw, "°C") == "°F"
+            else UnitOfTemperature.CELSIUS
+        )
 
     @property
     def current_temperature(self):
-        return _num(self._rep(TEMPERATURE_HREF).get('x.com.samsung.da.current'))
+        return _num(self._rep(TEMPERATURE_HREF).get("x.com.samsung.da.current"))
 
     @property
     def target_temperature(self):
-        return _num(self._rep(TEMPERATURE_HREF).get('x.com.samsung.da.desired'))
+        return _num(self._rep(TEMPERATURE_HREF).get("x.com.samsung.da.desired"))
 
     def _range(self) -> list | None:
         """The device's own (minimum, maximum) pair, or None.
@@ -190,8 +197,8 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
         that really allows 62.
         """
         rep = self._rep(TEMPERATURE_HREF)
-        lo = _num(rep.get('x.com.samsung.da.minimum'))
-        hi = _num(rep.get('x.com.samsung.da.maximum'))
+        lo = _num(rep.get("x.com.samsung.da.minimum"))
+        hi = _num(rep.get("x.com.samsung.da.maximum"))
         return [lo, hi] if (lo is not None and hi is not None) else None
 
     @property
@@ -208,7 +215,7 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
     def target_temperature_step(self) -> float:
         # `is None`, not `or` -- see issue #160: `or` collapses a genuine 0
         # into the fallback.
-        step = _num(self._rep(TEMPERATURE_HREF).get('x.com.samsung.da.increment'))
+        step = _num(self._rep(TEMPERATURE_HREF).get("x.com.samsung.da.increment"))
         return 0.5 if step is None else step
 
     # -- operation mode -------------------------------------------------------
@@ -245,29 +252,29 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
         # dashboard "boost to 55" button that carries a mode actually changes
         # mode, instead of only moving the setpoint. Same fix as the AC's
         # (see climate.async_set_temperature).
-        operation_mode = kwargs.get('operation_mode')
+        operation_mode = kwargs.get("operation_mode")
         if operation_mode is not None:
             await self.async_set_operation_mode(operation_mode)
             if operation_mode == STATE_OFF:
                 return
-        temp = kwargs.get('temperature')
+        temp = kwargs.get("temperature")
         if temp is None:
             return
-        await self.coordinator.async_send_command(self._bound, ('temperature', temp))
+        await self.coordinator.async_send_command(self._bound, ("temperature", temp))
 
     async def async_set_operation_mode(self, operation_mode: str) -> None:
         if operation_mode == STATE_OFF:
-            await self.coordinator.async_send_command(self._bound, ('power', False))
+            await self.coordinator.async_send_command(self._bound, ("power", False))
             return
         device = _STATE_TO_DEVICE.get(operation_mode)
         if device is None:
             return
         if not self._is_on():
-            await self.coordinator.async_send_command(self._bound, ('power', True))
-        await self.coordinator.async_send_command(self._bound, ('mode', device))
+            await self.coordinator.async_send_command(self._bound, ("power", True))
+        await self.coordinator.async_send_command(self._bound, ("mode", device))
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self.coordinator.async_send_command(self._bound, ('power', True))
+        await self.coordinator.async_send_command(self._bound, ("power", True))
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self.coordinator.async_send_command(self._bound, ('power', False))
+        await self.coordinator.async_send_command(self._bound, ("power", False))

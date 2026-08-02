@@ -20,6 +20,7 @@ airconditioner.py's CLIMATE/climate.py.
 Verified against a real TP1X_DA_AC_EHS_01001_0000 diagnostics dump
 (firmware AEH-WW-TP1-22-AE6000_17260402, TizenRT 3.1 / DAWIT 2.0).
 """
+
 from ..capability import Capability
 from ..entities import NumberDesc, SelectDesc, SensorDesc, SwitchDesc, WaterHeaterDesc
 from .common import normalize_temp_unit
@@ -36,14 +37,14 @@ def _first_mode(rep):
     """Representative scalar for a mode select -- `modes` is a single-element
     list on every dump seen so far, mirroring airconditioner._first_mode /
     dehumidifier._first_mode's handling of the same field shape."""
-    modes = rep.get('x.com.samsung.da.modes')
+    modes = rep.get("x.com.samsung.da.modes")
     if isinstance(modes, (list, tuple)):
         return modes[0] if modes else None
     return modes
 
 
 def _temp_unit(rep):
-    return normalize_temp_unit(rep.get('x.com.samsung.da.unit'), '°C')
+    return normalize_temp_unit(rep.get("x.com.samsung.da.unit"), "°C")
 
 
 def _bounds(rep, default_min, default_max):
@@ -55,39 +56,48 @@ def _bounds(rep, default_min, default_max):
     climate._range()/water_heater._range(), and the same reason
     oven._setpoint_bounds resolves its pair in one place.
     """
-    lo = _num(rep.get('x.com.samsung.da.minimum'))
-    hi = _num(rep.get('x.com.samsung.da.maximum'))
+    lo = _num(rep.get("x.com.samsung.da.minimum"))
+    hi = _num(rep.get("x.com.samsung.da.maximum"))
     return (lo, hi) if (lo is not None and hi is not None) else (default_min, default_max)
 
 
 def _step(rep, default):
     """`is None`, not `or` -- `or` collapses a genuine 0 (issue #160)."""
-    step = _num(rep.get('x.com.samsung.da.increment'))
+    step = _num(rep.get("x.com.samsung.da.increment"))
     return default if step is None else step
 
 
 ZONE_POWER = Capability(
-    href='/power/vs/0',
-    poll_tier='warm',
+    href="/power/vs/0",
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='zone_power', field='x.com.samsung.da.power',
-                   icon='mdi:radiator',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['power', 'vs', '0'],
-                       {'x.com.samsung.da.power': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="zone_power",
+            field="x.com.samsung.da.power",
+            icon="mdi:radiator",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["power", "vs", "0"],
+                {"x.com.samsung.da.power": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
 ZONE_MODE = Capability(
-    href='/mode/vs/0',
-    poll_tier='warm',
+    href="/mode/vs/0",
+    poll_tier="warm",
     entities=(
-        SelectDesc(key='zone_mode', rep_fn=_first_mode,
-                   icon='mdi:sun-snowflake-variant',
-                   options_field='x.com.samsung.da.supportedModes',
-                   write_fn=lambda p, rep, href=None: (
-                       ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [p]})),
+        SelectDesc(
+            key="zone_mode",
+            rep_fn=_first_mode,
+            icon="mdi:sun-snowflake-variant",
+            options_field="x.com.samsung.da.supportedModes",
+            write_fn=lambda p, rep, href=None: (
+                ["mode", "vs", "0"],
+                {"x.com.samsung.da.modes": [p]},
+            ),
+        ),
     ),
 )
 
@@ -95,21 +105,32 @@ ZONE_MODE = Capability(
 # room setpoint, not a literal water temperature -- Samsung EHS zone control
 # is leaving-water-temperature-based, same convention as the dhw loop below.
 ZONE_TEMPERATURE = Capability(
-    href='/temperatures/indoor/vs/0',
-    poll_tier='warm',
+    href="/temperatures/indoor/vs/0",
+    poll_tier="warm",
     entities=(
-        SensorDesc(key='zone_temperature', field='x.com.samsung.da.current',
-                   device_class='temperature', unit_fn=_temp_unit,
-                   state_class='measurement', value_fn=_num),
-        NumberDesc(key='zone_target_temperature', field='x.com.samsung.da.desired',
-                   device_class='temperature', unit_fn=_temp_unit,
-                   entity_category='config', value_fn=_num,
-                   native_min_fn=lambda rep: _bounds(rep, 5.0, 30.0)[0],
-                   native_max_fn=lambda rep: _bounds(rep, 5.0, 30.0)[1],
-                   step_fn=lambda rep: _step(rep, 0.5),
-                   write_fn=lambda p, rep, href=None: (
-                       ['temperatures', 'indoor', 'vs', '0'],
-                       {'x.com.samsung.da.desired': str(float(p))})),
+        SensorDesc(
+            key="zone_temperature",
+            field="x.com.samsung.da.current",
+            device_class="temperature",
+            unit_fn=_temp_unit,
+            state_class="measurement",
+            value_fn=_num,
+        ),
+        NumberDesc(
+            key="zone_target_temperature",
+            field="x.com.samsung.da.desired",
+            device_class="temperature",
+            unit_fn=_temp_unit,
+            entity_category="config",
+            value_fn=_num,
+            native_min_fn=lambda rep: _bounds(rep, 5.0, 30.0)[0],
+            native_max_fn=lambda rep: _bounds(rep, 5.0, 30.0)[1],
+            step_fn=lambda rep: _step(rep, 0.5),
+            write_fn=lambda p, rep, href=None: (
+                ["temperatures", "indoor", "vs", "0"],
+                {"x.com.samsung.da.desired": str(float(p))},
+            ),
+        ),
     ),
 )
 
@@ -119,9 +140,9 @@ ZONE_TEMPERATURE = Capability(
 # airconditioner.py's HREF_MODE/CLIMATE_CONSUMED_HREFS. Declared once here
 # and imported by water_heater.py, so a new sibling read can't drift out of
 # sync with its DHW_CONSUMED_HREFS coverage entry below.
-HREF_DHW_POWER = '/power/dhw/vs/0'              # on/off
-HREF_DHW_MODE = '/mode/dhw/vs/0'                # primary (bound by DHW) -- current_operation
-HREF_DHW_TEMPERATURE = '/temperatures/dhw/vs/0'  # current/target temperature
+HREF_DHW_POWER = "/power/dhw/vs/0"  # on/off
+HREF_DHW_MODE = "/mode/dhw/vs/0"  # primary (bound by DHW) -- current_operation
+HREF_DHW_TEMPERATURE = "/temperatures/dhw/vs/0"  # current/target temperature
 
 DHW_CONSUMED_HREFS = [HREF_DHW_POWER, HREF_DHW_TEMPERATURE]
 
@@ -132,30 +153,29 @@ def _dhw_write(payload, rep, href=None):
     airconditioner._climate_write, just across the dhw loop's three
     resources instead of the AC's power/mode/temperature/wind set."""
     kind, value = payload
-    if kind == 'power':
-        return (['power', 'dhw', 'vs', '0'],
-                {'x.com.samsung.da.power': 'On' if value else 'Off'})
-    if kind == 'mode':
-        return (['mode', 'dhw', 'vs', '0'], {'x.com.samsung.da.modes': [value]})
-    if kind == 'temperature':
-        return (['temperatures', 'dhw', 'vs', '0'],
-                {'x.com.samsung.da.desired': str(float(value))})
+    if kind == "power":
+        return (["power", "dhw", "vs", "0"], {"x.com.samsung.da.power": "On" if value else "Off"})
+    if kind == "mode":
+        return (["mode", "dhw", "vs", "0"], {"x.com.samsung.da.modes": [value]})
+    if kind == "temperature":
+        return (["temperatures", "dhw", "vs", "0"], {"x.com.samsung.da.desired": str(float(value))})
     return None
 
 
 DHW = Capability(
     href=HREF_DHW_MODE,
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        WaterHeaterDesc(key='water_heater', translation_key='dhw',
-                         rep_fn=_first_mode, write_fn=_dhw_write),
+        WaterHeaterDesc(
+            key="water_heater", translation_key="dhw", rep_fn=_first_mode, write_fn=_dhw_write
+        ),
     ),
 )
 
 # Power and temperature are read by the composite DHW entity above, not
 # given their own entities -- coverage-only caps so discover() reports no
 # gap (see airconditioner.py's CLIMATE_CONSUMED_HREFS for the same pattern).
-DHW_CONSUMED = [Capability(href=h, poll_tier='warm') for h in DHW_CONSUMED_HREFS]
+DHW_CONSUMED = [Capability(href=h, poll_tier="warm") for h in DHW_CONSUMED_HREFS]
 
 # Deliberately a plain config switch, not water_heater's AWAY_MODE feature.
 # HA core's smartthings water_heater does wire this same Samsung capability
@@ -168,16 +188,20 @@ DHW_CONSUMED = [Capability(href=h, poll_tier='warm') for h in DHW_CONSUMED_HREFS
 # hot water. It stays a switch until a board turns up with a per-loop away
 # resource to bind instead.
 AWAY_MODE = Capability(
-    href='/option/outgoing/vs/0',
-    poll_tier='cold',
+    href="/option/outgoing/vs/0",
+    poll_tier="cold",
     entities=(
-        SwitchDesc(key='away_mode', field='x.com.samsung.da.away',
-                   icon='mdi:home-export-outline',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['option', 'outgoing', 'vs', '0'],
-                       {'x.com.samsung.da.away': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="away_mode",
+            field="x.com.samsung.da.away",
+            icon="mdi:home-export-outline",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["option", "outgoing", "vs", "0"],
+                {"x.com.samsung.da.away": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -189,16 +213,16 @@ AWAY_MODE = Capability(
 # would need their own verification on other device families.
 # ---------------------------------------------------------------------------
 _EHS_IGNORED = [
-    '/availablecontrolsets/vs/0',  # opaque hex-encoded control-set bitmap (id: EHS)
-    '/da/softreset/vs/0',          # soft-reset trigger plumbing
-    '/diagnosis/vs/0',             # empty {} on this dump
-    '/ehscycle/vs/0',              # opaque hex-encoded indoor/outdoor cycle log
-    '/ehsfsv/vs/0',                # opaque hex-encoded factory setting values
-    '/option/dhwdisplay/vs/0',     # front-panel DHW-display show/hide, cosmetic only
-    '/reserverulesets/vs/0',       # opaque hex-encoded schedule reservation blob
-    '/sac/installationinfo/vs/0',  # static outdoor/indoor installation info, diagnostic only
-    '/actions/zone1/vs/0',         # zone1 schedule/timer program -- unmodeled for now
-    '/actions/dhw/vs/0',           # DHW schedule/timer program -- unmodeled for now
+    "/availablecontrolsets/vs/0",  # opaque hex-encoded control-set bitmap (id: EHS)
+    "/da/softreset/vs/0",  # soft-reset trigger plumbing
+    "/diagnosis/vs/0",  # empty {} on this dump
+    "/ehscycle/vs/0",  # opaque hex-encoded indoor/outdoor cycle log
+    "/ehsfsv/vs/0",  # opaque hex-encoded factory setting values
+    "/option/dhwdisplay/vs/0",  # front-panel DHW-display show/hide, cosmetic only
+    "/reserverulesets/vs/0",  # opaque hex-encoded schedule reservation blob
+    "/sac/installationinfo/vs/0",  # static outdoor/indoor installation info, diagnostic only
+    "/actions/zone1/vs/0",  # zone1 schedule/timer program -- unmodeled for now
+    "/actions/dhw/vs/0",  # DHW schedule/timer program -- unmodeled for now
 ]
 
 COVERAGE = [Capability(href=h) for h in _EHS_IGNORED]

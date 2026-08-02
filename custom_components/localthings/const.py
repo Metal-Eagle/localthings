@@ -1,16 +1,24 @@
 DOMAIN = "localthings"
 
 PLATFORMS = [
-    "sensor", "binary_sensor", "switch", "number", "select", "button",
-    "time", "climate", "fan", "water_heater",
+    "sensor",
+    "binary_sensor",
+    "switch",
+    "number",
+    "select",
+    "button",
+    "time",
+    "climate",
+    "fan",
+    "water_heater",
 ]
 
-CONF_HOST         = "host"
-CONF_PORT         = "port"
-CONF_CA_CERT_PEM  = "ca_cert_pem"
-CONF_CA_KEY_PEM   = "ca_key_pem"
+CONF_HOST = "host"
+CONF_PORT = "port"
+CONF_CA_CERT_PEM = "ca_cert_pem"
+CONF_CA_KEY_PEM = "ca_key_pem"
 CONF_LEAF_CERT_PEM = "leaf_cert_pem"
-CONF_LEAF_KEY_PEM  = "leaf_key_pem"
+CONF_LEAF_KEY_PEM = "leaf_key_pem"
 
 # Options-flow key (entry.options, not entry.data): lets a user override the
 # device-wide remote-control-off write block for a specific device (issue

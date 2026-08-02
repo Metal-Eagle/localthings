@@ -1,4 +1,5 @@
 """OCF /device/0 batch response parser."""
+
 from __future__ import annotations
 
 
@@ -11,7 +12,7 @@ def is_stub_rep(rep: dict) -> bool:
     never populate. Conflating the two used to make every field-gated entity
     on a permanently-empty resource look like a not-yet-fetched stub forever,
     creating phantom always-"unknown" entities (issue #127)."""
-    return isinstance(rep, dict) and set(rep.keys()) == {'href'}
+    return isinstance(rep, dict) and set(rep.keys()) == {"href"}
 
 
 def parse_device0_batch(device0: list) -> dict[str, dict]:
@@ -22,11 +23,11 @@ def parse_device0_batch(device0: list) -> dict[str, dict]:
     is_stub_rep to tell "not fetched yet" apart from a confirmed-empty {}.
     """
     out = {}
-    for entry in device0[1:]:   # skip [0] (device-level rep)
+    for entry in device0[1:]:  # skip [0] (device-level rep)
         if not isinstance(entry, dict):
             continue
-        href = entry.get('href')
-        rep  = entry.get('rep')
+        href = entry.get("href")
+        rep = entry.get("rep")
         if not href:
             continue
         if isinstance(rep, dict):

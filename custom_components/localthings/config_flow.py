@@ -1,6 +1,8 @@
 """Config flow for Local Things integration."""
+
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json
 import logging
@@ -13,8 +15,8 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -29,25 +31,36 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
-    DOMAIN,
-    CONF_HOST, CONF_PORT,
-    CONF_CA_CERT_PEM, CONF_CA_KEY_PEM,
-    CONF_LEAF_CERT_PEM, CONF_LEAF_KEY_PEM,
     CONF_BYPASS_REMOTE_CONTROL,
-    CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
-    PROBE_PORT_RANGE, PREFERRED_PROBE_PORTS, LIVENESS_PROBE_TIMEOUT_S,
+    CONF_CA_CERT_PEM,
+    CONF_CA_KEY_PEM,
+    CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+    CONF_HOST,
+    CONF_LEAF_CERT_PEM,
+    CONF_LEAF_KEY_PEM,
+    CONF_PORT,
+    DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
+    DOMAIN,
+    LIVENESS_PROBE_TIMEOUT_S,
+    PREFERRED_PROBE_PORTS,
     PROBE_GET_TIMEOUT_S,
+    PROBE_PORT_RANGE,
 )
 
 _TEXT = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT))
 _MULTILINE = TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True))
-_HYSTERESIS_MINUTES = NumberSelector(NumberSelectorConfig(
-    min=0, max=30, step=1, mode=NumberSelectorMode.BOX,
-))
+_HYSTERESIS_MINUTES = NumberSelector(
+    NumberSelectorConfig(
+        min=0,
+        max=30,
+        step=1,
+        mode=NumberSelectorMode.BOX,
+    )
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-_SAMSUNG_CLOUD_HOST = 'connect-v2.samsungiotcloud.com'
+_SAMSUNG_CLOUD_HOST = "connect-v2.samsungiotcloud.com"
 
 
 class CannotConnect(Exception):
@@ -65,16 +78,21 @@ def _fetch_samsung_uuid() -> str:
     We only need to read the UUID from the cert subject, not verify its trust.
     """
     from cryptography import x509 as _x509
+
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    with socket.create_connection((_SAMSUNG_CLOUD_HOST, 443), timeout=15) as raw:
-        with ctx.wrap_socket(raw, server_hostname=_SAMSUNG_CLOUD_HOST) as tls:
-            der = tls.getpeercert(binary_form=True)
+    with (
+        socket.create_connection((_SAMSUNG_CLOUD_HOST, 443), timeout=15) as raw,
+        ctx.wrap_socket(raw, server_hostname=_SAMSUNG_CLOUD_HOST) as tls,
+    ):
+        der = tls.getpeercert(binary_form=True)
+    if der is None:
+        raise RuntimeError(f"No certificate received from {_SAMSUNG_CLOUD_HOST}")
     cert = _x509.load_der_x509_certificate(der)
     for attr in cert.subject:
         if attr.oid == _x509.oid.NameOID.ORGANIZATIONAL_UNIT_NAME:
-            m = re.search(r'uuid:([0-9a-f-]+)', attr.value, re.IGNORECASE)
+            m = re.search(r"uuid:([0-9a-f-]+)", attr.value, re.IGNORECASE)
             if m:
                 return m.group(1)
     raise RuntimeError(f"UUID not found in {_SAMSUNG_CLOUD_HOST} certificate subject")
@@ -87,13 +105,15 @@ def _mint_leaf_cert(ca_cert_pem: str, ca_key_pem: str, uuid: str) -> tuple[str, 
     followed by the full CA PEM, suitable for use_certificate_chain_file.
     """
     from cryptography import x509
-    from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import dsa, ec, ed448, ed25519
     from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
+    from cryptography.x509.oid import NameOID
 
     m = re.search(
-        r'(-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----)',
-        ca_cert_pem, re.DOTALL,
+        r"(-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----)",
+        ca_cert_pem,
+        re.DOTALL,
     )
     if not m:
         raise InvalidCA("No certificate found in CA cert PEM")
@@ -102,18 +122,33 @@ def _mint_leaf_cert(ca_cert_pem: str, ca_key_pem: str, uuid: str) -> tuple[str, 
         ca_key = serialization.load_pem_private_key(ca_key_pem.encode(), password=None)
     except Exception as exc:
         raise InvalidCA(f"Failed to load CA credentials: {exc}") from exc
+    if not isinstance(
+        ca_key,
+        (
+            _rsa.RSAPrivateKey,
+            ec.EllipticCurvePrivateKey,
+            ed25519.Ed25519PrivateKey,
+            ed448.Ed448PrivateKey,
+            dsa.DSAPrivateKey,
+        ),
+    ):
+        raise InvalidCA(f"CA key is not a signing key (got {type(ca_key).__name__})")
 
     leaf_key = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     leaf_cert = (
         x509.CertificateBuilder()
-        .subject_name(x509.Name([
-            x509.NameAttribute(NameOID.COUNTRY_NAME, 'KR'),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Samsung Electronics'),
-            x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, f'uuid:{uuid}'),
-            x509.NameAttribute(NameOID.COMMON_NAME, f'urn:uuid:{uuid}'),
-        ]))
+        .subject_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.COUNTRY_NAME, "KR"),
+                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Samsung Electronics"),
+                    x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, f"uuid:{uuid}"),
+                    x509.NameAttribute(NameOID.COMMON_NAME, f"urn:uuid:{uuid}"),
+                ]
+            )
+        )
         .issuer_name(ca_cert.subject)
         .public_key(leaf_key.public_key())
         .serial_number(x509.random_serial_number())
@@ -131,9 +166,9 @@ def _mint_leaf_cert(ca_cert_pem: str, ca_key_pem: str, uuid: str) -> tuple[str, 
 
     # Ensure a newline separates the leaf and CA blocks regardless of
     # whether the user's pasted CA PEM had a trailing newline.
-    fullchain_pem = leaf_cert_pem.rstrip('\n') + '\n' + ca_cert_pem
-    if not fullchain_pem.endswith('\n'):
-        fullchain_pem += '\n'
+    fullchain_pem = leaf_cert_pem.rstrip("\n") + "\n" + ca_cert_pem
+    if not fullchain_pem.endswith("\n"):
+        fullchain_pem += "\n"
     return fullchain_pem, leaf_key_pem
 
 
@@ -186,20 +221,19 @@ def _find_live_ports(host: str, ports: list[int], timeout: float) -> list[int]:
             if remaining <= 0:
                 break
             for key, _ in sel.select(timeout=remaining):
+                sock = sockets[key.data]
                 try:
                     # Data back means live; ECONNREFUSED (or any other socket
                     # error) means the port is closed/unusable — rule it out.
-                    key.fileobj.recv(1)
+                    sock.recv(1)
                 except OSError:
-                    sel.unregister(key.fileobj)
+                    sel.unregister(sock)
         live = [key.data for key in sel.get_map().values()]
     finally:
         sel.close()
         for sock in sockets.values():
-            try:
+            with contextlib.suppress(OSError):
                 sock.close()
-            except OSError:
-                pass
 
     # The sweep's ICMP-based verdict isn't reliable on every network path --
     # issue #192 captured a segregated-VLAN device where it called three
@@ -231,20 +265,17 @@ def _is_placeholder_serial(serial: str) -> bool:
     config flow aborted as already configured.
     """
     s = serial.strip()
-    if s.lower().startswith('nothing'):
+    if s.lower().startswith("nothing"):
         return True
     upper = s.upper()
-    return (
-        len(upper) >= 8
-        and len(set(upper)) == 1
-        and upper[0] in '0123456789ABCDEF'
-    )
+    return len(upper) >= 8 and len(set(upper)) == 1 and upper[0] in "0123456789ABCDEF"
 
 
 def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
     """Fetch UUID, mint leaf cert, probe each port. Returns config entry data dict."""
     import cbor2
     from smartthings_local.protocol.dtls_session import DtlsCoapSession
+
     from .registry.batch import parse_device0_batch
     from .registry.by_type import resolve as resolve_registry
     from .registry.identity import read_identity
@@ -268,9 +299,7 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
         raise CannotConnect(f"Failed to mint leaf cert: {exc}") from exc
     _LOGGER.debug("Leaf cert minted successfully")
 
-    candidates = _find_live_ports(
-        host, PROBE_PORT_RANGE, LIVENESS_PROBE_TIMEOUT_S
-    )
+    candidates = _find_live_ports(host, PROBE_PORT_RANGE, LIVENESS_PROBE_TIMEOUT_S)
     # No early "every port refused" fast-fail here: _find_live_ports always
     # rescues PREFERRED_PROBE_PORTS (issue #192), so candidates is never
     # empty as long as that table is non-empty and within PROBE_PORT_RANGE --
@@ -285,24 +314,19 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
         sess = None
         try:
             sess = DtlsCoapSession(
-                host, port,
+                host,
+                port,
                 cert_pem=fullchain_pem,
                 key_pem=leaf_key_pem,
             )
             sess.connect()
             sess.start_reader()
-            code, payload = sess.get(['device', '0'], timeout=PROBE_GET_TIMEOUT_S)
+            code, payload = sess.get(["device", "0"], timeout=PROBE_GET_TIMEOUT_S)
             if code != 0x45 or not payload:
                 raise CannotConnect(f"port {port}: unexpected code {code:#04x}")
             body = cbor2.loads(payload)
-            resources = (
-                parse_device0_batch(body) if isinstance(body, list) else {}
-            )
-            serial = (
-                resources
-                .get('/information/vs/0', {})
-                .get('x.com.samsung.da.serialNum', '')
-            )
+            resources = parse_device0_batch(body) if isinstance(body, list) else {}
+            serial = resources.get("/information/vs/0", {}).get("x.com.samsung.da.serialNum", "")
             if not serial or _is_placeholder_serial(serial):
                 serial = f"{host}:{port}"
             # /oic/d's device type (read_identity) is the primary detection
@@ -312,8 +336,7 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
             # empty device_types tuple here, falling through to the model-
             # string/resource-signature detection resolve() already did.
             identity = read_identity(sess, None)
-            recognized_registry = resolve_registry(
-                resources, device_types=identity.device_types)
+            recognized_registry = resolve_registry(resources, device_types=identity.device_types)
             return {
                 "port": port,
                 "serial": serial,
@@ -328,10 +351,8 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
             _LOGGER.debug("port %d failed: %s", port, exc)
         finally:
             if sess is not None:
-                try:
+                with contextlib.suppress(Exception):
                     sess.close()
-                except Exception:
-                    pass
     raise CannotConnect(f"no port responded on {host}: {last_exc}")
 
 
@@ -351,22 +372,20 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> LocalThingsOptionsFlow:
         return LocalThingsOptionsFlow()
 
-    def _create_entry(self, info: dict) -> FlowResult:
+    def _create_entry(self, info: dict) -> ConfigFlowResult:
         return self.async_create_entry(
             title=f"Samsung Appliance ({self._host})",
             data={
-                CONF_HOST:          self._host,
-                CONF_PORT:          info["port"],
-                CONF_CA_CERT_PEM:   self._ca_cert_pem,
-                CONF_CA_KEY_PEM:    self._ca_key_pem,
+                CONF_HOST: self._host,
+                CONF_PORT: info["port"],
+                CONF_CA_CERT_PEM: self._ca_cert_pem,
+                CONF_CA_KEY_PEM: self._ca_key_pem,
                 CONF_LEAF_CERT_PEM: info["leaf_cert_pem"],
-                CONF_LEAF_KEY_PEM:  info["leaf_key_pem"],
+                CONF_LEAF_KEY_PEM: info["leaf_key_pem"],
             },
         )
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         existing = self.hass.config_entries.async_entries(DOMAIN)
         has_creds = bool(existing)
 
@@ -376,10 +395,10 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._host = user_input[CONF_HOST].strip()
             if has_creds:
                 self._ca_cert_pem = existing[0].data[CONF_CA_CERT_PEM]
-                self._ca_key_pem  = existing[0].data[CONF_CA_KEY_PEM]
+                self._ca_key_pem = existing[0].data[CONF_CA_KEY_PEM]
             else:
                 self._ca_cert_pem = user_input[CONF_CA_CERT_PEM].strip()
-                self._ca_key_pem  = user_input[CONF_CA_KEY_PEM].strip()
+                self._ca_key_pem = user_input[CONF_CA_KEY_PEM].strip()
 
             try:
                 info = await self.hass.async_add_executor_job(
@@ -407,11 +426,13 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             schema = vol.Schema({vol.Required(CONF_HOST): _TEXT})
             step_id = "user_reuse"
         else:
-            schema = vol.Schema({
-                vol.Required(CONF_HOST):        _TEXT,
-                vol.Required(CONF_CA_CERT_PEM): _MULTILINE,
-                vol.Required(CONF_CA_KEY_PEM):  _MULTILINE,
-            })
+            schema = vol.Schema(
+                {
+                    vol.Required(CONF_HOST): _TEXT,
+                    vol.Required(CONF_CA_CERT_PEM): _MULTILINE,
+                    vol.Required(CONF_CA_KEY_PEM): _MULTILINE,
+                }
+            )
             step_id = "user"
 
         return self.async_show_form(
@@ -422,15 +443,16 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user_reuse(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the localized host-only form for additional appliances."""
         return await self.async_step_user(user_input)
 
     async def async_step_confirm_unknown_type(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Shown only when the probe already knows the device type is unrecognized."""
         if user_input is not None:
+            assert self._pending_info is not None
             return self._create_entry(self._pending_info)
         return self.async_show_form(
             step_id="confirm_unknown_type",
@@ -461,9 +483,7 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
     def _coordinator(self):
         return self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
             menu_options=["settings", "debug_write"],
@@ -471,32 +491,32 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_settings(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
 
         return self.async_show_form(
             step_id="settings",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BYPASS_REMOTE_CONTROL,
-                    default=self.config_entry.options.get(
-                        CONF_BYPASS_REMOTE_CONTROL, False
-                    ),
-                ): bool,
-                vol.Required(
-                    CONF_FINISH_TIME_HYSTERESIS_MINUTES,
-                    default=self.config_entry.options.get(
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_BYPASS_REMOTE_CONTROL,
+                        default=self.config_entry.options.get(CONF_BYPASS_REMOTE_CONTROL, False),
+                    ): bool,
+                    vol.Required(
                         CONF_FINISH_TIME_HYSTERESIS_MINUTES,
-                        DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
-                    ),
-                ): _HYSTERESIS_MINUTES,
-            }),
+                        default=self.config_entry.options.get(
+                            CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+                            DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
+                        ),
+                    ): _HYSTERESIS_MINUTES,
+                }
+            ),
         )
 
     async def async_step_debug_write(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         coord = self._coordinator()
         if coord is None:
             return self.async_abort(reason="not_loaded")
@@ -508,38 +528,48 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
         hrefs = sorted(coord.last_resources.keys())
         return self.async_show_form(
             step_id="debug_write",
-            data_schema=vol.Schema({
-                vol.Required("href"): SelectSelector(SelectSelectorConfig(
-                    options=hrefs,
-                    custom_value=True,
-                    mode=SelectSelectorMode.DROPDOWN,
-                )),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required("href"): SelectSelector(
+                        SelectSelectorConfig(
+                            options=hrefs,
+                            custom_value=True,
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                }
+            ),
         )
 
     def _show_debug_edit_form(
-        self, href: str, current: dict, errors: dict[str, str], payload,
-    ) -> FlowResult:
+        self,
+        href: str,
+        current: dict,
+        errors: dict[str, str],
+        payload,
+    ) -> ConfigFlowResult:
         return self.async_show_form(
             step_id="debug_edit",
-            data_schema=vol.Schema({
-                vol.Required(
-                    "payload", default=(payload if payload is not None else {}),
-                ): ObjectSelector(),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        "payload",
+                        default=(payload if payload is not None else {}),
+                    ): ObjectSelector(),
+                }
+            ),
             errors=errors,
             description_placeholders={
                 "href": href,
                 "current_value": (
-                    json.dumps(current, indent=2, ensure_ascii=False)
-                    if current else "{}"
+                    json.dumps(current, indent=2, ensure_ascii=False) if current else "{}"
                 ),
             },
         )
 
     async def async_step_debug_edit(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         coord = self._coordinator()
         if coord is None:
             return self.async_abort(reason="not_loaded")
@@ -555,11 +585,9 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
                 )
             try:
                 code, new_rep = await coord.async_raw_write(href, payload)
-            except Exception:  # noqa: BLE001 - surfaced to the user below
+            except Exception:
                 _LOGGER.exception("debug raw write failed for %s", href)
-                return self._show_debug_edit_form(
-                    href, current, {"base": "write_failed"}, payload
-                )
+                return self._show_debug_edit_form(href, current, {"base": "write_failed"}, payload)
             self._debug_result = (code, new_rep)
             return await self.async_step_debug_result()
 
@@ -567,22 +595,19 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_debug_result(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         code, new_rep = self._debug_result or (0, {})
         return self.async_show_menu(
             step_id="debug_result",
             menu_options=["debug_write", "finish"],
             description_placeholders={
-                "code": f"{code >> 5}.{code & 0x1f:02d} ({code:#04x})",
+                "code": f"{code >> 5}.{code & 0x1F:02d} ({code:#04x})",
                 "new_value": (
-                    json.dumps(new_rep, indent=2, ensure_ascii=False)
-                    if new_rep else "{}"
+                    json.dumps(new_rep, indent=2, ensure_ascii=False) if new_rep else "{}"
                 ),
             },
         )
 
-    async def async_step_finish(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         # Close the flow without altering saved options.
         return self.async_create_entry(data=dict(self.config_entry.options))

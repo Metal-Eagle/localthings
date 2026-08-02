@@ -19,33 +19,34 @@ Resource hrefs seen across laundry dumps:
 Door-LED keys use NO `x.com.samsung.da.` prefix -- `setBrightness` /
 `setNightLight` -- preserved exactly as they appear in the OCF resource rep.
 """
+
 from datetime import time as dt_time
 
 from ...catalog import has_entity_translation
 from ..capability import Capability
 from ..entities import NumberDesc, SelectDesc, SensorDesc, SwitchDesc, TimeDesc
 
-_LED_LEVELS = ('Low', 'High')
-_SOUND_MODES = ('voice', 'tone', 'mute')
+_LED_LEVELS = ("Low", "High")
+_SOUND_MODES = ("voice", "tone", "mute")
 
 
 def _led_brightness_write(p, rep, href=None):
     if p not in _LED_LEVELS:
         return None
-    return ['doorled', 'light', 'vs', '0'], {'setBrightness': p}
+    return ["doorled", "light", "vs", "0"], {"setBrightness": p}
 
 
 def _led_night_write(p, rep, href=None):
-    if p not in ('On', 'Off'):
+    if p not in ("On", "Off"):
         return None
-    return ['doorled', 'light', 'vs', '0'], {'setNightLight': p}
+    return ["doorled", "light", "vs", "0"], {"setNightLight": p}
 
 
 def _parse_hm(v):
     if not v:
         return None
     try:
-        h, m = v.split(':')
+        h, m = v.split(":")
         return dt_time(int(h), int(m))
     except Exception:
         return None
@@ -54,66 +55,95 @@ def _parse_hm(v):
 def _sound_mode_write(p, rep, href=None):
     if p not in _SOUND_MODES:
         return None
-    return ['settings', 'sound', 'mode', 'vs', '0'], {'mode': p}
+    return ["settings", "sound", "mode", "vs", "0"], {"mode": p}
 
 
 DOOR_LED = Capability(
-    href='/doorled/light/vs/0',
+    href="/doorled/light/vs/0",
     entities=(
-        SelectDesc(key='led_brightness', field='setBrightness',
-                   icon='mdi:brightness-6',
-                   entity_category='config',
-                   options=_LED_LEVELS, write_fn=_led_brightness_write),
-        SwitchDesc(key='led_night_light', field='setNightLight',
-                   icon='mdi:weather-night',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=_led_night_write),
-        SelectDesc(key='led_night_brightness', field='setNightLightBrightness',
-                   icon='mdi:brightness-4',
-                   entity_category='config',
-                   options=_LED_LEVELS,
-                   write_fn=lambda p, rep, href=None: (
-                       ['doorled', 'light', 'vs', '0'],
-                       {'setNightLightBrightness': p})),
-        TimeDesc(key='led_night_start', field='setNightLightTimeStart',
-                 icon='mdi:clock-start',
-                 entity_category='config',
-                 value_fn=_parse_hm,
-                 write_fn=lambda p, rep, href=None: (
-                     ['doorled', 'light', 'vs', '0'],
-                     {'setNightLightTimeStart': f'{p.hour:02d}:{p.minute:02d}'})),
-        TimeDesc(key='led_night_end', field='setNightLightTimeEnd',
-                 icon='mdi:clock-end',
-                 entity_category='config',
-                 value_fn=_parse_hm,
-                 write_fn=lambda p, rep, href=None: (
-                     ['doorled', 'light', 'vs', '0'],
-                     {'setNightLightTimeEnd': f'{p.hour:02d}:{p.minute:02d}'})),
+        SelectDesc(
+            key="led_brightness",
+            field="setBrightness",
+            icon="mdi:brightness-6",
+            entity_category="config",
+            options=_LED_LEVELS,
+            write_fn=_led_brightness_write,
+        ),
+        SwitchDesc(
+            key="led_night_light",
+            field="setNightLight",
+            icon="mdi:weather-night",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=_led_night_write,
+        ),
+        SelectDesc(
+            key="led_night_brightness",
+            field="setNightLightBrightness",
+            icon="mdi:brightness-4",
+            entity_category="config",
+            options=_LED_LEVELS,
+            write_fn=lambda p, rep, href=None: (
+                ["doorled", "light", "vs", "0"],
+                {"setNightLightBrightness": p},
+            ),
+        ),
+        TimeDesc(
+            key="led_night_start",
+            field="setNightLightTimeStart",
+            icon="mdi:clock-start",
+            entity_category="config",
+            value_fn=_parse_hm,
+            write_fn=lambda p, rep, href=None: (
+                ["doorled", "light", "vs", "0"],
+                {"setNightLightTimeStart": f"{p.hour:02d}:{p.minute:02d}"},
+            ),
+        ),
+        TimeDesc(
+            key="led_night_end",
+            field="setNightLightTimeEnd",
+            icon="mdi:clock-end",
+            entity_category="config",
+            value_fn=_parse_hm,
+            write_fn=lambda p, rep, href=None: (
+                ["doorled", "light", "vs", "0"],
+                {"setNightLightTimeEnd": f"{p.hour:02d}:{p.minute:02d}"},
+            ),
+        ),
     ),
 )
 
 SOUND_MODE = Capability(
-    href='/settings/sound/mode/vs/0',
+    href="/settings/sound/mode/vs/0",
     entities=(
-        SelectDesc(key='sound_mode', field='mode',
-                   icon='mdi:volume-high',
-                   entity_category='config',
-                   options=_SOUND_MODES, write_fn=_sound_mode_write),
+        SelectDesc(
+            key="sound_mode",
+            field="mode",
+            icon="mdi:volume-high",
+            entity_category="config",
+            options=_SOUND_MODES,
+            write_fn=_sound_mode_write,
+        ),
     ),
 )
 
 SOUND_VOLUME = Capability(
-    href='/settings/sound/volume/vs/0',
+    href="/settings/sound/volume/vs/0",
     entities=(
-        NumberDesc(key='sound_volume', field='level',
-                   icon='mdi:volume-medium',
-                   entity_category='config',
-                   native_min=0, native_max=15, step=5,
-                   value_fn=lambda v: int(v) if v is not None else None,
-                   write_fn=lambda p, rep, href=None: (
-                       ['settings', 'sound', 'volume', 'vs', '0'],
-                       {'level': str(int(p))})),
+        NumberDesc(
+            key="sound_volume",
+            field="level",
+            icon="mdi:volume-medium",
+            entity_category="config",
+            native_min=0,
+            native_max=15,
+            step=5,
+            value_fn=lambda v: int(v) if v is not None else None,
+            write_fn=lambda p, rep, href=None: (
+                ["settings", "sound", "volume", "vs", "0"],
+                {"level": str(int(p))},
+            ),
+        ),
     ),
 )
 
@@ -125,21 +155,25 @@ SOUND_VOLUME = Capability(
 # ---------------------------------------------------------------------------
 
 BUZZER_SOUND = Capability(
-    href='/buzzersound/vs/0',
+    href="/buzzersound/vs/0",
     entities=(
-        SelectDesc(key='buzzer_sound', field='setBuzzerSound',
-                   icon='mdi:volume-high',
-                   entity_category='config',
-                   options_field='supportedBuzzerSound',
-                   write_fn=lambda p, rep, href=None: (
-                       ['buzzersound', 'vs', '0'], {'setBuzzerSound': p})),
-        SelectDesc(key='finish_sound', field='setFinishSound',
-                   icon='mdi:bell-ring',
-                   entity_category='config',
-                   exists_fn=lambda rep, resources: 'supportedFinishSound' in rep,
-                   options_field='supportedFinishSound',
-                   write_fn=lambda p, rep, href=None: (
-                       ['buzzersound', 'vs', '0'], {'setFinishSound': p})),
+        SelectDesc(
+            key="buzzer_sound",
+            field="setBuzzerSound",
+            icon="mdi:volume-high",
+            entity_category="config",
+            options_field="supportedBuzzerSound",
+            write_fn=lambda p, rep, href=None: (["buzzersound", "vs", "0"], {"setBuzzerSound": p}),
+        ),
+        SelectDesc(
+            key="finish_sound",
+            field="setFinishSound",
+            icon="mdi:bell-ring",
+            entity_category="config",
+            exists_fn=lambda rep, resources: "supportedFinishSound" in rep,
+            options_field="supportedFinishSound",
+            write_fn=lambda p, rep, href=None: (["buzzersound", "vs", "0"], {"setFinishSound": p}),
+        ),
     ),
 )
 
@@ -174,29 +208,29 @@ BUZZER_SOUND = Capability(
 
 def hex_pairs(codes):
     """'1C1D21...' -> ['1C', '1D', '21', ...]."""
-    return [codes[i:i + 2] for i in range(0, len(codes) - 1, 2)]
+    return [codes[i : i + 2] for i in range(0, len(codes) - 1, 2)]
 
 
 def parse_edit_course_list(raw):
     """'EditCourseList_1C1D21...' -> ['1C', '1D', '21', ...]."""
-    if not isinstance(raw, str) or '_' not in raw:
+    if not isinstance(raw, str) or "_" not in raw:
         return []
-    return hex_pairs(raw.split('_', 1)[1])
+    return hex_pairs(raw.split("_", 1)[1])
 
 
 def cycle_options(resources):
-    rep = resources.get('/wm/editcourse/vs/0') or {}
-    codes = parse_edit_course_list(rep.get('x.com.samsung.da.editCourseList'))
+    rep = resources.get("/wm/editcourse/vs/0") or {}
+    codes = parse_edit_course_list(rep.get("x.com.samsung.da.editCourseList"))
     if codes:
         return codes
-    return _course_codes_from_supported_options(resources.get('/course/vs/0') or {})
+    return _course_codes_from_supported_options(resources.get("/course/vs/0") or {})
 
 
 def option_value(options, prefix):
     """Find `<prefix>_<value>` in the options array and return <value>."""
-    for o in (options or []):
-        if isinstance(o, str) and o.startswith(prefix + '_'):
-            return o.split('_', 1)[1]
+    for o in options or []:
+        if isinstance(o, str) and o.startswith(prefix + "_"):
+            return o.split("_", 1)[1]
     return None
 
 
@@ -238,7 +272,7 @@ def _course_codes_from_supported_options(course_rep):
     enough (double digits) that colliding by chance on both checks is
     unlikely, and no device seen so far actually needs it.
     """
-    raw = course_rep.get('x.com.samsung.da.supportedOptions')
+    raw = course_rep.get("x.com.samsung.da.supportedOptions")
     hexstr = raw[0] if isinstance(raw, list) and raw else raw
     if not isinstance(hexstr, str) or len(hexstr) < 3:
         return []
@@ -246,14 +280,14 @@ def _course_codes_from_supported_options(course_rep):
     if len(body) % 2:
         return []
     total_bytes = len(body) // 2
-    current = option_value(course_rep.get('x.com.samsung.da.options'), 'Course')
+    current = option_value(course_rep.get("x.com.samsung.da.options"), "Course")
     for k in range(1, total_bytes + 1):
         if total_bytes % k:
             continue
         n = total_bytes // k
         if n < 2:
             continue
-        firsts = [body[i * k * 2:i * k * 2 + 2] for i in range(n)]
+        firsts = [body[i * k * 2 : i * k * 2 + 2] for i in range(n)]
         if len(set(firsts)) != n:
             continue
         if current is not None and current not in firsts:
@@ -265,20 +299,20 @@ def _course_codes_from_supported_options(course_rep):
 def option_write(prefix, new_value):
     """A one-token x.com.samsung.da.options write -- see the module comment
     above cycle_options for why this doesn't read/rewrite the whole array."""
-    return [f'{prefix}_{new_value}']
+    return [f"{prefix}_{new_value}"]
 
 
 def cycle_write(p, rep, href=None):
-    if not rep.get('x.com.samsung.da.options'):
+    if not rep.get("x.com.samsung.da.options"):
         return None
-    return ['course', 'vs', '0'], {
-        'x.com.samsung.da.options': option_write('Course', p),
+    return ["course", "vs", "0"], {
+        "x.com.samsung.da.options": option_write("Course", p),
     }
 
 
 def _table_id(resources, table_href):
     rep = resources.get(table_href) or {}
-    return rep.get('x.com.samsung.da.st.courseTable')
+    return rep.get("x.com.samsung.da.st.courseTable")
 
 
 def cycle_select(*, translation_key, icon, table_href=None):
@@ -316,18 +350,21 @@ def cycle_select(*, translation_key, icon, table_href=None):
     """
     key = translation_key
     if table_href is not None:
+
         def key(resources):
             table = _table_id(resources, table_href)
             if not isinstance(table, str) or not table:
-                return 'cycle'
-            candidate = f'{translation_key}_{table.lower()}'
-            return candidate if has_entity_translation('select', candidate) else 'cycle'
+                return "cycle"
+            candidate = f"{translation_key}_{table.lower()}"
+            return candidate if has_entity_translation("select", candidate) else "cycle"
 
     return SelectDesc(
-        key='cycle', icon=icon, translation_key=key,
+        key="cycle",
+        icon=icon,
+        translation_key=key,
         options=cycle_options,
         exists_fn=lambda rep, resources: bool(cycle_options(resources)),
-        rep_fn=lambda rep: option_value(rep.get('x.com.samsung.da.options'), 'Course'),
+        rep_fn=lambda rep: option_value(rep.get("x.com.samsung.da.options"), "Course"),
         write_fn=cycle_write,
     )
 
@@ -344,27 +381,30 @@ def cycle_select(*, translation_key, icon, table_href=None):
 
 def bool_option_write(prefix):
     def write(p, rep, href=None):
-        if p not in ('On', 'Off'):
+        if p not in ("On", "Off"):
             return None
-        if not rep.get('x.com.samsung.da.options'):
+        if not rep.get("x.com.samsung.da.options"):
             return None
-        return ['course', 'vs', '0'], {
-            'x.com.samsung.da.options': option_write(prefix, p),
+        return ["course", "vs", "0"], {
+            "x.com.samsung.da.options": option_write(prefix, p),
         }
+
     return write
 
 
 def bool_option_value(prefix):
-    return lambda rep: option_value(rep.get('x.com.samsung.da.options'), prefix) == 'On'
+    return lambda rep: option_value(rep.get("x.com.samsung.da.options"), prefix) == "On"
 
 
 def bool_option_exists(prefix):
-    return lambda rep, resources: option_value(
-        rep.get('x.com.samsung.da.options'), prefix) is not None
+    return lambda rep, resources: (
+        option_value(rep.get("x.com.samsung.da.options"), prefix) is not None
+    )
 
 
-def bool_option_switch(key, icon, prefix, *, entity_category=None,
-                       gate_on_presence=False, validate_fn=None):
+def bool_option_switch(
+    key, icon, prefix, *, entity_category=None, gate_on_presence=False, validate_fn=None
+):
     """A SwitchDesc over a '<prefix>_On'/'<prefix>_Off' options[] token.
 
     gate_on_presence self-gates the entity off on models that never report
@@ -376,7 +416,9 @@ def bool_option_switch(key, icon, prefix, *, entity_category=None,
     building one, if needed, is the caller's job.
     """
     return SwitchDesc(
-        key=key, icon=icon, entity_category=entity_category,
+        key=key,
+        icon=icon,
+        entity_category=entity_category,
         exists_fn=bool_option_exists(prefix) if gate_on_presence else None,
         rep_fn=bool_option_value(prefix),
         write_fn=bool_option_write(prefix),
@@ -394,11 +436,13 @@ def bool_option_switch(key, icon, prefix, *, entity_category=None,
 # ---------------------------------------------------------------------------
 
 JOB_BEGINNING_STATUS = Capability(
-    href='/wm/jobbeginingstatus/vs/0',
-    poll_tier='warm',
+    href="/wm/jobbeginingstatus/vs/0",
+    poll_tier="warm",
     entities=(
-        SensorDesc(key='job_beginning_status',
-                   field='x.com.samsung.da.currentStatus',
-                   entity_category='diagnostic'),
+        SensorDesc(
+            key="job_beginning_status",
+            field="x.com.samsung.da.currentStatus",
+            entity_category="diagnostic",
+        ),
     ),
 )

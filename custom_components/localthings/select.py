@@ -1,20 +1,20 @@
 """Select platform for Local Things."""
+
 from __future__ import annotations
 
 import re
-from typing import Optional
+from typing import cast
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .registry.entities import SelectDesc
-
 from .catalog import translated_states
 from .const import DOMAIN
 from .coordinator import LocalThingsCoordinator
 from .entity import LocalThingsEntity, _is_included
+from .registry.entities import SelectDesc
 
 
 async def async_setup_entry(
@@ -30,7 +30,7 @@ async def async_setup_entry(
     )
 
 
-_CAMEL_BOUNDARY_RE = re.compile(r'(?<=[a-z0-9])(?=[A-Z])')
+_CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 
 
 def _translation_state(value: str, known: frozenset[str]) -> str | None:
@@ -42,14 +42,14 @@ def _translation_state(value: str, known: frozenset[str]) -> str | None:
     knows are normalized -- an unrecognized (or future) vendor value keeps
     its own readable form rather than becoming an untranslatable slug.
     """
-    direct = value.lower().replace(' ', '_')
+    direct = value.lower().replace(" ", "_")
     if direct in known:
         return direct
-    snake = _CAMEL_BOUNDARY_RE.sub('_', value).lower().replace(' ', '_')
+    snake = _CAMEL_BOUNDARY_RE.sub("_", value).lower().replace(" ", "_")
     return snake if snake in known else None
 
 
-def _display(value, translation_key: Optional[str]):
+def _display(value, translation_key: str | None):
     """Turn a raw device option/state value into what's shown in the UI.
 
     `translation_key` is the entity's already-resolved key (SelectDesc.
@@ -74,7 +74,7 @@ def _display(value, translation_key: Optional[str]):
     if not isinstance(value, str):
         return value
     if translation_key:
-        known = translated_states('select', translation_key)
+        known = translated_states("select", translation_key)
         if not known:
             # No state table for this key: either the entity isn't translated
             # at all, or its name is translated but its options deliberately
@@ -84,20 +84,19 @@ def _display(value, translation_key: Optional[str]):
         if translated := _translation_state(value, known):
             return translated
     if value.islower():
-        return value.replace('_', ' ').title()
-    return _CAMEL_BOUNDARY_RE.sub(' ', value)
+        return value.replace("_", " ").title()
+    return _CAMEL_BOUNDARY_RE.sub(" ", value)
 
 
 class LocalThingsSelect(LocalThingsEntity, SelectEntity):
-
     def __init__(self, coordinator: LocalThingsCoordinator, bound) -> None:
         super().__init__(coordinator, bound)
-        desc: SelectDesc = bound.desc
+        desc = cast(SelectDesc, bound.desc)
         if not desc.options_field and not callable(desc.options):
             self._attr_options = [_display(o, self.translation_key) for o in desc.options]
 
     def _raw_options(self) -> list[str]:
-        desc: SelectDesc = self._bound.desc
+        desc = cast(SelectDesc, self._bound.desc)
         if callable(desc.options):
             # Per-device option list computed from the full resource
             # snapshot (not just this entity's own href) -- e.g. a course
@@ -114,7 +113,7 @@ class LocalThingsSelect(LocalThingsEntity, SelectEntity):
 
     @property
     def options(self) -> list[str]:
-        desc: SelectDesc = self._bound.desc
+        desc = cast(SelectDesc, self._bound.desc)
         if desc.options_field or callable(desc.options):
             return [_display(o, self.translation_key) for o in self._raw_options()]
         return self._attr_options

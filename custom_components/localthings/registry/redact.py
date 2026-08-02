@@ -10,13 +10,24 @@ under — new device types will have unknown-shaped data we can't fully
 enumerate in advance, so this errs on catching the field by name rather
 than only redacting inside hrefs we already recognize.
 """
+
 from __future__ import annotations
 
 REDACTED = "**REDACTED**"
 
 _SENSITIVE_SUBSTRINGS = (
-    'mac', 'serial', 'token', 'login', 'account', 'email',
-    'userid', 'deviceid', 'uuid', 'duid', 'password', 'secret',
+    "mac",
+    "serial",
+    "token",
+    "login",
+    "account",
+    "email",
+    "userid",
+    "deviceid",
+    "uuid",
+    "duid",
+    "password",
+    "secret",
 )
 
 # Matched whole, not as substrings. OCF's /oic/d and /oic/p identify the unit
@@ -32,7 +43,7 @@ _SENSITIVE_SUBSTRINGS = (
 #           reachable when diagnostics started reporting /oic/d, and the
 #           device-type signal we actually want from that resource is `rt`,
 #           which is not redacted.
-_SENSITIVE_EXACT = frozenset({'di', 'pi', 'n'})
+_SENSITIVE_EXACT = frozenset({"di", "pi", "n"})
 
 
 def _is_sensitive_key(key: str) -> bool:

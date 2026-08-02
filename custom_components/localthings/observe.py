@@ -8,6 +8,7 @@ are an external pip dependency we don't own, so behavior that would
 naturally live inside StateCache.apply_rep lives here instead, gating
 whether apply_rep is called at all.
 """
+
 from __future__ import annotations
 
 import logging
@@ -15,16 +16,15 @@ import threading
 import time
 
 import cbor2
-
-from smartthings_local.ocf.state_cache import StateCache
 from smartthings_local.ocf.observe_refresh import ObserveRefreshTask
+from smartthings_local.ocf.state_cache import StateCache
 
 _LOGGER = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_S = 6 * 3600.0
 
-MODE_OBSERVE = 'observe'
-MODE_POLL = 'poll'
+MODE_OBSERVE = "observe"
+MODE_POLL = "poll"
 
 DEFAULT_SETTLE_S = 4.0
 GRACE_PERIOD_S = 15.0
@@ -133,7 +133,7 @@ class ObserveManager:
         happened to expire, i.e. the exact symptom this guard exists to
         prevent, just relocated to whichever write loses the race.
         """
-        if source != 'optimistic' and self._is_settling(href):
+        if source != "optimistic" and self._is_settling(href):
             self.log.debug("dropping %s update for %s (settling)", source, href)
             return False
         with self._cache_lock:
@@ -155,7 +155,7 @@ class ObserveManager:
             self._last_notify_ts = time.monotonic()
             self._notify_cond.notify_all()
         self.log.debug("observe notify: %s", href)
-        self.apply(href, rep, source='observe')
+        self.apply(href, rep, source="observe")
 
     def recently_notified(self, window_s: float = PUSH_HEALTH_WINDOW_S) -> bool:
         """True if any OBSERVE notify has arrived within `window_s`.
@@ -168,12 +168,13 @@ class ObserveManager:
         channel has been perfectly healthy").
         """
         return (
-            self._last_notify_ts is not None
-            and time.monotonic() - self._last_notify_ts < window_s
+            self._last_notify_ts is not None and time.monotonic() - self._last_notify_ts < window_s
         )
 
     def try_enter_observe_mode(
-        self, session, hrefs: list[str],
+        self,
+        session,
+        hrefs: list[str],
         grace_period_s: float = GRACE_PERIOD_S,
         success_fraction: float = SUCCESS_FRACTION,
     ) -> bool:
@@ -185,7 +186,7 @@ class ObserveManager:
             self._notified.clear()
         subscribed: set[str] = set()
         for href in hrefs:
-            segs = [s for s in href.strip('/').split('/') if s]
+            segs = [s for s in href.strip("/").split("/") if s]
             try:
                 session.subscribe(segs)
                 subscribed.add(href)
@@ -198,14 +199,12 @@ class ObserveManager:
             return False
 
         def _fraction_reached() -> bool:
-            return (
-                len(set(self._notified) & subscribed) / len(subscribed)
-                >= success_fraction
-            )
+            return len(set(self._notified) & subscribed) / len(subscribed) >= success_fraction
 
         with self._notify_cond:
             reached = self._notify_cond.wait_for(
-                _fraction_reached, timeout=grace_period_s,
+                _fraction_reached,
+                timeout=grace_period_s,
             )
 
         if reached:
@@ -271,7 +270,8 @@ class ObserveManager:
                 found = True
                 self.log.debug(
                     "observe missed a change on %s (sweep disagrees with cache): %s",
-                    href, diff,
+                    href,
+                    diff,
                 )
         return found
 
@@ -283,15 +283,19 @@ class ObserveManager:
 
     def start_refresh_task(self, session) -> None:
         self._stop_refresh_task()
-        paths = [tuple(h.strip('/').split('/')) for h in self.subscribed_hrefs]
+        paths = [tuple(h.strip("/").split("/")) for h in self.subscribed_hrefs]
         self._refresh_task = ObserveRefreshTask(
-            session, paths, interval_s=REFRESH_INTERVAL_S, logger=self.log,
+            session,
+            paths,
+            interval_s=REFRESH_INTERVAL_S,
+            logger=self.log,
         )
         self._refresh_stop = threading.Event()
         self._refresh_thread = threading.Thread(
             target=self._refresh_task.run_forever,
             args=(self._refresh_stop,),
-            daemon=True, name='localthings-observe-refresh',
+            daemon=True,
+            name="localthings-observe-refresh",
         )
         self._refresh_thread.start()
 

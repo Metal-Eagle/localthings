@@ -1,9 +1,11 @@
 """Sensor platform for Local Things."""
+
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import cast
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
@@ -11,12 +13,15 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .observe import MODE_OBSERVE, MODE_POLL
-from .registry.entities import SensorDesc
-
-from .const import CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES, DOMAIN
+from .const import (
+    CONF_FINISH_TIME_HYSTERESIS_MINUTES,
+    DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
+    DOMAIN,
+)
 from .coordinator import LocalThingsCoordinator
 from .entity import LocalThingsEntity, _is_included
+from .observe import MODE_OBSERVE, MODE_POLL
+from .registry.entities import SensorDesc
 
 
 async def async_setup_entry(
@@ -25,7 +30,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [
+    entities: list[SensorEntity] = [
         LocalThingsSensor(coordinator, b)
         for b in coordinator.bound
         if isinstance(b.desc, SensorDesc) and _is_included(b, coordinator)
@@ -35,12 +40,13 @@ async def async_setup_entry(
 
 
 class LocalThingsSensor(LocalThingsEntity, SensorEntity):
-
     def __init__(self, coordinator: LocalThingsCoordinator, bound) -> None:
         super().__init__(coordinator, bound)
-        desc: SensorDesc = bound.desc
+        desc = cast(SensorDesc, bound.desc)
         self._attr_native_unit_of_measurement = desc.unit
-        self._attr_device_class = desc.device_class
+        self._attr_device_class = (
+            SensorDeviceClass(desc.device_class) if desc.device_class else None
+        )
         self._attr_state_class = desc.state_class
         if desc.options:
             self._attr_options = list(desc.options)
@@ -48,7 +54,7 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
 
     @property
     def native_unit_of_measurement(self):
-        desc: SensorDesc = self._bound.desc
+        desc = cast(SensorDesc, self._bound.desc)
         if desc.unit_fn is not None:
             return desc.unit_fn(self.coordinator.resource(self._bound.href))
         return self._attr_native_unit_of_measurement
@@ -56,7 +62,8 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
     @property
     def native_value(self):
         raw = (self.coordinator.data or {}).get(self._state_key)
-        if not self._bound.desc.hysteresis:
+        desc = cast(SensorDesc, self._bound.desc)
+        if not desc.hysteresis:
             return raw
         return self._apply_hysteresis(raw)
 
@@ -75,6 +82,7 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
         immediately -- only in-between jitter while a value already exists
         on both sides gets held back.
         """
+        assert self.coordinator.config_entry is not None
         threshold_min = self.coordinator.config_entry.options.get(
             CONF_FINISH_TIME_HYSTERESIS_MINUTES, DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES
         )
@@ -95,11 +103,11 @@ class LocalThingsConnectionModeSensor(CoordinatorEntity[LocalThingsCoordinator],
     Disabled by default — it's for troubleshooting, not everyday use."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = 'connection_mode'
+    _attr_translation_key = "connection_mode"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = [MODE_OBSERVE, MODE_POLL]
+    _attr_options = [MODE_OBSERVE, MODE_POLL]  # noqa: RUF012 -- HA `_attr_*` convention
 
     def __init__(self, coordinator: LocalThingsCoordinator) -> None:
         super().__init__(coordinator)

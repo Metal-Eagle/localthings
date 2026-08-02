@@ -19,17 +19,12 @@ from string import Formatter
 from custom_components.localthings.registry.capability import Capability
 from custom_components.localthings.registry.entities import PLATFORM_OF
 
-
-INTEGRATION = (
-    Path(__file__).parents[1] / "custom_components" / "localthings"
-)
+INTEGRATION = Path(__file__).parents[1] / "custom_components" / "localthings"
 TRANSLATIONS = INTEGRATION / "translations"
 
 
 def _load(language: str) -> dict:
-    return json.loads(
-        (TRANSLATIONS / f"{language}.json").read_text(encoding="utf-8")
-    )
+    return json.loads((TRANSLATIONS / f"{language}.json").read_text(encoding="utf-8"))
 
 
 def _languages() -> list[str]:
@@ -46,9 +41,7 @@ def _topology(value):
 
 def _placeholders(value: str) -> set[str]:
     return {
-        field_name
-        for _, field_name, _, _ in Formatter().parse(value)
-        if field_name is not None
+        field_name for _, field_name, _, _ in Formatter().parse(value) if field_name is not None
     }
 
 
@@ -105,9 +98,7 @@ def test_every_language_mirrors_the_english_catalog():
         for path, value in english_strings.items():
             # Placeholders are substituted by name, so a translation that
             # drops or invents one renders a literal '{...}' in the UI.
-            assert _placeholders(value) == _placeholders(
-                translated_strings[path]
-            ), (language, path)
+            assert _placeholders(value) == _placeholders(translated_strings[path]), (language, path)
 
 
 def test_no_catalog_carries_unresolved_core_references():
@@ -118,9 +109,7 @@ def test_no_catalog_carries_unresolved_core_references():
     """
     for language in _languages():
         unresolved = [
-            (path, value)
-            for path, value in _walk_strings(_load(language))
-            if "[%key:" in value
+            (path, value) for path, value in _walk_strings(_load(language)) if "[%key:" in value
         ]
         assert unresolved == [], language
 
@@ -138,7 +127,8 @@ def test_no_catalog_carries_unresolved_core_references():
 # PERFORMANCE/OFF), which Home Assistant translates itself via the
 # entity_component fallback, so no per-state entry is needed either way.
 UNNAMED_DESCRIPTORS = {
-    ("fan", "fan"), ("fan", "airflow_fan"),
+    ("fan", "fan"),
+    ("fan", "airflow_fan"),
 }
 
 
@@ -192,22 +182,40 @@ def test_every_ac_convenient_mode_code_has_a_preset_label():
     en.json.
     """
     from homeassistant.components.climate.const import (
-        PRESET_ACTIVITY, PRESET_AWAY, PRESET_BOOST, PRESET_COMFORT,
-        PRESET_ECO, PRESET_HOME, PRESET_SLEEP,
+        PRESET_ACTIVITY,
+        PRESET_AWAY,
+        PRESET_BOOST,
+        PRESET_COMFORT,
+        PRESET_ECO,
+        PRESET_HOME,
+        PRESET_SLEEP,
     )
-    standard = {PRESET_ACTIVITY, PRESET_AWAY, PRESET_BOOST, PRESET_COMFORT,
-                PRESET_ECO, PRESET_HOME, PRESET_SLEEP}
+
+    standard = {
+        PRESET_ACTIVITY,
+        PRESET_AWAY,
+        PRESET_BOOST,
+        PRESET_COMFORT,
+        PRESET_ECO,
+        PRESET_HOME,
+        PRESET_SLEEP,
+    }
     preset_labels = set(
-        _load("en")["entity"]["climate"]["airconditioner"]["state_attributes"]
-        ["preset_mode"]["state"]
+        _load("en")["entity"]["climate"]["airconditioner"]["state_attributes"]["preset_mode"][
+            "state"
+        ]
     )
     fixtures_dir = Path(__file__).parent / "fixtures"
     missing = []
     for path in sorted(fixtures_dir.glob("airconditioner*_device.json")):
         dump = json.loads(path.read_text())
         conv = next(
-            (item for item in dump.get("device0", [])
-             if item.get("href") == "/mode/convenient/vs/0"), None,
+            (
+                item
+                for item in dump.get("device0", [])
+                if item.get("href") == "/mode/convenient/vs/0"
+            ),
+            None,
         )
         if not conv:
             continue
@@ -228,9 +236,7 @@ def test_every_kimchi_zone_supportmode_code_has_a_state_label():
     code across any /status/kimchi/<slot>/vs/0 resource would silently
     render as its raw device token instead of the translated state.
     """
-    state_labels = set(
-        _load("en")["entity"]["select"]["kimchi_zone_mode"]["state"]
-    )
+    state_labels = set(_load("en")["entity"]["select"]["kimchi_zone_mode"]["state"])
     fixtures_dir = Path(__file__).parent / "fixtures"
     missing = []
     for path in sorted(fixtures_dir.glob("*_device.json")):
@@ -239,8 +245,9 @@ def test_every_kimchi_zone_supportmode_code_has_a_state_label():
             href = item.get("href", "")
             if not (href.startswith("/status/kimchi/") and href.endswith("/vs/0")):
                 continue
-            for code in item["rep"].get("x.com.samsung.da.supportMode", []):
-                if code.lower() not in state_labels:
-                    missing.append((path.name, href, code))
+            missing.extend(
+                (path.name, href, code)
+                for code in item["rep"].get("x.com.samsung.da.supportMode", [])
+                if code.lower() not in state_labels
+            )
     assert missing == []
-
