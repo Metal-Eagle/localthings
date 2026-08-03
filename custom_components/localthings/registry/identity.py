@@ -1,8 +1,8 @@
 """Read device identity from standard OCF resources (/oic/p, /oic/d, /oic/res)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 import cbor2
 
@@ -12,9 +12,9 @@ class DeviceIdentity:
     manufacturer: str
     model: str
     name: str
-    serial: Optional[str]
+    serial: str | None
     device_types: tuple[str, ...] = ()
-    raw: dict[str, dict] = field(default_factory=dict)
+    raw: dict[str, dict | list] = field(default_factory=dict)
 
 
 def _get(sess, path) -> dict:
@@ -55,7 +55,7 @@ def _device_types(d: dict) -> tuple[str, ...]:
     (see `raw` below) so incoming issue reports keep surfacing types that
     table doesn't know about yet.
     """
-    rt = d.get('rt')
+    rt = d.get("rt")
     if isinstance(rt, str):
         rt = [rt]
     if not isinstance(rt, (list, tuple)):
@@ -63,9 +63,9 @@ def _device_types(d: dict) -> tuple[str, ...]:
     return tuple(t for t in rt if isinstance(t, str))
 
 
-def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
-    p = _get(sess, ['oic', 'p'])
-    d = _get(sess, ['oic', 'd'])
+def read_identity(sess, serial: str | None) -> DeviceIdentity:
+    p = _get(sess, ["oic", "p"])
+    d = _get(sess, ["oic", "d"])
     # /oic/res is OCF's baseline resource-discovery endpoint: a unicast
     # RETRIEVE on it returns every Resource/Collection href this endpoint
     # hosts, not just the one /device/0 seed path the coordinator polls.
@@ -78,15 +78,15 @@ def read_identity(sess, serial: Optional[str]) -> DeviceIdentity:
     # /device/2 speculative fallback it used to run right here on every
     # _connect_session (including every reconnect), moved to that module so
     # it only runs once, at first discovery, instead of on every reconnect.
-    res = _get_links(sess, ['oic', 'res'])
+    res = _get_links(sess, ["oic", "res"])
     return DeviceIdentity(
-        manufacturer=p.get('mnmn') or 'Samsung',
-        model=p.get('mnmo') or '',
-        name=d.get('n') or '',
+        manufacturer=p.get("mnmn") or "Samsung",
+        model=p.get("mnmo") or "",
+        name=d.get("n") or "",
         serial=serial,
         device_types=_device_types(d),
         # Kept whole rather than field-by-field: these resources are outside
         # the /device/0 dump diagnostics already captures, and we don't yet
         # know which of their fields will turn out to identify a device type.
-        raw={'/oic/p': p, '/oic/d': d, '/oic/res': res},
+        raw={"/oic/p": p, "/oic/d": d, "/oic/res": res},
     )

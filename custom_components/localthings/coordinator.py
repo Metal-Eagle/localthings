@@ -1,7 +1,9 @@
 """Coordinator for Local Things integration."""
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ipaddress
 import logging
 import threading
@@ -11,17 +13,29 @@ from datetime import timedelta
 from typing import Any
 
 import cbor2
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.device_registry import DeviceInfo
-
-from smartthings_local.protocol.dtls_session import DtlsCoapSession
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from smartthings_local.ocf.state_cache import StateCache
+from smartthings_local.protocol.dtls_session import DtlsCoapSession
 
+from .const import (
+    CONF_BYPASS_REMOTE_CONTROL,
+    CONF_HOST,
+    CONF_LEAF_CERT_PEM,
+    CONF_LEAF_KEY_PEM,
+    CONF_PORT,
+    DEVICE_SUPPORT_ISSUE_URL,
+    DOMAIN,
+    DTLS_LOCAL_PORT_BASE,
+    SUMMARY_INTERVAL_S,
+)
+from .observe import GRACE_PERIOD_S, MODE_OBSERVE, MODE_POLL, ObserveManager
+from .registry import CAPABILITIES
+from .registry.adapter import flatten
 from .registry.batch import parse_device0_batch
 from .registry.by_type import resolve as resolve_registry
 from .registry.capabilities.common import (
@@ -31,29 +45,25 @@ from .registry.capabilities.common import (
     remote_control_required_for_write,
 )
 from .registry.discovery import BoundEntity
-from .registry import CAPABILITIES
-from .registry.adapter import flatten
-from .registry.identity import read_identity, DeviceIdentity
+from .registry.identity import DeviceIdentity, read_identity
 from .registry.subdevices import (
-    MAIN, Subdevice, canonical_view, discover_partitioned, enumerate_subdevices,
+    Subdevice,
+    canonical_view,
+    discover_partitioned,
+    enumerate_subdevices,
     normalize_seed_batch,
-)
-from .observe import ObserveManager, MODE_OBSERVE, MODE_POLL, GRACE_PERIOD_S
-
-from .const import (
-    DOMAIN, CONF_HOST, CONF_PORT, CONF_LEAF_CERT_PEM, CONF_LEAF_KEY_PEM,
-    CONF_BYPASS_REMOTE_CONTROL, DEVICE_SUPPORT_ISSUE_URL, SUMMARY_INTERVAL_S,
-    DTLS_LOCAL_PORT_BASE,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-_SEED_PATH = ['device', '0']
+_SEED_PATH = ["device", "0"]
+
 
 class _NoOpDescriptor:
     """StateCache requires a descriptor with an on_observation hook. This
     integration doesn't use per-capability observation hooks, so this is a
     deliberate no-op, not a placeholder for missing functionality."""
+
     def on_observation(self, state: dict, href: str, rep: dict) -> None:
         return None
 
@@ -108,14 +118,10 @@ def _is_placeholder_serial(serial: str) -> bool:
     check.
     """
     s = serial.strip()
-    if s.lower().startswith('nothing'):
+    if s.lower().startswith("nothing"):
         return True
     upper = s.upper()
-    return (
-        len(upper) >= 8
-        and len(set(upper)) == 1
-        and upper[0] in '0123456789ABCDEF'
-    )
+    return len(upper) >= 8 and len(set(upper)) == 1 and upper[0] in "0123456789ABCDEF"
 
 
 class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -234,7 +240,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._hot_hrefs: list[str] = []
         self._warm_hrefs: list[str] = []
         self.device_type_name: str | None = None
-        self.one_ui_version: str = ''
+        self.one_ui_version: str = ""
         self._consecutive_poll_timeouts = 0
         self._unbound_hrefs: list[str] = []
         self._reconnect_times: list[float] = []
@@ -291,15 +297,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         that resource when present anyway -- it's informational, not an
         identifier.
         """
-        if subdevice.kind == 'main':
+        if subdevice.kind == "main":
             return self.device_info
-        info = self.canonical_resources(subdevice).get('/information/vs/0', {})
-        model_num = info.get('x.com.samsung.da.modelNum', '')
-        model = model_num.split('|', 1)[0] if model_num else ''
-        serial = info.get('x.com.samsung.da.serialNum') or None
-        base_name = self.device_info.get('name') or 'Samsung Appliance'
+        info = self.canonical_resources(subdevice).get("/information/vs/0", {})
+        model_num = info.get("x.com.samsung.da.modelNum", "")
+        model = model_num.split("|", 1)[0] if model_num else ""
+        serial = info.get("x.com.samsung.da.serialNum") or None
+        base_name = self.device_info.get("name") or "Samsung Appliance"
         if model:
-            label = model.replace('_', ' ').title()
+            label = model.replace("_", " ").title()
         else:
             # This poll never got (or never will get) the subdevice's own
             # identity resource -- fall back to a generic per-subdevice label
@@ -308,14 +314,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # ordinal); UUID-prefixed subdevices are never more than one per
             # connection today, so there's no ordinal to show.
             label = (
-                f'Subdevice {subdevice.key}' if subdevice.kind == 'indexed'
-                else 'Secondary Subdevice'
+                f"Subdevice {subdevice.key}"
+                if subdevice.kind == "indexed"
+                else "Secondary Subdevice"
             )
         return DeviceInfo(
             identifiers={(DOMAIN, f"{self.device_serial}_{subdevice.key}")},
             via_device=(DOMAIN, self.device_serial),
             name=f"{base_name} {label}",
-            manufacturer=self.device_info.get('manufacturer') or 'Samsung',
+            manufacturer=self.device_info.get("manufacturer") or "Samsung",
             model=model or None,
             serial_number=serial,
         )
@@ -325,14 +332,19 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._observe.mode
 
     def _connect_session(self) -> None:
-        host     = self._entry.data[CONF_HOST]
-        port     = self._entry.data[CONF_PORT]
+        host = self._entry.data[CONF_HOST]
+        port = self._entry.data[CONF_PORT]
         cert_pem = self._entry.data[CONF_LEAF_CERT_PEM]
-        key_pem  = self._entry.data[CONF_LEAF_KEY_PEM]
+        key_pem = self._entry.data[CONF_LEAF_KEY_PEM]
 
-        sess = DtlsCoapSession(host, port, cert_pem=cert_pem, key_pem=key_pem,
-                               on_notification=self._observe.on_notification,
-                               local_port=_local_source_port(host))
+        sess = DtlsCoapSession(
+            host,
+            port,
+            cert_pem=cert_pem,
+            key_pem=key_pem,
+            on_notification=self._observe.on_notification,
+            local_port=_local_source_port(host),
+        )
         sess.connect()
         sess.start_reader()
         self._session = sess
@@ -347,10 +359,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         sess = self._session
         self._session = None
         if sess is not None:
-            try:
+            with contextlib.suppress(Exception):
                 sess.close()
-            except Exception:
-                pass
 
     async def async_close(self) -> None:
         if self._subpoll_task is not None:
@@ -397,6 +407,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self._session is None:
             self._connect_session()
         sess = self._session
+        assert sess is not None
         try:
             # A slow device can still be mid-transfer (block 8, block 11)
             # when a tighter deadline cuts it off — that's a poll that
@@ -481,7 +492,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if not first:
                     sess.pace()
                 first = False
-                path = [s for s in actual.strip('/').split('/')]
+                path = actual.strip("/").split("/")
                 code, payload = sess.get(path, timeout=10.0)
                 if code == 0x45 and payload:
                     rep = cbor2.loads(payload)
@@ -490,7 +501,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except Exception as e:
                 self._log.debug(
                     "subdevice %s flat href %s poll failed: %s",
-                    subdevice.key, href, e,
+                    subdevice.key,
+                    href,
+                    e,
                 )
         return result
 
@@ -505,12 +518,12 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._session.pace()
             first = False
             try:
-                path = [s for s in href.strip('/').split('/')]
+                path = href.strip("/").split("/")
                 code, payload = self._session.get(path, timeout=10.0)
                 if code == 0x45 and payload:
                     rep = cbor2.loads(payload)
                     if isinstance(rep, dict):
-                        self._observe.apply(href, rep, source='poll')
+                        self._observe.apply(href, rep, source="poll")
                         results[href] = rep
             except Exception as e:
                 self._log.debug("sub-poll %s: %s", href, e)
@@ -536,14 +549,12 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not hot and not warm:
             return
         step = self._SUBPOLL_STEP_S
-        for i in range(1, 10):          # slots 1..9  (T+3 s … T+27 s)
+        for i in range(1, 10):  # slots 1..9  (T+3 s … T+27 s)
             await asyncio.sleep(step)
             hrefs = list(hot) + (list(warm) if i % 2 == 0 else [])
             async with self._session_lock:
                 try:
-                    await self.hass.async_add_executor_job(
-                        self._poll_hrefs_blocking, hrefs
-                    )
+                    await self.hass.async_add_executor_job(self._poll_hrefs_blocking, hrefs)
                 except Exception as e:
                     self._log.debug("sub-poll batch failed: %s", e)
 
@@ -573,10 +584,12 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         sess = self._session
         if sess is None:
             return resources
-        oic_res = self._identity.raw.get('/oic/res', []) if self._identity else []
+        oic_res = self._identity.raw.get("/oic/res", []) if self._identity else []
         probes: dict[str, bool] = {}
         subdevices, extra = enumerate_subdevices(
-            sess, resources, oic_res,
+            sess,
+            resources,
+            oic_res,
             probe_log=lambda href, found: probes.__setitem__(href, found),
         )
         self.subdevices = subdevices
@@ -592,7 +605,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # cache would freeze it there exactly like a rejected candidate's
         # reps (see _live_subdevice_resources). Kept aside for diagnostics and
         # for the numofsubdevice cross-check in _run_discovery instead.
-        self._multidevice = extra.pop('/multidevice/vs/0', {})
+        self._multidevice = extra.pop("/multidevice/vs/0", {})
         return {**resources, **extra}
 
     def _live_subdevice_resources(self, resources: dict[str, dict]) -> dict[str, dict]:
@@ -610,9 +623,11 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         kept: dict[str, dict] = {}
         skipped: dict[str, dict] = {}
         for href, rep in resources.items():
-            bucket = skipped if any(
-                skip.subdevice.owns(href) for skip in self._skipped_subdevices
-            ) else kept
+            bucket = (
+                skipped
+                if any(skip.subdevice.owns(href) for skip in self._skipped_subdevices)
+                else kept
+            )
             bucket[href] = rep
         self._skipped_subdevice_resources = skipped
         return kept
@@ -622,21 +637,23 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # ('7.0 Air conditioner' is Tizen Lite), which is useful when triaging
         # an issue. It does not route: only a minority of hardware reports it
         # at all, and every device that does is already typed by its modelNum.
-        self.one_ui_version = (resources.get('/otninformation/vs/0', {})
-                               .get('swVersionInfo', {})
-                               .get('oneUiVersion', ''))
-        info = resources.get('/information/vs/0', {})
+        self.one_ui_version = (
+            resources.get("/otninformation/vs/0", {})
+            .get("swVersionInfo", {})
+            .get("oneUiVersion", "")
+        )
+        info = resources.get("/information/vs/0", {})
         unbound: list[str] = []
         hot, warm = set(), set()
 
         def _tier_log(href: str, tier: str) -> None:
-            if tier == 'hot':
+            if tier == "hot":
                 hot.add(href)
-            elif tier == 'warm':
+            elif tier == "warm":
                 warm.add(href)
 
-        model_num = info.get('x.com.samsung.da.modelNum', '')
-        description = info.get('x.com.samsung.da.description', '')
+        model_num = info.get("x.com.samsung.da.modelNum", "")
+        description = info.get("x.com.samsung.da.description", "")
 
         # Partitioned discovery (issue #177): the main pass binds every href
         # owned by no subdevice; one further pass per *candidate* subdevice
@@ -651,8 +668,12 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # with no candidates (self.subdevices == []) this is exactly the
         # single discover() call this method used to make.
         bound, device_type_name, materialized, skipped = discover_partitioned(
-            resources, self.subdevices, resolve_registry, CAPABILITIES,
-            log=unbound.append, tier_log=_tier_log,
+            resources,
+            self.subdevices,
+            resolve_registry,
+            CAPABILITIES,
+            log=unbound.append,
+            tier_log=_tier_log,
             oic_device_types=self._identity.device_types if self._identity else (),
         )
         self.subdevices = materialized
@@ -661,7 +682,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._log.info(
                 "subdevice %s (%s) answered its seed but produced no live "
                 "primary state; not materialized (hrefs=%s)",
-                skip.subdevice.key, skip.subdevice.kind, list(skip.hrefs),
+                skip.subdevice.key,
+                skip.subdevice.kind,
+                list(skip.hrefs),
             )
         # Corroborating signal, not a gate (DESIGN-177.md section 4):
         # /multidevice/vs/0's numofsubdevice is a plain count the issue
@@ -670,8 +693,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # family is known to expose the resource at all, so a mismatch is a
         # "look into this" signal for triage, not proof either side is
         # wrong.
-        numofsubdevice = self._multidevice.get(
-            'x.com.samsung.da.numofsubdevice')
+        numofsubdevice = self._multidevice.get("x.com.samsung.da.numofsubdevice")
         if numofsubdevice is not None:
             try:
                 reported = int(numofsubdevice)
@@ -682,7 +704,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._log.debug(
                     "/multidevice/vs/0 reports numofsubdevice=%r but %d "
                     "subdevice(s) materialized (including the master)",
-                    numofsubdevice, subdevice_count,
+                    numofsubdevice,
+                    subdevice_count,
                 )
         if device_type_name is not None:
             self._log.debug("device type: %s (modelNum=%r)", device_type_name, model_num)
@@ -693,25 +716,27 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # washer or dryer, and device_types is often empty even when
             # populated hardware exists for a type we don't map yet.
             self._log.warning(
-                "unknown device type modelNum=%r description=%r device_types=%r; "
-                "using common caps",
-                model_num, description,
+                "unknown device type modelNum=%r description=%r device_types=%r; using common caps",
+                model_num,
+                description,
                 self._identity.device_types if self._identity else (),
             )
         self.device_type_name = device_type_name
         self.bound = bound
         self._unbound_hrefs = unbound
 
-        serial = info.get('x.com.samsung.da.serialNum', '')
+        serial = info.get("x.com.samsung.da.serialNum", "")
         if not serial or _is_placeholder_serial(serial):
             serial = self._entry.data[CONF_HOST]
         self.device_serial = serial
 
         ident = self._identity
-        device_type = device_type_name.replace('_', ' ').title() if device_type_name else 'Appliance'
-        model = model_num.split('|', 1)[0] if model_num else (ident.model if ident else '')
-        name  = f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
-        mfr   = (ident.manufacturer if ident else '') or 'Samsung'
+        device_type = (
+            device_type_name.replace("_", " ").title() if device_type_name else "Appliance"
+        )
+        model = model_num.split("|", 1)[0] if model_num else (ident.model if ident else "")
+        name = f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
+        mfr = (ident.manufacturer if ident else "") or "Samsung"
 
         self.device_info = DeviceInfo(
             identifiers={(DOMAIN, serial)},
@@ -727,12 +752,18 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._discovered = True
         self._log.info(
             "discovered %d entities (serial=%s) hot=%s warm=%s subdevices=%s",
-            len(bound), serial, self._hot_hrefs, self._warm_hrefs,
+            len(bound),
+            serial,
+            self._hot_hrefs,
+            self._warm_hrefs,
             [su.key for su in self.subdevices],
         )
 
     def _update_coverage_gap_issue(
-        self, unknown_type: bool, unbound_hrefs: list[str], device_name: str,
+        self,
+        unknown_type: bool,
+        unbound_hrefs: list[str],
+        device_name: str,
     ) -> None:
         """Raise or clear a Repairs issue when capability coverage is incomplete.
 
@@ -744,7 +775,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         issue_id = f"device_gap_{self._entry.entry_id}"
         if unknown_type or unbound_hrefs:
             ir.async_create_issue(
-                self.hass, DOMAIN, issue_id,
+                self.hass,
+                DOMAIN,
+                issue_id,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="device_gap",
@@ -768,7 +801,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if sess is None:
             return
         await self.hass.async_add_executor_job(
-            self._observe.try_enter_observe_mode, sess, hrefs,
+            self._observe.try_enter_observe_mode,
+            sess,
+            hrefs,
             self._OBSERVE_GRACE_PERIOD_S,
         )
 
@@ -826,8 +861,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         warn window -- see _RECONNECT_WARN_WINDOW_S/_RECONNECT_WARN_THRESHOLD."""
         now = time.monotonic()
         self._reconnect_times = [
-            t for t in self._reconnect_times
-            if now - t < self._RECONNECT_WARN_WINDOW_S
+            t for t in self._reconnect_times if now - t < self._RECONNECT_WARN_WINDOW_S
         ]
         self._reconnect_times.append(now)
         return len(self._reconnect_times) >= self._RECONNECT_WARN_THRESHOLD
@@ -852,7 +886,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._log.debug(
                         "poll failed (%s), not yet treated as session "
                         "death; skipping this cycle: %s",
-                        type(e).__name__, e,
+                        type(e).__name__,
+                        e,
                     )
                     return flatten(self.bound, self._cache.snapshot())
                 self._consecutive_poll_timeouts = 0
@@ -916,7 +951,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._enumerate_subdevices_blocking, resources
                 )
 
-        source = 'sweep' if self._discovered else 'poll'
+        source = "sweep" if self._discovered else "poll"
         first_cycle = not self._discovered
         if first_cycle:
             # Discovery runs *before* the apply loop below, not after it, so
@@ -949,9 +984,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for href, rep in resources.items():
             self._observe.apply(href, rep, source=source)
 
-        if first_cycle:
-            await self._attempt_observe_mode()
-        elif just_downgraded_from_observe:
+        if first_cycle or just_downgraded_from_observe:
             await self._attempt_observe_mode()
         elif self._observe.mode == MODE_POLL:
             await self._maybe_retry_observe_mode()
@@ -976,8 +1009,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # Command dispatch (called by entity platforms in Task 5)
     # ------------------------------------------------------------------
 
-    async def async_send_command(self, bound_entity: BoundEntity,
-                                 payload: Any) -> None:
+    async def async_send_command(self, bound_entity: BoundEntity, payload: Any) -> None:
         """Write a value to the device. Fire-and-forget style.
 
         A description-level validate_fn (currently SwitchDesc only) runs
@@ -994,23 +1026,23 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         without Smart Control (cycle start/pause/stop on /operational/state
         still require it)."""
         desc = bound_entity.desc
-        write_fn = getattr(desc, 'write_fn', None)
+        write_fn = getattr(desc, "write_fn", None)
         if write_fn is None:
             return
         href = bound_entity.href
-        rep = self._cache.get(href or '') or {}
+        rep = self._cache.get(href or "") or {}
         resources = self._cache.snapshot()
         bypass_remote_control = self._entry.options.get(CONF_BYPASS_REMOTE_CONTROL, False)
         if (
             not bypass_remote_control
-            and remote_control_required_for_write(resources, href or '')
+            and remote_control_required_for_write(resources, href or "")
             and not remote_control_enabled(resources)
         ):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="remote_control_disabled",
             )
-        validate_fn = getattr(desc, 'validate_fn', None)
+        validate_fn = getattr(desc, "validate_fn", None)
         if validate_fn is not None:
             error = validate_fn(payload, rep, resources)
             if error:
@@ -1050,8 +1082,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # guard and the POST below all target that subdevice's real resource --
         # to_actual is the identity transform for MAIN, so a device with no
         # subdevices writes exactly where it always did.
-        write_href = bound_entity.subdevice.to_actual('/' + '/'.join(path_segs))
-        path_segs = [s for s in write_href.strip('/').split('/') if s]
+        write_href = bound_entity.subdevice.to_actual("/" + "/".join(path_segs))
+        path_segs = [s for s in write_href.strip("/").split("/") if s]
 
         # Apply the write optimistically before starting the settle guard,
         # not after -- mark_write_pending gates every source (poll, sweep,
@@ -1101,24 +1133,24 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # cache entry stays complete; the minimal `body` below is still
         # exactly what goes out over the wire.
         optimistic_body = body
-        new_options = body.get('x.com.samsung.da.options')
+        new_options = body.get("x.com.samsung.da.options")
         if isinstance(new_options, list):
-            cached_options = (self._cache.get(write_href) or {}).get('x.com.samsung.da.options')
+            cached_options = (self._cache.get(write_href) or {}).get("x.com.samsung.da.options")
             optimistic_body = {
                 **optimistic_body,
-                'x.com.samsung.da.options': merge_options_field(cached_options, new_options),
+                "x.com.samsung.da.options": merge_options_field(cached_options, new_options),
             }
         # Same fact, items[] shape (e.g. airconditioner._climate_write's vendor
         # temperature write, which now carries only {id, desired} -- see that
         # module for the write-side half of this).
-        new_items = body.get('x.com.samsung.da.items')
+        new_items = body.get("x.com.samsung.da.items")
         if isinstance(new_items, list):
-            cached_items = (self._cache.get(write_href) or {}).get('x.com.samsung.da.items')
+            cached_items = (self._cache.get(write_href) or {}).get("x.com.samsung.da.items")
             optimistic_body = {
                 **optimistic_body,
-                'x.com.samsung.da.items': merge_items_field(cached_items, new_items),
+                "x.com.samsung.da.items": merge_items_field(cached_items, new_items),
             }
-        self._observe.apply(write_href, optimistic_body, source='optimistic')
+        self._observe.apply(write_href, optimistic_body, source="optimistic")
         self._observe.mark_write_pending(
             write_href, settle_s=self._POST_TIMEOUT_S + self._POLL_TIMEOUT_S
         )
@@ -1163,7 +1195,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if rcode == 0x45 and payload:
                 rep = cbor2.loads(payload)
                 if isinstance(rep, dict):
-                    self._observe.apply(href, rep, source='poll')
+                    self._observe.apply(href, rep, source="poll")
                     new_rep = rep
         except Exception as e:
             self._log.debug("raw write follow-up read failed: %s", e)
@@ -1182,13 +1214,13 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_domain=DOMAIN,
                 translation_key="debug_payload_empty",
             )
-        path_segs = [s for s in href.strip('/').split('/') if s]
+        path_segs = [s for s in href.strip("/").split("/") if s]
         if not path_segs:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="resource_href_required",
             )
-        norm_href = '/' + '/'.join(path_segs)
+        norm_href = "/" + "/".join(path_segs)
         async with self._session_lock:
             code, new_rep = await self.hass.async_add_executor_job(
                 self._raw_write_blocking, path_segs, body, norm_href

@@ -8,10 +8,11 @@ The fixture is a live capture from the reporting board (see its
 `x.com.samsung.da.multidevice` link in `/oic/res` -- no `subdeviceIdList`
 (Pattern B's signal), no `/device/<n>` sibling (Pattern A's).
 """
+
 from tests.conftest import FakeCoapSession, _discover_full, _load_device_full
 
-FIXTURE = 'washer_dryer_onebody_awm'
-WASHER_UUID = '58b7d338-15c5-97d3-b562-000000000001'
+FIXTURE = "washer_dryer_onebody_awm"
+WASHER_UUID = "58b7d338-15c5-97d3-b562-000000000001"
 
 
 def _discover():
@@ -20,12 +21,12 @@ def _discover():
 
 
 def test_washer_subdevice_materializes_from_oic_res_uuid_link():
-    bound, materialized, skipped, full_resources, device_type_name = _discover()
+    _bound, materialized, _skipped, _full_resources, _device_type_name = _discover()
 
     assert [s.key for s in materialized] == [WASHER_UUID]
     sub = materialized[0]
-    assert sub.kind == 'prefixed'
-    assert sub.seed_path == (WASHER_UUID, 'device', '0')
+    assert sub.kind == "prefixed"
+    assert sub.seed_path == (WASHER_UUID, "device", "0")
     # Collection mode, not the issue-#205 flat fallback.
     assert sub.flat_hrefs == ()
 
@@ -42,16 +43,19 @@ def test_washer_subdevice_probe_only_fires_for_the_advertised_uuid():
     probes: dict[str, bool] = {}
     sess = FakeCoapSession(seeds)
     candidates, _extra = enumerate_subdevices(
-        sess, resources, oic_res, probe_log=probes.__setitem__,
+        sess,
+        resources,
+        oic_res,
+        probe_log=probes.__setitem__,
     )
 
-    assert probes[f'/{WASHER_UUID}/device/0'] is True
-    assert probes['/device/1'] is False
-    assert probes['/device/2'] is False
+    assert probes[f"/{WASHER_UUID}/device/0"] is True
+    assert probes["/device/1"] is False
+    assert probes["/device/2"] is False
     # No flat-fallback flood: the seed Collection answered, so no per-href
     # probes under the prefix beyond the seed itself.
-    prefixed_probes = [h for h in probes if h.startswith(f'/{WASHER_UUID}/')]
-    assert prefixed_probes == [f'/{WASHER_UUID}/device/0']
+    prefixed_probes = [h for h in probes if h.startswith(f"/{WASHER_UUID}/")]
+    assert prefixed_probes == [f"/{WASHER_UUID}/device/0"]
     assert [c.key for c in candidates] == [WASHER_UUID]
 
 
@@ -63,11 +67,11 @@ def test_washer_subdevice_binds_its_own_primary_entities():
     sub = materialized[0]
 
     sub_keys = {b.desc.key for b in bound if b.subdevice.key == sub.key}
-    assert sub_keys, 'washer subdevice bound no entities at all'
+    assert sub_keys, "washer subdevice bound no entities at all"
     # Its own operational state and its own power switch/sensor -- the two
     # things SmartThings cloud splits this unit over.
-    assert any('machine_state' in k for k in sub_keys), sub_keys
-    assert any('power' in k for k in sub_keys), sub_keys
+    assert any("machine_state" in k for k in sub_keys), sub_keys
+    assert any("power" in k for k in sub_keys), sub_keys
 
 
 def test_master_dryer_entities_unchanged_by_washer_discovery():
@@ -78,15 +82,15 @@ def test_master_dryer_entities_unchanged_by_washer_discovery():
     # Without any subdevices (oic_res withheld, seeds empty -> washer never
     # discovered).
     bound_solo, materialized_solo, _s, _f, _n = _discover_full(
-        resources, [], {},
+        resources,
+        [],
+        {},
     )
     assert materialized_solo == []
     solo_keys = {(b.href, b.desc.key) for b in bound_solo}
 
     bound, materialized, _s2, _f2, _n2 = _discover()
     sub = materialized[0]
-    main_keys = {
-        (b.href, b.desc.key) for b in bound if b.subdevice.key != sub.key
-    }
+    main_keys = {(b.href, b.desc.key) for b in bound if b.subdevice.key != sub.key}
 
     assert main_keys == solo_keys

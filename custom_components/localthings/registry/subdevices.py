@@ -87,23 +87,24 @@ populated /energy/consumption/vs/1, a whole-appliance lifetime kWh counter
 that materialized the slot as a phantom second air conditioner. See
 `_has_live_primary_entity`.
 """
+
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Optional, Sequence
 
 import cbor2
 
 from .batch import parse_device0_batch
+from .by_type._base import DeviceRegistry
 
-_INDEXED_HREF_RE = re.compile(r'^/device/(\d+)$')
+_INDEXED_HREF_RE = re.compile(r"^/device/(\d+)$")
 
 # A UUID as the first path segment of an /oic/res link href -- Pattern C's
 # discovery signal (issue #241): a subdevice tree whose UUID is advertised
 # nowhere except as this prefix (no subdeviceIdList, no /device/<n>).
-_UUID_PREFIX_RE = re.compile(
-    r'^/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})/')
+_UUID_PREFIX_RE = re.compile(r"^/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})/")
 
 # Speculative /device/<n> siblings probed when /oic/res doesn't reveal a
 # second logical subdevice's Collection on this board (moved here from
@@ -138,16 +139,17 @@ class Subdevice:
     individually under its prefix instead of one Collection batch -- see
     enumerate_subdevices' fallback and coordinator._poll_subdevice_seed.
     """
-    kind: str            # 'main' | 'indexed' | 'prefixed'
-    key: str             # ''    | '1'       | '6c2dff6d-ee5c-dad1-6a5e-000000000001'
+
+    kind: str  # 'main' | 'indexed' | 'prefixed'
+    key: str  # ''    | '1'       | '6c2dff6d-ee5c-dad1-6a5e-000000000001'
     seed_path: tuple[str, ...]
     flat_hrefs: tuple[str, ...] = ()
 
     def to_actual(self, canonical: str) -> str:
         """Canonical registry href (e.g. '/mode/vs/0') -> the real,
         on-the-wire href for this subdevice."""
-        if self.kind == 'indexed':
-            head, sep, tail = canonical.rpartition('/')
+        if self.kind == "indexed":
+            head, sep, tail = canonical.rpartition("/")
             # Only the index-0 trailing segment is ours to rewrite --
             # deliberately not a "replace any trailing digit" rule, which
             # would misread a genuine multi-instance resource (the fridge's
@@ -155,24 +157,24 @@ class Subdevice:
             # registry declares a non-zero trailing index today and no
             # fixture in the corpus contains one (verified across the whole
             # corpus), so the strict rule costs nothing.
-            if tail == '0':
-                return f'{head}{sep}{self.key}'
+            if tail == "0":
+                return f"{head}{sep}{self.key}"
             return canonical
-        if self.kind == 'prefixed':
-            return f'/{self.key}{canonical}'
+        if self.kind == "prefixed":
+            return f"/{self.key}{canonical}"
         return canonical
 
-    def to_canonical(self, actual: str) -> Optional[str]:
+    def to_canonical(self, actual: str) -> str | None:
         """Inverse of to_actual, or None when `actual` isn't this subdevice's."""
-        if self.kind == 'indexed':
-            head, sep, tail = actual.rpartition('/')
+        if self.kind == "indexed":
+            head, sep, tail = actual.rpartition("/")
             if tail == self.key:
-                return f'{head}{sep}0'
+                return f"{head}{sep}0"
             return None
-        if self.kind == 'prefixed':
-            prefix = f'/{self.key}'
-            if actual.startswith(prefix + '/'):
-                return actual[len(prefix):]
+        if self.kind == "prefixed":
+            prefix = f"/{self.key}"
+            if actual.startswith(prefix + "/"):
+                return actual[len(prefix) :]
             return None
         return actual
 
@@ -180,7 +182,7 @@ class Subdevice:
         """True if `actual` belongs to this subdevice's namespace. MAIN never
         "owns" anything by this definition -- it gets whatever's left after
         every other subdevice's hrefs are excluded (see canonical_view)."""
-        if self.kind == 'main':
+        if self.kind == "main":
             return False
         return self.to_canonical(actual) is not None
 
@@ -197,19 +199,21 @@ class Subdevice:
         (see DESIGN-177.md section 6): HA derives the visible entity_id from
         the device name + entity name, not from unique_id.
         """
-        if self.kind == 'indexed':
-            return f'subdevice{self.key}_'
-        if self.kind == 'prefixed':
-            slug = re.sub(r'[^a-zA-Z0-9]', '', self.key)
-            return f'subdevice_{slug}_'
-        return ''
+        if self.kind == "indexed":
+            return f"subdevice{self.key}_"
+        if self.kind == "prefixed":
+            slug = re.sub(r"[^a-zA-Z0-9]", "", self.key)
+            return f"subdevice_{slug}_"
+        return ""
 
 
-MAIN = Subdevice(kind='main', key='', seed_path=('device', '0'))
+MAIN = Subdevice(kind="main", key="", seed_path=("device", "0"))
 
 
 def canonical_view(
-    subdevice: Subdevice, resources: dict[str, dict], subdevices: list['Subdevice'],
+    subdevice: Subdevice,
+    resources: dict[str, dict],
+    subdevices: list[Subdevice],
 ) -> dict[str, dict]:
     """Rewrite `resources` (real, on-the-wire hrefs) into `subdevice`'s own
     canonical namespace -- what discover()/exists_fn/rep_fn/is_legacy_board
@@ -226,11 +230,8 @@ def canonical_view(
     `subdevices` may or may not include MAIN itself -- MAIN.owns() is always
     False, so including it is harmless.
     """
-    if subdevice.kind == 'main':
-        owned_elsewhere = {
-            href for href in resources
-            if any(su.owns(href) for su in subdevices)
-        }
+    if subdevice.kind == "main":
+        owned_elsewhere = {href for href in resources if any(su.owns(href) for su in subdevices)}
         return {h: r for h, r in resources.items() if h not in owned_elsewhere}
     return {
         canon: resources[actual]
@@ -250,11 +251,11 @@ def normalize_seed_batch(subdevice: Subdevice, batch: dict[str, dict]) -> dict[s
     reporter's board was never probed live before the subdevice id was
     known), so it's added when missing.
     """
-    if subdevice.kind != 'prefixed':
+    if subdevice.kind != "prefixed":
         return batch
-    prefix = f'/{subdevice.key}'
+    prefix = f"/{subdevice.key}"
     return {
-        (href if href.startswith(prefix + '/') else f'{prefix}{href}'): rep
+        (href if href.startswith(prefix + "/") else f"{prefix}{href}"): rep
         for href, rep in batch.items()
     }
 
@@ -268,14 +269,14 @@ def _iter_oic_res_hrefs(oic_res):
     rules it out, and _get_links' own posture already treats any list-shaped
     body as possible) and of anything else by yielding nothing.
     """
-    for entry in (oic_res or []):
+    for entry in oic_res or []:
         if not isinstance(entry, dict):
             continue
-        if 'links' in entry:
-            for link in entry.get('links') or []:
+        if "links" in entry:
+            for link in entry.get("links") or []:
                 if isinstance(link, dict):
                     yield link
-        elif 'href' in entry:
+        elif "href" in entry:
             yield entry
 
 
@@ -283,7 +284,7 @@ def _seed_href(path_segs: tuple[str, ...]) -> str:
     """('device', '1') -> '/device/1' -- the leading-slash href form
     `probe_log` and diagnostics report, built from the path-segment form
     `sess.get` takes."""
-    return '/' + '/'.join(path_segs)
+    return "/" + "/".join(path_segs)
 
 
 def _get_raw(sess, path_segs: tuple[str, ...]):
@@ -322,8 +323,8 @@ def enumerate_subdevices(
     sess,
     resources: dict[str, dict],
     oic_res_links,
-    probe_log: Optional[Callable[[str, bool], None]] = None,
-) -> tuple[list['Subdevice'], dict[str, dict]]:
+    probe_log: Callable[[str, bool], None] | None = None,
+) -> tuple[list[Subdevice], dict[str, dict]]:
     """Discover every sibling indoor subdevice reachable over `sess`'s
     connection.
 
@@ -370,11 +371,11 @@ def enumerate_subdevices(
         if sub_id.lower() in probed_ids:
             return
         probed_ids.add(sub_id.lower())
-        seed = (sub_id, 'device', '0')
+        seed = (sub_id, "device", "0")
         batch = _get_batch(sess, seed)
         _probed(_seed_href(seed), batch)
         if batch:
-            subdevice = Subdevice(kind='prefixed', key=sub_id, seed_path=seed)
+            subdevice = Subdevice(kind="prefixed", key=sub_id, seed_path=seed)
             fetched.update(normalize_seed_batch(subdevice, batch))
             subdevices.append(subdevice)
             return
@@ -407,22 +408,25 @@ def enumerate_subdevices(
             if not first:
                 sess.pace()
             first = False
-            actual = f'/{sub_id}{href}'
-            rep = _get_property(sess, tuple(actual.strip('/').split('/')))
-            _probed(actual, bool(rep))
+            actual = f"/{sub_id}{href}"
+            rep = _get_property(sess, tuple(actual.strip("/").split("/")))
+            _probed(actual, rep)
             if rep:
                 flat_hrefs.append(href)
                 fetched[actual] = rep
         if not flat_hrefs:
             return
-        subdevices.append(Subdevice(
-            kind='prefixed', key=sub_id, seed_path=(),
-            flat_hrefs=tuple(flat_hrefs),
-        ))
+        subdevices.append(
+            Subdevice(
+                kind="prefixed",
+                key=sub_id,
+                seed_path=(),
+                flat_hrefs=tuple(flat_hrefs),
+            )
+        )
 
     # --- Pattern B: UUID-prefixed tree (TP2X_FAC_BORA_21K) ------------------
-    raw_ids = (resources.get('/subdevices/vs/0') or {}).get(
-        'x.com.samsung.da.subdeviceIdList')
+    raw_ids = (resources.get("/subdevices/vs/0") or {}).get("x.com.samsung.da.subdeviceIdList")
     # Tolerate anything but a list of strings -- this field is redaction-prone
     # (it matches the 'deviceid' substring rule in redact.py) and the existing
     # airconditioner_fac_bora fixture carries the literal string
@@ -452,22 +456,26 @@ def enumerate_subdevices(
     # difference against `listed` here -- is what keeps an id already named
     # by subdeviceIdList from being probed and materialized a second time,
     # since the two sources can disagree on that UUID's case.
-    linked = sorted({
-        m.group(1)
-        for link in _iter_oic_res_hrefs(oic_res_links)
-        for m in [_UUID_PREFIX_RE.match(link.get('href', ''))]
-        if m
-    })
+    linked = sorted(
+        {
+            m.group(1)
+            for link in _iter_oic_res_hrefs(oic_res_links)
+            for m in [_UUID_PREFIX_RE.match(link.get("href", ""))]
+            if m
+        }
+    )
     for sub_id in linked:
         _probe_prefixed(sub_id)
 
     # --- Pattern A: indexed siblings (ARTIK051_DONGLE_FAC_18K) --------------
-    indices = sorted({
-        int(m.group(1))
-        for link in _iter_oic_res_hrefs(oic_res_links)
-        for m in [_INDEXED_HREF_RE.match(link.get('href', ''))]
-        if m and int(m.group(1)) >= 1
-    })
+    indices = sorted(
+        {
+            int(m.group(1))
+            for link in _iter_oic_res_hrefs(oic_res_links)
+            for m in [_INDEXED_HREF_RE.match(link.get("href", ""))]
+            if m and int(m.group(1)) >= 1
+        }
+    )
     if not indices:
         # A board that hides its whole tree from /oic/res (Pattern B's
         # reporter board does this too, but it has no /device/<n> to find
@@ -475,12 +483,12 @@ def enumerate_subdevices(
         # bounded speculative probe this replaces from identity.py.
         indices = list(_SPECULATIVE_DEVICE_INDICES)
     for n in indices:
-        seed = ('device', str(n))
+        seed = ("device", str(n))
         batch = _get_batch(sess, seed)
         _probed(_seed_href(seed), batch)
         if not batch:
             continue
-        subdevice = Subdevice(kind='indexed', key=str(n), seed_path=seed)
+        subdevice = Subdevice(kind="indexed", key=str(n), seed_path=seed)
         fetched.update(batch)  # already real /x/<n> hrefs, no normalization needed
         subdevices.append(subdevice)
 
@@ -497,11 +505,11 @@ def enumerate_subdevices(
     # with the number of subdevices actually materialized is the
     # coordinator's call to log (it owns the logger; this module doesn't),
     # not this function's.
-    multidevice_seed = ('multidevice', 'vs', '0')
+    multidevice_seed = ("multidevice", "vs", "0")
     multidevice = _get_property(sess, multidevice_seed)
     _probed(_seed_href(multidevice_seed), multidevice)
     if multidevice:
-        fetched['/multidevice/vs/0'] = multidevice
+        fetched["/multidevice/vs/0"] = multidevice
 
     return subdevices, fetched
 
@@ -513,6 +521,7 @@ class SkippedSubdevice:
     unused SmartThings slot (the Pattern A reporter's `/device/2`), not a
     real second subdevice. Kept around (rather than silently dropped) so a
     caller can log/report what was skipped and why."""
+
     subdevice: Subdevice
     hrefs: tuple[str, ...]
 
@@ -524,8 +533,8 @@ class SkippedSubdevice:
 # descriptor may deliberately declare no state_class (common.ENERGY_METER's
 # monthly totals reset at each billing boundary, so they aren't
 # `total_increasing`).
-_METER_STATE_CLASSES = frozenset({'total', 'total_increasing'})
-_METER_DEVICE_CLASSES = frozenset({'energy', 'water', 'gas'})
+_METER_STATE_CLASSES = frozenset({"total", "total_increasing"})
+_METER_DEVICE_CLASSES = frozenset({"energy", "water", "gas"})
 
 
 def _is_meter(desc) -> bool:
@@ -533,8 +542,8 @@ def _is_meter(desc) -> bool:
     constants above. Only SensorDesc carries either attribute; everything
     else answers False through the getattr defaults."""
     return (
-        getattr(desc, 'state_class', None) in _METER_STATE_CLASSES
-        or getattr(desc, 'device_class', None) in _METER_DEVICE_CLASSES
+        getattr(desc, "state_class", None) in _METER_STATE_CLASSES
+        or getattr(desc, "device_class", None) in _METER_DEVICE_CLASSES
     )
 
 
@@ -571,20 +580,20 @@ def _has_live_primary_entity(bound, state: dict) -> bool:
       gate.
     """
     from .adapter import _key  # see discover_partitioned's deferred-import note
+
     return any(
-        not b.desc.entity_category and not _is_meter(b.desc)
-        and state.get(_key(b)) is not None
+        not b.desc.entity_category and not _is_meter(b.desc) and state.get(_key(b)) is not None
         for b in bound
     )
 
 
 def discover_partitioned(
     resources: dict[str, dict],
-    subdevices: list['Subdevice'],
-    resolve_registry: Callable[..., object],
+    subdevices: list[Subdevice],
+    resolve_registry: Callable[..., DeviceRegistry | None],
     fallback_capabilities: dict,
-    log: Optional[Callable[[str], None]] = None,
-    tier_log: Optional[Callable[[str, str], None]] = None,
+    log: Callable[[str], None] | None = None,
+    tier_log: Callable[[str, str], None] | None = None,
     oic_device_types: Sequence[str] = (),
 ):
     """Bind every href in `resources` (the merged, real-href snapshot -- main
@@ -649,7 +658,8 @@ def discover_partitioned(
 
     reg = resolve_registry(main_view, device_types=oic_device_types)
     caps, pats = (
-        (reg.capabilities, reg.pattern_capabilities) if reg is not None
+        (reg.capabilities, reg.pattern_capabilities)
+        if reg is not None
         else (fallback_capabilities, [])
     )
     # MAIN is never gated -- the config entry's own physical connection
@@ -664,7 +674,8 @@ def discover_partitioned(
         view = canonical_view(su, resources, subdevices)
         su_reg = resolve_registry(view) or reg
         su_caps, su_pats = (
-            (su_reg.capabilities, su_reg.pattern_capabilities) if su_reg is not None
+            (su_reg.capabilities, su_reg.pattern_capabilities)
+            if su_reg is not None
             else (fallback_capabilities, [])
         )
         probe_bound = discover(view, su_caps, su_pats, subdevice=su)
@@ -672,12 +683,19 @@ def discover_partitioned(
         if _has_live_primary_entity(probe_bound, probe_state):
             materialized.append(su)
             bound = bound + discover(
-                view, su_caps, su_pats, log=log, tier_log=tier_log, subdevice=su,
+                view,
+                su_caps,
+                su_pats,
+                log=log,
+                tier_log=tier_log,
+                subdevice=su,
             )
         else:
-            skipped.append(SkippedSubdevice(
-                subdevice=su,
-                hrefs=tuple(sorted({b.href for b in probe_bound})),
-            ))
+            skipped.append(
+                SkippedSubdevice(
+                    subdevice=su,
+                    hrefs=tuple(sorted({b.href for b in probe_bound})),
+                )
+            )
 
     return bound, device_type_name, materialized, skipped

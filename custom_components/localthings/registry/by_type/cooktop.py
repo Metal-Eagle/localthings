@@ -12,15 +12,16 @@ key is unchanged: it's relied on by the legacy ARTIK051 'CT' modelNum token
 from ..capabilities import common, cooktop, ignored
 from ._base import DeviceRegistry, _build
 
-
 REGISTRY = DeviceRegistry(
-    name='gas_cooktop',
-    capabilities=_build([
-        *ignored.IGNORED,
-        cooktop.COOKTOP_POWER,
-        cooktop.COOKTOP_MODE,
-        cooktop.COOKTOP_CONNECTED,
-        cooktop.PAIRED_HOOD_STATUS,
-        common.FIRMWARE_UPDATE,
-    ]),
+    name="gas_cooktop",
+    capabilities=_build(
+        [
+            *ignored.IGNORED,
+            cooktop.COOKTOP_POWER,
+            cooktop.COOKTOP_MODE,
+            cooktop.COOKTOP_CONNECTED,
+            cooktop.PAIRED_HOOD_STATUS,
+            common.FIRMWARE_UPDATE,
+        ]
+    ),
 )

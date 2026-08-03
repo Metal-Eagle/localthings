@@ -57,9 +57,15 @@ was unreliable on both units in that second round (Low/Medium collided on
 one unit, stuck at 0 throughout on the other), so AIRFLOW_VS_FALLBACK below
 stays a plain read-only diagnostic even after this change.
 """
+
 from ..capability import Capability
 from ..entities import (
-    BinarySensorDesc, FanDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
+    BinarySensorDesc,
+    FanDesc,
+    NumberDesc,
+    SelectDesc,
+    SensorDesc,
+    SwitchDesc,
 )
 from .common import filter_usage_percent, int_or_none, sensor_item_value
 from .laundry import bool_option_exists, bool_option_value, option_value, option_write
@@ -72,28 +78,33 @@ from .laundry import bool_option_exists, bool_option_value, option_value, option
 # supportedModes at all (see the module docstring's Comode_Off finding).
 # Both board generations share the /mode/vs/0 href, so FAN and MODE below
 # are mutually exclusive via this presence check rather than colliding.
-HREF_MODE = '/mode/vs/0'
-HREF_AIRFLOW = '/airflow/0'
-HREF_WIND_STRENGTH = '/wind/strength/vs/0'
+HREF_MODE = "/mode/vs/0"
+HREF_AIRFLOW = "/airflow/0"
+HREF_WIND_STRENGTH = "/wind/strength/vs/0"
 
 
 def _has_top_level_modes(rep, resources):
-    return isinstance(rep.get('x.com.samsung.da.supportedModes'), (list, tuple))
+    return isinstance(rep.get("x.com.samsung.da.supportedModes"), (list, tuple))
+
 
 _AIR_QUALITY_SENSORS = (
-    ('dust', 'mdi:blur', 'Dust'),
-    ('fine_dust', 'mdi:blur', 'FineDust'),
-    ('super_fine_dust', 'mdi:blur', 'SuperFineDust'),
-    ('odor', 'mdi:scent', 'Odor'),
-    ('clean_level', 'mdi:air-filter', 'CleanLevel'),
+    ("dust", "mdi:blur", "Dust"),
+    ("fine_dust", "mdi:blur", "FineDust"),
+    ("super_fine_dust", "mdi:blur", "SuperFineDust"),
+    ("odor", "mdi:scent", "Odor"),
+    ("clean_level", "mdi:air-filter", "CleanLevel"),
 )
 
 AIR_QUALITY = Capability(
-    href='/sensors/vs/0',
-    poll_tier='warm',
+    href="/sensors/vs/0",
+    poll_tier="warm",
     entities=tuple(
-        SensorDesc(key=key, field='x.com.samsung.da.items', icon=icon,
-                   value_fn=lambda items, t=sensor_type: sensor_item_value(items, t))
+        SensorDesc(
+            key=key,
+            field="x.com.samsung.da.items",
+            icon=icon,
+            value_fn=lambda items, t=sensor_type: sensor_item_value(items, t),
+        )
         for key, icon, sensor_type in _AIR_QUALITY_SENSORS
     ),
 )
@@ -103,8 +114,8 @@ def _consumable_state(items, name):
     """Read a `/consumable/vs/0`-style items[] entry -- {name, state} pairs,
     unlike AIR_QUALITY's {type, value} shape above."""
     for item in items or ():
-        if isinstance(item, dict) and item.get('x.com.samsung.da.name') == name:
-            return item.get('x.com.samsung.da.state')
+        if isinstance(item, dict) and item.get("x.com.samsung.da.name") == name:
+            return item.get("x.com.samsung.da.state")
     return None
 
 
@@ -115,27 +126,35 @@ def _consumable_state(items, name):
 # which counts the same direction) rather than "filter life," which would
 # imply the opposite direction.
 FILTER = Capability(
-    href='/consumable/vs/0',
-    poll_tier='cold',
+    href="/consumable/vs/0",
+    poll_tier="cold",
     entities=(
-        SensorDesc(key='filter_progress', field='x.com.samsung.da.items',
-                   unit='%', state_class='measurement',
-                   icon='mdi:air-filter', entity_category='diagnostic',
-                   value_fn=lambda items: int_or_none(
-                       _consumable_state(items, 'FilterProgress'))),
+        SensorDesc(
+            key="filter_progress",
+            field="x.com.samsung.da.items",
+            unit="%",
+            state_class="measurement",
+            icon="mdi:air-filter",
+            entity_category="diagnostic",
+            value_fn=lambda items: int_or_none(_consumable_state(items, "FilterProgress")),
+        ),
     ),
 )
 
 DEVICE_ACTIVE = Capability(
-    href='/devicespecificinfo/vs/0',
-    poll_tier='cold',
+    href="/devicespecificinfo/vs/0",
+    poll_tier="cold",
     entities=(
-        BinarySensorDesc(key='device_active', field='x.com.samsung.da.deviceActive',
-                          icon='mdi:check-network-outline',
-                          entity_category='diagnostic',
-                          value_fn=lambda v: bool(v)),
+        BinarySensorDesc(
+            key="device_active",
+            field="x.com.samsung.da.deviceActive",
+            icon="mdi:check-network-outline",
+            entity_category="diagnostic",
+            value_fn=lambda v: bool(v),
+        ),
     ),
 )
+
 
 def _power_write(power_href, value):
     """Shared 'power' payload handling for this family's three FanDesc write
@@ -143,18 +162,17 @@ def _power_write(power_href, value):
     (the board may only report /power/0); a hardcoded vendor href here would
     silently no-op on such a board even though the entity's own is_on
     already falls back to reading it correctly."""
-    if power_href == '/power/0':
-        return ['power', '0'], {'value': bool(value)}
-    return (['power', 'vs', '0'],
-            {'x.com.samsung.da.power': 'On' if value else 'Off'})
+    if power_href == "/power/0":
+        return ["power", "0"], {"value": bool(value)}
+    return (["power", "vs", "0"], {"x.com.samsung.da.power": "On" if value else "Off"})
 
 
 def _airflow_fan_write(payload, rep, href=None):
     kind, value, *args = payload
-    if kind == 'power':
-        return _power_write(args[0] if args else '/power/vs/0', value)
-    if kind == 'speed':
-        return ['airflow', '0'], {'speed': int(value)}
+    if kind == "power":
+        return _power_write(args[0] if args else "/power/vs/0", value)
+    if kind == "speed":
+        return ["airflow", "0"], {"speed": int(value)}
     return None
 
 
@@ -178,12 +196,15 @@ def _airflow_fan_write(payload, rep, href=None):
 # same key would collide if a future board ever reported both.
 AIRFLOW_GENERIC = Capability(
     href=HREF_AIRFLOW,
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        FanDesc(key='airflow_fan', field='speed', write_fn=_airflow_fan_write),
-        SensorDesc(key='fan_direction', field='direction',
-                   icon='mdi:rotate-3d-variant',
-                   entity_category='diagnostic'),
+        FanDesc(key="airflow_fan", field="speed", write_fn=_airflow_fan_write),
+        SensorDesc(
+            key="fan_direction",
+            field="direction",
+            icon="mdi:rotate-3d-variant",
+            entity_category="diagnostic",
+        ),
     ),
 )
 
@@ -192,17 +213,24 @@ AIRFLOW_GENERIC = Capability(
 # docstring): it collided Low/Medium on one unit and stuck at 0 throughout
 # on the other in the same properly-spaced round.
 AIRFLOW_VS_FALLBACK = Capability(
-    href='/airflow/vs/0',
-    match_fn=lambda rep, resources: '/airflow/0' not in resources,
-    poll_tier='warm',
+    href="/airflow/vs/0",
+    match_fn=lambda rep, resources: "/airflow/0" not in resources,
+    poll_tier="warm",
     entities=(
-        SensorDesc(key='fan_speed_level', field='x.com.samsung.da.speedLevel',
-                   icon='mdi:fan',
-                   state_class='measurement', entity_category='diagnostic',
-                   value_fn=int_or_none),
-        SensorDesc(key='fan_direction', field='x.com.samsung.da.direction',
-                   icon='mdi:rotate-3d-variant',
-                   entity_category='diagnostic'),
+        SensorDesc(
+            key="fan_speed_level",
+            field="x.com.samsung.da.speedLevel",
+            icon="mdi:fan",
+            state_class="measurement",
+            entity_category="diagnostic",
+            value_fn=int_or_none,
+        ),
+        SensorDesc(
+            key="fan_direction",
+            field="x.com.samsung.da.direction",
+            icon="mdi:rotate-3d-variant",
+            entity_category="diagnostic",
+        ),
     ),
 )
 
@@ -214,37 +242,43 @@ def _light_write(payload, rep, href=None):
     # merges the same way everywhere. If some unit replaces the field
     # outright instead, this would drop Comode/OptionCode alongside it on
     # the next light toggle; revisit if a real device report surfaces that.
-    return ['mode', 'vs', '0'], {
-        'x.com.samsung.da.options': option_write('Light', payload),
+    return ["mode", "vs", "0"], {
+        "x.com.samsung.da.options": option_write("Light", payload),
     }
 
 
 MODE = Capability(
-    href='/mode/vs/0',
-    poll_tier='warm',
+    href="/mode/vs/0",
+    poll_tier="warm",
     match_fn=lambda rep, resources: not _has_top_level_modes(rep, resources),
     entities=(
-        SwitchDesc(key='display_light', icon='mdi:led-on',
-                   entity_category='config',
-                   rep_fn=bool_option_value('Light'),
-                   exists_fn=bool_option_exists('Light'),
-                   write_fn=_light_write),
+        SwitchDesc(
+            key="display_light",
+            icon="mdi:led-on",
+            entity_category="config",
+            rep_fn=bool_option_value("Light"),
+            exists_fn=bool_option_exists("Light"),
+            write_fn=_light_write,
+        ),
         # Read-only -- confirmed NOT the fan-speed selector (see module
         # docstring), actual purpose still unconfirmed.
-        SensorDesc(key='operating_mode', icon='mdi:fan',
-                   entity_category='diagnostic',
-                   rep_fn=lambda rep: option_value(rep.get('x.com.samsung.da.options'), 'Comode'),
-                   exists_fn=bool_option_exists('Comode')),
+        SensorDesc(
+            key="operating_mode",
+            icon="mdi:fan",
+            entity_category="diagnostic",
+            rep_fn=lambda rep: option_value(rep.get("x.com.samsung.da.options"), "Comode"),
+            exists_fn=bool_option_exists("Comode"),
+        ),
     ),
 )
 
 
 def _fan_write(payload, rep, href=None):
     kind, value, *args = payload
-    if kind == 'power':
-        return _power_write(args[0] if args else '/power/vs/0', value)
-    if kind == 'mode':
-        return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [value]}
+    if kind == "power":
+        return _power_write(args[0] if args else "/power/vs/0", value)
+    if kind == "mode":
+        return ["mode", "vs", "0"], {"x.com.samsung.da.modes": [value]}
     return None
 
 
@@ -252,7 +286,7 @@ def _first_fan_mode(rep):
     """Representative scalar for the fan entity in the flattened state
     (golden/regression), mirroring airconditioner.py's own _first_mode --
     the real entity computes its state from live coordinator reads."""
-    modes = rep.get('x.com.samsung.da.modes')
+    modes = rep.get("x.com.samsung.da.modes")
     if isinstance(modes, (list, tuple)):
         return modes[0] if modes else None
     return modes
@@ -265,21 +299,25 @@ def _first_fan_mode(rep):
 # convenient modes are modeled as a preset rather than a speed number.
 FAN = Capability(
     href=HREF_MODE,
-    poll_tier='warm',
+    poll_tier="warm",
     match_fn=_has_top_level_modes,
     entities=(
-        FanDesc(key='fan', translation_key='air_purifier_fan',
-                rep_fn=_first_fan_mode, write_fn=_fan_write),
+        FanDesc(
+            key="fan",
+            translation_key="air_purifier_fan",
+            rep_fn=_first_fan_mode,
+            write_fn=_fan_write,
+        ),
     ),
 )
 
 
 def _wind_strength_fan_write(payload, rep, href=None):
     kind, value, *args = payload
-    if kind == 'power':
-        return _power_write(args[0] if args else '/power/vs/0', value)
-    if kind == 'mode':
-        return ['wind', 'strength', 'vs', '0'], {'x.com.samsung.da.modes': value}
+    if kind == "power":
+        return _power_write(args[0] if args else "/power/vs/0", value)
+    if kind == "mode":
+        return ["wind", "strength", "vs", "0"], {"x.com.samsung.da.modes": value}
     return None
 
 
@@ -298,10 +336,14 @@ def _wind_strength_fan_write(payload, rep, href=None):
 # comment on this exact hazard -- missed here in the initial cut).
 WIND_STRENGTH_FAN = Capability(
     href=HREF_WIND_STRENGTH,
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
-        FanDesc(key='wind_strength_fan', translation_key='air_purifier_fan',
-                field='x.com.samsung.da.modes', write_fn=_wind_strength_fan_write),
+        FanDesc(
+            key="wind_strength_fan",
+            translation_key="air_purifier_fan",
+            field="x.com.samsung.da.modes",
+            write_fn=_wind_strength_fan_write,
+        ),
     ),
 )
 
@@ -315,16 +357,20 @@ WIND_STRENGTH_FAN = Capability(
 # separate hrefs on this dump, so they're two independent physical controls,
 # not a duplicate encoding of one.
 DISPLAY = Capability(
-    href='/display/vs/0',
-    poll_tier='cold',
+    href="/display/vs/0",
+    poll_tier="cold",
     entities=(
-        SwitchDesc(key='display', field='mode',
-                   icon='mdi:monitor',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['display', 'vs', '0'],
-                       {'mode': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="display",
+            field="mode",
+            icon="mdi:monitor",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["display", "vs", "0"],
+                {"mode": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -333,18 +379,27 @@ DISPLAY = Capability(
 # seen on this one dump, so the option list there is reused as-is rather
 # than re-deriving it from a single sample.
 HEPA_FILTER = Capability(
-    href='/filter/hepafilter/vs/0',
-    poll_tier='cold',
+    href="/filter/hepafilter/vs/0",
+    poll_tier="cold",
     entities=(
-        SensorDesc(key='hepa_filter_usage', rep_fn=filter_usage_percent,
-                   unit='%', state_class='measurement',
-                   icon='mdi:air-filter', entity_category='diagnostic'),
-        SensorDesc(key='hepa_filter_status', field='x.com.samsung.da.filterStatus',
-                   device_class='enum',
-                   options=('normal', 'wash', 'replace'),
-                   translation_key='filter_status',
-                   icon='mdi:air-filter', entity_category='diagnostic',
-                   value_fn=lambda v: v.lower() if isinstance(v, str) else v),
+        SensorDesc(
+            key="hepa_filter_usage",
+            rep_fn=filter_usage_percent,
+            unit="%",
+            state_class="measurement",
+            icon="mdi:air-filter",
+            entity_category="diagnostic",
+        ),
+        SensorDesc(
+            key="hepa_filter_status",
+            field="x.com.samsung.da.filterStatus",
+            device_class="enum",
+            options=("normal", "wash", "replace"),
+            translation_key="filter_status",
+            icon="mdi:air-filter",
+            entity_category="diagnostic",
+            value_fn=lambda v: v.lower() if isinstance(v, str) else v,
+        ),
     ),
 )
 
@@ -353,27 +408,35 @@ HEPA_FILTER = Capability(
 # supportedStatus list is present to check against -- exposed as a plain
 # diagnostic sensor rather than an asserted binary_sensor polarity.
 PANEL_STATUS = Capability(
-    href='/panel/vs/0',
-    poll_tier='cold',
+    href="/panel/vs/0",
+    poll_tier="cold",
     entities=(
-        SensorDesc(key='panel_status', field='status',
-                   icon='mdi:archive-outline', entity_category='diagnostic'),
+        SensorDesc(
+            key="panel_status",
+            field="status",
+            icon="mdi:archive-outline",
+            entity_category="diagnostic",
+        ),
     ),
 )
 
 # Pet-care filter mode -- a plain On/Off field with no vendor prefix, same
 # convention as airconditioner.MUTE_ONCE.
 PET_FILTER_ACTIVATION = Capability(
-    href='/petfilteractivation/vs/0',
-    poll_tier='cold',
+    href="/petfilteractivation/vs/0",
+    poll_tier="cold",
     entities=(
-        SwitchDesc(key='pet_filter_activation', field='status',
-                   icon='mdi:paw',
-                   entity_category='config',
-                   value_fn=lambda v: v == 'On',
-                   write_fn=lambda p, rep, href=None: (
-                       ['petfilteractivation', 'vs', '0'],
-                       {'status': 'On' if p == 'On' else 'Off'})),
+        SwitchDesc(
+            key="pet_filter_activation",
+            field="status",
+            icon="mdi:paw",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["petfilteractivation", "vs", "0"],
+                {"status": "On" if p == "On" else "Off"},
+            ),
+        ),
     ),
 )
 
@@ -385,49 +448,62 @@ PET_FILTER_ACTIVATION = Capability(
 # separate descriptors reading the live supported values instead of a
 # hardcoded table.
 SOUND_MODE = Capability(
-    href='/settings/sound/mode/vs/0',
-    poll_tier='cold',
+    href="/settings/sound/mode/vs/0",
+    poll_tier="cold",
     entities=(
         # Distinct translation_key from laundry.SOUND_MODE's shared
         # 'sound_mode' catalog entry -- that one's state table is
         # {voice, tone, mute}, but this board's supportedModes is
         # {mute, buzzer}. Sharing the key would leave 'buzzer' unlabelled
         # (falls through to the raw code) since the catalogs don't overlap.
-        SelectDesc(key='sound_mode', translation_key='air_purifier_sound_mode',
-                   field='mode',
-                   icon='mdi:volume-high',
-                   entity_category='config',
-                   options_field='supportedModes',
-                   write_fn=lambda p, rep, href=None: (
-                       ['settings', 'sound', 'mode', 'vs', '0'], {'mode': p})),
+        SelectDesc(
+            key="sound_mode",
+            translation_key="air_purifier_sound_mode",
+            field="mode",
+            icon="mdi:volume-high",
+            entity_category="config",
+            options_field="supportedModes",
+            write_fn=lambda p, rep, href=None: (
+                ["settings", "sound", "mode", "vs", "0"],
+                {"mode": p},
+            ),
+        ),
     ),
 )
 
 # Read-only descriptor of which sound output the unit has -- only one value
 # seen, no alternatives to select between.
 SOUND_OUTPUT = Capability(
-    href='/settings/sound/output/vs/0',
-    poll_tier='cold',
+    href="/settings/sound/output/vs/0",
+    poll_tier="cold",
     entities=(
-        SensorDesc(key='sound_output', field='deviceType',
-                   icon='mdi:volume-high', entity_category='diagnostic'),
+        SensorDesc(
+            key="sound_output",
+            field="deviceType",
+            icon="mdi:volume-high",
+            entity_category="diagnostic",
+        ),
     ),
 )
 
 SOUND_VOLUME = Capability(
-    href='/settings/sound/volume/vs/0',
-    poll_tier='cold',
+    href="/settings/sound/volume/vs/0",
+    poll_tier="cold",
     entities=(
-        NumberDesc(key='sound_volume', field='level',
-                   icon='mdi:volume-medium',
-                   entity_category='config',
-                   native_min_fn=lambda rep: int_or_none(rep.get('minLevel')) or 0,
-                   native_max_fn=lambda rep: int_or_none(rep.get('maxLevel')) or 0,
-                   step_fn=lambda rep: int_or_none(rep.get('resolution')) or 1,
-                   value_fn=int_or_none,
-                   write_fn=lambda p, rep, href=None: (
-                       ['settings', 'sound', 'volume', 'vs', '0'],
-                       {'level': str(int(p))})),
+        NumberDesc(
+            key="sound_volume",
+            field="level",
+            icon="mdi:volume-medium",
+            entity_category="config",
+            native_min_fn=lambda rep: int_or_none(rep.get("minLevel")) or 0,
+            native_max_fn=lambda rep: int_or_none(rep.get("maxLevel")) or 0,
+            step_fn=lambda rep: int_or_none(rep.get("resolution")) or 1,
+            value_fn=int_or_none,
+            write_fn=lambda p, rep, href=None: (
+                ["settings", "sound", "volume", "vs", "0"],
+                {"level": str(int(p))},
+            ),
+        ),
     ),
 )
 
@@ -444,22 +520,22 @@ SOUND_VOLUME = Capability(
 # colliding with a family-local bare Capability on the same href raises in
 # _build()); left as a possible follow-up DRY cleanup.
 COVERAGE = [
-    Capability(href='/humidity/0'),
-    Capability(href='/humidity/vs/0'),
-    Capability(href='/airlevelcheck/vs/0'),        # periodic air-quality sensing scheduler plumbing
-    Capability(href='/availablecontrolsets/vs/0'), # opaque hex-encoded control-set bitmap
-    Capability(href='/da/softreset/vs/0'),         # soft-reset trigger plumbing
-    Capability(href='/keepnormalstate/vs/0'),      # internal keep-normal flag
-    Capability(href='/personality/presence/vs/0'), # presence-personalization plumbing (empty here)
-    Capability(href='/reserverulesets/vs/0'),      # opaque hex-encoded schedule reservation blob
+    Capability(href="/humidity/0"),
+    Capability(href="/humidity/vs/0"),
+    Capability(href="/airlevelcheck/vs/0"),  # periodic air-quality sensing scheduler plumbing
+    Capability(href="/availablecontrolsets/vs/0"),  # opaque hex-encoded control-set bitmap
+    Capability(href="/da/softreset/vs/0"),  # soft-reset trigger plumbing
+    Capability(href="/keepnormalstate/vs/0"),  # internal keep-normal flag
+    Capability(href="/personality/presence/vs/0"),  # presence-personalization plumbing (empty here)
+    Capability(href="/reserverulesets/vs/0"),  # opaque hex-encoded schedule reservation blob
     # Do-not-disturb/auto-sleep schedule (visible/startTime/endTime/
     # useTimeSetting/functionState) -- every field reads its inert default
     # on the only dump seen (times both '00:00:00', useTimeSetting/
     # functionState both 'false'). Same "needs a multi-field schedule
     # editor" treatment as fridge.py's /defrost/reservation/vs/0.
-    Capability(href='/dnd/autosleep/vs/0'),
+    Capability(href="/dnd/autosleep/vs/0"),
     # Empty ({}) on the A-VTWW-TP2-21 dump (issue #151) -- this board's
     # convenient-mode-equivalent behavior lives entirely in WIND_STRENGTH_FAN
     # above instead.
-    Capability(href='/mode/convenient/vs/0'),
+    Capability(href="/mode/convenient/vs/0"),
 ]

@@ -10,12 +10,17 @@ against live device dumps:
   /water/consumption/vs/0   -> x.com.samsung.da.cumulativeWater
   /filter/waterfilter/vs/0  -> x.com.samsung.da.filterUsage / filterStatus
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 from ..batch import is_stub_rep
 from ..capability import Capability
 from ..entities import (
-    BinarySensorDesc, ButtonDesc, SelectDesc, SensorDesc, SwitchDesc,
+    BinarySensorDesc,
+    ButtonDesc,
+    SelectDesc,
+    SensorDesc,
+    SwitchDesc,
 )
 
 
@@ -56,7 +61,7 @@ def parse_iso_utc(raw):
         dt = datetime.fromisoformat(raw)
     except ValueError:
         return None
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 def filter_usage_percent(rep):
@@ -65,23 +70,23 @@ def filter_usage_percent(rep):
     `filterCapacityUnit` (Hours, e.g. 100 of a 500 capacity), so a plain
     value with a '%' unit would be wrong -- normalize to used/capacity.
     Returns None when capacity is missing/zero."""
-    used = _num(rep.get('x.com.samsung.da.filterUsage'))
-    cap = _num(rep.get('x.com.samsung.da.filterCapacity'))
+    used = _num(rep.get("x.com.samsung.da.filterUsage"))
+    cap = _num(rep.get("x.com.samsung.da.filterCapacity"))
     if used is None or not cap:
         return None
     return round(used / cap * 100)
 
 
-def normalize_temp_unit(raw, default='°F'):
+def normalize_temp_unit(raw, default="°F"):
     """'C'/'Celsius' -> '°C', 'F'/'Fahrenheit' -> '°F'. Falls back to
     `default` for any other/missing value. Shared by fridge.py and oven.py,
     both of which read a per-device unit off a `/temperature*` resource
     instead of assuming one (see fridge.py's module docstring, issue #7)."""
-    raw = (raw or '').strip().upper()
-    if raw.startswith('C'):
-        return '°C'
-    if raw.startswith('F'):
-        return '°F'
+    raw = (raw or "").strip().upper()
+    if raw.startswith("C"):
+        return "°C"
+    if raw.startswith("F"):
+        return "°F"
     return default
 
 
@@ -112,15 +117,15 @@ def _active_alarm_codes(items):
     the same rule to the whole '_OFF' suffix convention.
     """
     if not items or not isinstance(items, list):
-        return 'none'
+        return "none"
     codes = [
-        i.get('x.com.samsung.da.code')
+        i.get("x.com.samsung.da.code")
         for i in items
-        if i.get('x.com.samsung.da.code')
-        and str(i.get('x.com.samsung.da.state', '')).lower() != 'deleted'
-        and not str(i.get('x.com.samsung.da.code', '')).lower().endswith('_off')
+        if i.get("x.com.samsung.da.code")
+        and str(i.get("x.com.samsung.da.state", "")).lower() != "deleted"
+        and not str(i.get("x.com.samsung.da.code", "")).lower().endswith("_off")
     ]
-    return ', '.join(codes) if codes else 'none'
+    return ", ".join(codes) if codes else "none"
 
 
 def merge_options_field(cached, new_tokens):
@@ -137,12 +142,12 @@ def merge_options_field(cached, new_tokens):
     body it applies straight to the cache no longer carries them."""
     merged = list(cached or [])
     for token in new_tokens or ():
-        if not isinstance(token, str) or '_' not in token:
+        if not isinstance(token, str) or "_" not in token:
             continue
-        prefix = token.split('_', 1)[0]
+        prefix = token.split("_", 1)[0]
         replaced = False
         for i, o in enumerate(merged):
-            if isinstance(o, str) and o.startswith(prefix + '_'):
+            if isinstance(o, str) and o.startswith(prefix + "_"):
                 merged[i] = token
                 replaced = True
         if not replaced:
@@ -168,9 +173,9 @@ def merge_items_field(cached, new_items):
     for new_item in new_items or ():
         if not isinstance(new_item, dict):
             continue
-        item_id = new_item.get('x.com.samsung.da.id')
+        item_id = new_item.get("x.com.samsung.da.id")
         for i, existing in enumerate(merged):
-            if isinstance(existing, dict) and existing.get('x.com.samsung.da.id') == item_id:
+            if isinstance(existing, dict) and existing.get("x.com.samsung.da.id") == item_id:
                 merged[i] = {**existing, **new_item}
                 break
         else:
@@ -182,9 +187,9 @@ def merge_items_field(cached, new_items):
 # washers, dryers, and dishwashers; absent on fridge/oven/AC. Static for the
 # life of a given board, so reading them from the /device/0 seed (no dedicated
 # poll_tier) is enough.
-_SETINFO_HREF = '/wm/setinfo/vs/0'
-_POWER_ON_OFF_FIELD = 'x.com.samsung.da.isModelSettingPowerOnOff'
-_WITHOUT_SC_FIELD = 'x.com.samsung.da.isModelSettingWithoutSC'
+_SETINFO_HREF = "/wm/setinfo/vs/0"
+_POWER_ON_OFF_FIELD = "x.com.samsung.da.isModelSettingPowerOnOff"
+_WITHOUT_SC_FIELD = "x.com.samsung.da.isModelSettingWithoutSC"
 
 
 def model_allows_power_on_off(resources: dict) -> bool:
@@ -201,7 +206,7 @@ def model_allows_power_on_off(resources: dict) -> bool:
     flag = setinfo.get(_POWER_ON_OFF_FIELD)
     if flag is None:
         return True
-    return str(flag).lower() != 'false'
+    return str(flag).lower() != "false"
 
 
 def model_setting_without_sc(resources: dict) -> bool:
@@ -213,7 +218,7 @@ def model_setting_without_sc(resources: dict) -> bool:
     the flag name is settings-specific, not a blanket remote-control bypass.
     """
     setinfo = resources.get(_SETINFO_HREF) or {}
-    return str(setinfo.get(_WITHOUT_SC_FIELD, '')).lower() == 'true'
+    return str(setinfo.get(_WITHOUT_SC_FIELD, "")).lower() == "true"
 
 
 def _power_switch_exists(rep, resources):
@@ -234,9 +239,9 @@ def sensor_item_value(items, sensor_type, index=0):
     for item in items or ():
         if not isinstance(item, dict):
             continue
-        if item.get('x.com.samsung.da.type') != sensor_type:
+        if item.get("x.com.samsung.da.type") != sensor_type:
             continue
-        values = item.get('x.com.samsung.da.value') or ()
+        values = item.get("x.com.samsung.da.value") or []
         if index < len(values):
             try:
                 return int(values[index])
@@ -259,48 +264,60 @@ def sensor_item_value(items, sensor_type, index=0):
 # choice. Every device registry lists both caps of each pair.
 
 POWER_GENERIC = Capability(
-    href='/power/0',
+    href="/power/0",
     # Neither href of this pair carried a poll_tier before (issue #56's
     # follow-up), so power state only ever refreshed on the once-per-30s
     # summary poll instead of the subscribe/subpoll cadence 'warm' and 'hot'
     # hrefs get -- the same "signal drives real-time state, but sat in the
     # slow default tier" gap as REMOTE_CONTROL_GENERIC/VS_FALLBACK above.
-    poll_tier='warm',
+    poll_tier="warm",
     entities=(
         # Writable when firmware allows remote power; otherwise a read-only
         # binary_sensor with the same key keeps HA state without a dead switch.
-        SwitchDesc(key='power_switch', field='value',
-                   value_fn=lambda v: bool(v),
-                   exists_fn=_power_switch_exists,
-                   write_fn=lambda p, rep, href=None: (
-                       ['power', '0'], {'value': p == 'On'})),
-        BinarySensorDesc(key='power_switch', field='value',
-                         device_class='power',
-                         value_fn=lambda v: bool(v),
-                         exists_fn=_power_sensor_exists),
+        SwitchDesc(
+            key="power_switch",
+            field="value",
+            value_fn=lambda v: bool(v),
+            exists_fn=_power_switch_exists,
+            write_fn=lambda p, rep, href=None: (["power", "0"], {"value": p == "On"}),
+        ),
+        BinarySensorDesc(
+            key="power_switch",
+            field="value",
+            device_class="power",
+            value_fn=lambda v: bool(v),
+            exists_fn=_power_sensor_exists,
+        ),
     ),
 )
 
 POWER_VS_FALLBACK = Capability(
-    href='/power/vs/0',
-    match_fn=lambda rep, resources: '/power/0' not in resources,
-    poll_tier='warm',
+    href="/power/vs/0",
+    match_fn=lambda rep, resources: "/power/0" not in resources,
+    poll_tier="warm",
     entities=(
-        SwitchDesc(key='power_switch', field='x.com.samsung.da.power',
-                   value_fn=lambda v: v == 'On',
-                   exists_fn=_power_switch_exists,
-                   write_fn=lambda p, rep, href=None: (
-                       ['power', 'vs', '0'],
-                       {'x.com.samsung.da.power': 'On' if p == 'On' else 'Off'})),
-        BinarySensorDesc(key='power_switch', field='x.com.samsung.da.power',
-                         device_class='power',
-                         value_fn=lambda v: v == 'On',
-                         exists_fn=_power_sensor_exists),
+        SwitchDesc(
+            key="power_switch",
+            field="x.com.samsung.da.power",
+            value_fn=lambda v: v == "On",
+            exists_fn=_power_switch_exists,
+            write_fn=lambda p, rep, href=None: (
+                ["power", "vs", "0"],
+                {"x.com.samsung.da.power": "On" if p == "On" else "Off"},
+            ),
+        ),
+        BinarySensorDesc(
+            key="power_switch",
+            field="x.com.samsung.da.power",
+            device_class="power",
+            value_fn=lambda v: v == "On",
+            exists_fn=_power_sensor_exists,
+        ),
     ),
 )
 
 KIDS_LOCK_GENERIC = Capability(
-    href='/kidslock/0',
+    href="/kidslock/0",
     entities=(
         # Read-only like KIDS_LOCK_VS_FALLBACK (issues #181/#183) -- not a
         # SwitchDesc. SwitchDesc's `device_class='lock'` was never honored
@@ -312,15 +329,15 @@ KIDS_LOCK_GENERIC = Capability(
         # value_fn here (and in the fallback below) keeps the on-the-wire
         # truth (value=False on /kidslock/0, kidsLock='Ready' on /kidslock/vs/0
         # both mean kids lock NOT active) consistent with that polarity.
-        BinarySensorDesc(key='child_lock', field='value',
-                         device_class='lock',
-                         value_fn=lambda v: not bool(v)),
+        BinarySensorDesc(
+            key="child_lock", field="value", device_class="lock", value_fn=lambda v: not bool(v)
+        ),
     ),
 )
 
 KIDS_LOCK_VS_FALLBACK = Capability(
-    href='/kidslock/vs/0',
-    match_fn=lambda rep, resources: '/kidslock/0' not in resources,
+    href="/kidslock/vs/0",
+    match_fn=lambda rep, resources: "/kidslock/0" not in resources,
     entities=(
         # Read-only, not a SwitchDesc (issues #181/#183): the write side of
         # this capability wrote 'Enable', a value no dump in the fixture
@@ -332,9 +349,12 @@ KIDS_LOCK_VS_FALLBACK = Capability(
         # hardware, not just wrong-valued. Polarity matches
         # KIDS_LOCK_GENERIC above -- 'On' means open/unlocked, so
         # kidsLock='Ready' (kids lock NOT active) renders as 'On'.
-        BinarySensorDesc(key='child_lock', field='x.com.samsung.da.kidsLock',
-                         device_class='lock',
-                         value_fn=lambda v: v == 'Ready'),
+        BinarySensorDesc(
+            key="child_lock",
+            field="x.com.samsung.da.kidsLock",
+            device_class="lock",
+            value_fn=lambda v: v == "Ready",
+        ),
     ),
 )
 
@@ -350,12 +370,12 @@ def remote_control_enabled(resources: dict) -> bool:
     once-per-30s cold summary poll. True (assume enabled) when neither
     href is present -- most device types don't report this capability
     at all."""
-    generic = resources.get('/remotectrl/0')
+    generic = resources.get("/remotectrl/0")
     if generic is not None:
-        return bool(generic.get('value'))
-    fallback = resources.get('/remotectrl/vs/0')
+        return bool(generic.get("value"))
+    fallback = resources.get("/remotectrl/vs/0")
     if fallback is not None:
-        return str(fallback.get('x.com.samsung.da.remoteControlEnabled')).lower() == 'true'
+        return str(fallback.get("x.com.samsung.da.remoteControlEnabled")).lower() == "true"
     return True
 
 
@@ -369,39 +389,48 @@ def remote_control_required_for_write(resources: dict, bound_href: str) -> bool:
     """
     if not model_setting_without_sc(resources):
         return True
-    href = bound_href or ''
-    return href.startswith('/operational/state')
+    href = bound_href or ""
+    return href.startswith("/operational/state")
 
 
 REMOTE_CONTROL_GENERIC = Capability(
-    href='/remotectrl/0',
-    poll_tier='warm',
+    href="/remotectrl/0",
+    poll_tier="warm",
     entities=(
-        BinarySensorDesc(key='remote_control', field='value',
-                         device_class='connectivity',
-                         value_fn=lambda v: bool(v)),
+        BinarySensorDesc(
+            key="remote_control",
+            field="value",
+            device_class="connectivity",
+            value_fn=lambda v: bool(v),
+        ),
     ),
 )
 
 REMOTE_CONTROL_VS_FALLBACK = Capability(
-    href='/remotectrl/vs/0',
-    match_fn=lambda rep, resources: '/remotectrl/0' not in resources,
-    poll_tier='warm',
+    href="/remotectrl/vs/0",
+    match_fn=lambda rep, resources: "/remotectrl/0" not in resources,
+    poll_tier="warm",
     entities=(
-        BinarySensorDesc(key='remote_control',
-                         field='x.com.samsung.da.remoteControlEnabled',
-                         device_class='connectivity',
-                         value_fn=lambda v: str(v).lower() == 'true'),
+        BinarySensorDesc(
+            key="remote_control",
+            field="x.com.samsung.da.remoteControlEnabled",
+            device_class="connectivity",
+            value_fn=lambda v: str(v).lower() == "true",
+        ),
     ),
 )
 
 ALARMS = Capability(
-    href='/alarms/vs/0',
-    poll_tier='hot',
+    href="/alarms/vs/0",
+    poll_tier="hot",
     entities=(
-        SensorDesc(key='alarm_code', field='x.com.samsung.da.items',
-                   icon='mdi:alert',
-                   entity_category='diagnostic', value_fn=_active_alarm_codes),
+        SensorDesc(
+            key="alarm_code",
+            field="x.com.samsung.da.items",
+            icon="mdi:alert",
+            entity_category="diagnostic",
+            value_fn=_active_alarm_codes,
+        ),
     ),
 )
 
@@ -413,10 +442,10 @@ ALARMS = Capability(
 # fridge's 93 W) still shows it (issue #6). cumulativePower is absent on at
 # least one washer model; the exists_fn makes that explicit rather than relying
 # on the generic field-presence gate.
-_DEAD_INSTANTANEOUS_POWER = '-500'
+_DEAD_INSTANTANEOUS_POWER = "-500"
 
 ENERGY_METER = Capability(
-    href='/energy/consumption/vs/0',
+    href="/energy/consumption/vs/0",
     entities=(
         # `is_stub_rep(rep)` keeps the stub carve-out (see entity._is_included):
         # an explicit exists_fn otherwise bypasses it, which would drop the
@@ -425,75 +454,123 @@ ENERGY_METER = Capability(
         # answer, so it falls through to the normal field/sentinel checks like
         # any populated rep. On a populated rep, hide power only for the dead
         # sentinel or an absent field.
-        SensorDesc(key='power_watts', field='x.com.samsung.da.instantaneousPower',
-                   device_class='power', state_class='measurement',
-                   unit='W', value_fn=clamp_power,
-                   exists_fn=lambda rep, resources: is_stub_rep(rep) or (
-                       rep.get('x.com.samsung.da.instantaneousPower')
-                       not in (None, _DEAD_INSTANTANEOUS_POWER))),
-        SensorDesc(key='energy_kwh', field='x.com.samsung.da.cumulativePower',
-                   device_class='energy',
-                   state_class='total_increasing', unit='kWh', value_fn=wh_to_kwh,
-                   exists_fn=lambda rep, resources: (
-                       is_stub_rep(rep) or 'x.com.samsung.da.cumulativePower' in rep)),
+        SensorDesc(
+            key="power_watts",
+            field="x.com.samsung.da.instantaneousPower",
+            device_class="power",
+            state_class="measurement",
+            unit="W",
+            value_fn=clamp_power,
+            exists_fn=lambda rep, resources: (
+                is_stub_rep(rep)
+                or (
+                    rep.get("x.com.samsung.da.instantaneousPower")
+                    not in (None, _DEAD_INSTANTANEOUS_POWER)
+                )
+            ),
+        ),
+        SensorDesc(
+            key="energy_kwh",
+            field="x.com.samsung.da.cumulativePower",
+            device_class="energy",
+            state_class="total_increasing",
+            unit="kWh",
+            value_fn=wh_to_kwh,
+            exists_fn=lambda rep, resources: (
+                is_stub_rep(rep) or "x.com.samsung.da.cumulativePower" in rep
+            ),
+        ),
         # cumulativeConsumption is a second, independently-varying running
         # total alongside cumulativePower -- some fridges (issue #26) report
         # both. Self-gates off where only cumulativePower is present. The
         # `is_stub_rep(rep) or` keeps the same stub carve-out as power_watts/
         # energy_kwh above -- without it, an exists_fn permanently drops the
         # entity if setup happens to land on a not-yet-fetched stub.
-        SensorDesc(key='power_energy_kwh', field='x.com.samsung.da.cumulativeConsumption',
-                   device_class='energy',
-                   state_class='total_increasing', unit='kWh', value_fn=wh_to_kwh,
-                   exists_fn=lambda rep, resources: (
-                       is_stub_rep(rep) or 'x.com.samsung.da.cumulativeConsumption' in rep)),
+        SensorDesc(
+            key="power_energy_kwh",
+            field="x.com.samsung.da.cumulativeConsumption",
+            device_class="energy",
+            state_class="total_increasing",
+            unit="kWh",
+            value_fn=wh_to_kwh,
+            exists_fn=lambda rep, resources: (
+                is_stub_rep(rep) or "x.com.samsung.da.cumulativeConsumption" in rep
+            ),
+        ),
         # AI Energy Mode's lifetime savings estimate vs. an unoptimized
         # baseline -- present on some models (e.g. TP1X_REF_21K, issue #21/
         # #27) and absent on others (issue #20/#26), unlike cumulativePower.
-        SensorDesc(key='energy_saved_kwh', field='x.com.samsung.da.cumulativeSavedPower',
-                   device_class='energy',
-                   state_class='total_increasing', unit='kWh', value_fn=wh_to_kwh,
-                   exists_fn=lambda rep, resources: (
-                       is_stub_rep(rep) or 'x.com.samsung.da.cumulativeSavedPower' in rep)),
+        SensorDesc(
+            key="energy_saved_kwh",
+            field="x.com.samsung.da.cumulativeSavedPower",
+            device_class="energy",
+            state_class="total_increasing",
+            unit="kWh",
+            value_fn=wh_to_kwh,
+            exists_fn=lambda rep, resources: (
+                is_stub_rep(rep) or "x.com.samsung.da.cumulativeSavedPower" in rep
+            ),
+        ),
         # Monthly billing-cycle totals -- the completed prior month and the
         # in-progress current month. Not ever-increasing (each resets at
         # month boundary), so no state_class.
-        SensorDesc(key='energy_last_month_kwh', field='x.com.samsung.da.monthlyConsumption',
-                   device_class='energy',
-                   unit='kWh', value_fn=wh_to_kwh,
-                   exists_fn=lambda rep, resources: (
-                       is_stub_rep(rep) or 'x.com.samsung.da.monthlyConsumption' in rep)),
-        SensorDesc(key='energy_this_month_kwh', field='x.com.samsung.da.thismonthlyConsumption',
-                   device_class='energy',
-                   unit='kWh', value_fn=wh_to_kwh,
-                   exists_fn=lambda rep, resources: (
-                       is_stub_rep(rep) or 'x.com.samsung.da.thismonthlyConsumption' in rep)),
+        SensorDesc(
+            key="energy_last_month_kwh",
+            field="x.com.samsung.da.monthlyConsumption",
+            device_class="energy",
+            unit="kWh",
+            value_fn=wh_to_kwh,
+            exists_fn=lambda rep, resources: (
+                is_stub_rep(rep) or "x.com.samsung.da.monthlyConsumption" in rep
+            ),
+        ),
+        SensorDesc(
+            key="energy_this_month_kwh",
+            field="x.com.samsung.da.thismonthlyConsumption",
+            device_class="energy",
+            unit="kWh",
+            value_fn=wh_to_kwh,
+            exists_fn=lambda rep, resources: (
+                is_stub_rep(rep) or "x.com.samsung.da.thismonthlyConsumption" in rep
+            ),
+        ),
     ),
 )
 
 WATER_METER = Capability(
-    href='/water/consumption/vs/0',
+    href="/water/consumption/vs/0",
     entities=(
-        SensorDesc(key='water_liters', field='x.com.samsung.da.cumulativeWater',
-                   device_class='water',
-                   state_class='total_increasing', unit='L', icon='mdi:water',
-                   value_fn=_ml_to_l),
+        SensorDesc(
+            key="water_liters",
+            field="x.com.samsung.da.cumulativeWater",
+            device_class="water",
+            state_class="total_increasing",
+            unit="L",
+            icon="mdi:water",
+            value_fn=_ml_to_l,
+        ),
     ),
 )
 
 WATER_FILTER = Capability(
-    href='/filter/waterfilter/vs/0',
-    match_fn=lambda rep, _: rep.get('x.com.samsung.da.filterStatus', '').lower() != 'notused',
+    href="/filter/waterfilter/vs/0",
+    match_fn=lambda rep, _: rep.get("x.com.samsung.da.filterStatus", "").lower() != "notused",
     entities=(
-        SensorDesc(key='filter_usage', field='x.com.samsung.da.filterUsage',
-                   unit='%', state_class='measurement',
-                   icon='mdi:filter'),
-        SensorDesc(key='filter_status', field='x.com.samsung.da.filterStatus',
-                   icon='mdi:filter-check',
-                   device_class='enum', options=('normal', 'wash', 'replace'),
-                   value_fn=lambda value: (
-                       value.lower() if isinstance(value, str) else value
-                   )),
+        SensorDesc(
+            key="filter_usage",
+            field="x.com.samsung.da.filterUsage",
+            unit="%",
+            state_class="measurement",
+            icon="mdi:filter",
+        ),
+        SensorDesc(
+            key="filter_status",
+            field="x.com.samsung.da.filterStatus",
+            icon="mdi:filter-check",
+            device_class="enum",
+            options=("normal", "wash", "replace"),
+            value_fn=lambda value: value.lower() if isinstance(value, str) else value,
+        ),
     ),
 )
 
@@ -517,28 +594,28 @@ WATER_FILTER = Capability(
 def _ai_energy_supported_levels(rep):
     """supportedAiLevel as a list -- a stray scalar (e.g. a string) must not
     be len()-checked as if it were a list."""
-    sl = rep.get('supportedAiLevel')
+    sl = rep.get("supportedAiLevel")
     return list(sl) if isinstance(sl, (list, tuple)) else []
 
 
 def _ai_energy_level_options(resources):
-    rep = resources.get('/energy/ailevel/vs/0') or {}
-    return ['0', *_ai_energy_supported_levels(rep)]
+    rep = resources.get("/energy/ailevel/vs/0") or {}
+    return ["0", *_ai_energy_supported_levels(rep)]
 
 
 def _ai_energy_level_write(p, rep, href=None):
-    return ['energy', 'ailevel', 'vs', '0'], {'aiLevel': p}
+    return ["energy", "ailevel", "vs", "0"], {"aiLevel": p}
 
 
 def _ai_energy_level_switch_write(p, rep, href=None):
     levels = _ai_energy_supported_levels(rep)
-    on_level = levels[0] if levels else '1'
-    return ['energy', 'ailevel', 'vs', '0'], {'aiLevel': on_level if p == 'On' else '0'}
+    on_level = levels[0] if levels else "1"
+    return ["energy", "ailevel", "vs", "0"], {"aiLevel": on_level if p == "On" else "0"}
 
 
 AI_ENERGY_LEVEL = Capability(
-    href='/energy/ailevel/vs/0',
-    poll_tier='cold',
+    href="/energy/ailevel/vs/0",
+    poll_tier="cold",
     entities=(
         # No is_stub_rep carve-out on either side, unlike most exists_fn
         # gates in this file -- entity creation only ever runs once, against
@@ -556,60 +633,78 @@ AI_ENERGY_LEVEL = Capability(
         # until a reload if the device's very first poll stubs this
         # cold-tier href, the same reload already required to fix which
         # platform got picked in that case.
-        SwitchDesc(key='ai_energy_level', field='aiLevel',
-                   icon='mdi:leaf',
-                   entity_category='config',
-                   value_fn=lambda v: v != '0',
-                   exists_fn=lambda rep, resources: (
-                       len(_ai_energy_supported_levels(rep)) == 1),
-                   write_fn=_ai_energy_level_switch_write),
-        SelectDesc(key='ai_energy_level', field='aiLevel',
-                   icon='mdi:leaf',
-                   entity_category='config',
-                   options=_ai_energy_level_options,
-                   exists_fn=lambda rep, resources: (
-                       len(_ai_energy_supported_levels(rep)) > 1),
-                   write_fn=_ai_energy_level_write),
+        SwitchDesc(
+            key="ai_energy_level",
+            field="aiLevel",
+            icon="mdi:leaf",
+            entity_category="config",
+            value_fn=lambda v: v != "0",
+            exists_fn=lambda rep, resources: len(_ai_energy_supported_levels(rep)) == 1,
+            write_fn=_ai_energy_level_switch_write,
+        ),
+        SelectDesc(
+            key="ai_energy_level",
+            field="aiLevel",
+            icon="mdi:leaf",
+            entity_category="config",
+            options=_ai_energy_level_options,
+            exists_fn=lambda rep, resources: len(_ai_energy_supported_levels(rep)) > 1,
+            write_fn=_ai_energy_level_write,
+        ),
     ),
 )
 
 FIRMWARE_UPDATE = Capability(
-    href='/otninformation/vs/0',
-    poll_tier='cold',
+    href="/otninformation/vs/0",
+    poll_tier="cold",
     entities=(
         BinarySensorDesc(
-            key='firmware_update',
-            field='x.com.samsung.da.newVersionAvailable',
-            device_class='update',
-            entity_category='diagnostic',
-            value_fn=lambda v: str(v).lower() == 'true' if v is not None else None,
+            key="firmware_update",
+            field="x.com.samsung.da.newVersionAvailable",
+            device_class="update",
+            entity_category="diagnostic",
+            value_fn=lambda v: str(v).lower() == "true" if v is not None else None,
         ),
     ),
 )
 
 SELF_CHECK = Capability(
-    href='/selfcheck/vs/0',
-    poll_tier='cold',
+    href="/selfcheck/vs/0",
+    poll_tier="cold",
     entities=(
-        SensorDesc(key='selfcheck_status', field='x.com.samsung.da.status',
-                   icon='mdi:stethoscope',
-                   entity_category='diagnostic'),
-        SensorDesc(key='selfcheck_result', field='x.com.samsung.da.result',
-                   icon='mdi:clipboard-check-outline',
-                   entity_category='diagnostic'),
+        SensorDesc(
+            key="selfcheck_status",
+            field="x.com.samsung.da.status",
+            icon="mdi:stethoscope",
+            entity_category="diagnostic",
+        ),
+        SensorDesc(
+            key="selfcheck_result",
+            field="x.com.samsung.da.result",
+            icon="mdi:clipboard-check-outline",
+            entity_category="diagnostic",
+        ),
         # List of error codes from the last self-check; joined for display.
         # Not every fridge reports the field, hence the exists_fn.
-        SensorDesc(key='selfcheck_error', field='x.com.samsung.da.error',
-                   icon='mdi:alert-circle-outline',
-                   entity_category='diagnostic',
-                   exists_fn=lambda rep, resources: (
-                       is_stub_rep(rep) or 'x.com.samsung.da.error' in rep),
-                   value_fn=lambda v: (', '.join(v) if v else None) if isinstance(v, list) else v),
-        ButtonDesc(key='selfcheck_start', field='', payload='Start',
-                   icon='mdi:play-circle-outline',
-                   entity_category='diagnostic',
-                   write_fn=lambda p, rep, href=None: (
-                       ['selfcheck', 'vs', '0'], {'x.com.samsung.da.status': p})),
+        SensorDesc(
+            key="selfcheck_error",
+            field="x.com.samsung.da.error",
+            icon="mdi:alert-circle-outline",
+            entity_category="diagnostic",
+            exists_fn=lambda rep, resources: is_stub_rep(rep) or "x.com.samsung.da.error" in rep,
+            value_fn=lambda v: (", ".join(v) if v else None) if isinstance(v, list) else v,
+        ),
+        ButtonDesc(
+            key="selfcheck_start",
+            field="",
+            payload="Start",
+            icon="mdi:play-circle-outline",
+            entity_category="diagnostic",
+            write_fn=lambda p, rep, href=None: (
+                ["selfcheck", "vs", "0"],
+                {"x.com.samsung.da.status": p},
+            ),
+        ),
     ),
 )
 

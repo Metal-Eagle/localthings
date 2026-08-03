@@ -13,38 +13,41 @@ new to this board generation. That's a real device-support gap, left
 documented here rather than guessed at, per the 'don't guess' rule -- fixing
 the routing regression was the scope of #191.
 """
+
 from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.discovery import discover
-
 from tests.conftest import _load_device
 
-_STILL_UNBOUND = frozenset({
-    '/edgelighting/vs/0',
-    '/filter/airdustPM1filter/vs/0',
-    '/light/stateful/vs/0',
-    '/mds/absenceclean/vs/0',
-    '/settings/sound/mode/vs/0',
-    '/settings/sound/optimization/vs/0',
-    '/settings/sound/output/vs/0',
-    '/settings/sound/volume/vs/0',
-    '/smartsensingcooling/vs/0',
-    '/uvled/vs/0',
-})
+_STILL_UNBOUND = frozenset(
+    {
+        "/edgelighting/vs/0",
+        "/filter/airdustPM1filter/vs/0",
+        "/light/stateful/vs/0",
+        "/mds/absenceclean/vs/0",
+        "/settings/sound/mode/vs/0",
+        "/settings/sound/optimization/vs/0",
+        "/settings/sound/output/vs/0",
+        "/settings/sound/volume/vs/0",
+        "/smartsensingcooling/vs/0",
+        "/uvled/vs/0",
+    }
+)
 
 
 def _resources():
-    return _load_device('airconditioner_cac')
+    return _load_device("airconditioner_cac")
 
 
 def _reg(resources):
-    info = resources['/information/vs/0']
+    info = resources["/information/vs/0"]
     return for_device_by_model(
-        info['x.com.samsung.da.modelNum'], info['x.com.samsung.da.description'])
+        info["x.com.samsung.da.modelNum"], info["x.com.samsung.da.description"]
+    )
 
 
 def test_resolves_to_airconditioner_registry():
-    assert _reg(_resources()).name == 'airconditioner'
+    assert _reg(_resources()).name == "airconditioner"
 
 
 def test_documented_coverage_gap_is_exactly_this_set():
@@ -67,4 +70,4 @@ def test_non_legacy_board_uses_the_generic_energy_scale():
     reg = _reg(resources)
     bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
     state = flatten(bound, resources)
-    assert state['energy_kwh'] == round(84044 / 1000.0, 2)
+    assert state["energy_kwh"] == round(84044 / 1000.0, 2)

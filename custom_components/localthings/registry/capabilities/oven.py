@@ -22,12 +22,17 @@ _start_open.md). Mode writes are also unreliable — the oven rolls them back
 once a cycle is active. OVEN_MODE is provided as a SelectDesc for fidelity
 but is effectively read-only in practice.
 """
-from datetime import datetime, timezone, timedelta
+
+from datetime import UTC, datetime, timedelta
 
 from ..batch import is_stub_rep
 from ..capability import Capability
 from ..entities import (
-    BinarySensorDesc, NumberDesc, SelectDesc, SensorDesc, SwitchDesc,
+    BinarySensorDesc,
+    NumberDesc,
+    SelectDesc,
+    SensorDesc,
+    SwitchDesc,
 )
 from .common import normalize_temp_unit
 from .operational import STOP_BUTTON
@@ -61,26 +66,26 @@ SETPOINT_STEP_F = 5
 # the adding-device-support skill's preference for device-reported option
 # lists over hardcoded ones.
 _OVEN_MODES = (
-    'NoOperation',
-    'Bake',
-    'Broil',
-    'Convection',
-    'ConvectionBake',
-    'ConvectionBroil',
-    'FrozenPizzaPlus',
-    'SlowCook',
-    'PlateWarm',
-    'AirFry',
+    "NoOperation",
+    "Bake",
+    "Broil",
+    "Convection",
+    "ConvectionBake",
+    "ConvectionBroil",
+    "FrozenPizzaPlus",
+    "SlowCook",
+    "PlateWarm",
+    "AirFry",
 )
 
 _SAMSUNG_STATE_TO_OCF = {
-    'Ready':   'idle',
-    'Run':     'active',
-    'Running': 'active',
-    'Pause':   'pause',
-    'Paused':  'pause',
-    'End':     'idle',
-    'Stop':    'idle',
+    "Ready": "idle",
+    "Run": "active",
+    "Running": "active",
+    "Pause": "pause",
+    "Paused": "pause",
+    "End": "idle",
+    "Stop": "idle",
 }
 
 
@@ -99,11 +104,11 @@ def _finish_time(remaining_str):
     if not remaining_str:
         return None
     try:
-        h, m, s = remaining_str.split(':')
+        h, m, s = remaining_str.split(":")
         total_s = int(h) * 3600 + int(m) * 60 + int(s)
         if total_s == 0:
             return None
-        return datetime.now(timezone.utc) + timedelta(seconds=total_s)
+        return datetime.now(UTC) + timedelta(seconds=total_s)
     except Exception:
         return None
 
@@ -113,7 +118,7 @@ def _op_minutes(op_time):
     if not op_time:
         return None
     try:
-        h, m, s = op_time.split(':')
+        h, m, s = op_time.split(":")
         return int(h) * 60 + int(m) + (1 if int(s) > 0 else 0)
     except Exception:
         return None
@@ -123,11 +128,12 @@ def _op_minutes(op_time):
 # Options-array helpers (shared by lamp, sound, fastpreheat, naturalsteam)
 # ---------------------------------------------------------------------------
 
+
 def _option_value(options, prefix):
     """Find `<prefix>_<value>` in an options array and return <value>."""
-    for o in (options or []):
-        if isinstance(o, str) and o.startswith(prefix + '_'):
-            return o.split('_', 1)[1]
+    for o in options or []:
+        if isinstance(o, str) and o.startswith(prefix + "_"):
+            return o.split("_", 1)[1]
     return None
 
 
@@ -149,8 +155,9 @@ def _has_option(prefix):
     a first chance to bind, since exists_fn runs before that first real
     fetch lands.
     """
-    return lambda rep, resources: is_stub_rep(rep) or _option_value(
-        rep.get('x.com.samsung.da.options'), prefix) is not None
+    return lambda rep, resources: (
+        is_stub_rep(rep) or _option_value(rep.get("x.com.samsung.da.options"), prefix) is not None
+    )
 
 
 def _option_write(prefix, new_value):
@@ -163,12 +170,13 @@ def _option_write(prefix, new_value):
     replaces the field outright instead of merging would drop every other
     option in it (Sound/fastpreheat/etc.) on the next write -- revisit if a
     real device report surfaces that."""
-    return [f'{prefix}_{new_value}']
+    return [f"{prefix}_{new_value}"]
 
 
 # ---------------------------------------------------------------------------
 # Write functions
 # ---------------------------------------------------------------------------
+
 
 def _oven_setpoint_write(p, rep, href=None):
     """RMW write to /temperatures/vs/0 items array."""
@@ -180,27 +188,27 @@ def _oven_setpoint_write(p, rep, href=None):
     temp_i = int(round(temp / step_v) * step_v)
     if not (min_v <= temp_i <= max_v):
         return None
-    items = rep.get('x.com.samsung.da.items')
+    items = rep.get("x.com.samsung.da.items")
     if not items:
         return None
     items = [dict(it) for it in items]
-    items[0]['x.com.samsung.da.desired'] = str(temp_i)
-    return ['temperatures', 'vs', '0'], {'x.com.samsung.da.items': items}
+    items[0]["x.com.samsung.da.desired"] = str(temp_i)
+    return ["temperatures", "vs", "0"], {"x.com.samsung.da.items": items}
 
 
 def _cook_time_write(p, rep, href=None):
     """Write operationTime + remainingTime (H:MM:SS) from minutes."""
     try:
-        minutes = int(round(float(p)))
+        minutes = round(float(p))
     except (TypeError, ValueError):
         return None
     if not (0 <= minutes <= 1439):
         return None
     h, m = divmod(minutes, 60)
     hms = f"{h:02d}:{m:02d}:00"
-    return ['operational', 'state', 'vs', '0'], {
-        'x.com.samsung.da.operationTime': hms,
-        'x.com.samsung.da.remainingTime': hms,
+    return ["operational", "state", "vs", "0"], {
+        "x.com.samsung.da.operationTime": hms,
+        "x.com.samsung.da.remainingTime": hms,
     }
 
 
@@ -210,30 +218,32 @@ def _oven_mode_options(resources):
     laundry.py's options_field pattern (buzzer_sound/finish_sound), but
     needs the callable form rather than options_field because a static
     fallback has to kick in when the device's own field is absent."""
-    rep = resources.get('/mode/vs/0') or {}
-    live = rep.get('x.com.samsung.da.supportedModes')
+    rep = resources.get("/mode/vs/0") or {}
+    live = rep.get("x.com.samsung.da.supportedModes")
     return list(live) if live else list(_OVEN_MODES)
 
 
 def _oven_mode_write(p, rep, href=None):
-    valid = rep.get('x.com.samsung.da.supportedModes') or _OVEN_MODES
+    valid = rep.get("x.com.samsung.da.supportedModes") or _OVEN_MODES
     if p not in valid:
         return None
-    return ['mode', 'vs', '0'], {'x.com.samsung.da.modes': [p]}
+    return ["mode", "vs", "0"], {"x.com.samsung.da.modes": [p]}
 
 
 def _option_switch_write(prefix):
     """Factory for a single-token on/off options-array write -- lamp, sound,
     fast_preheat, natural_steam, energy_saving, and cooktop_on_alert were all
     a byte-for-byte copy of this same shape, one per prefix."""
+
     def write(p, rep, href=None):
-        if p not in ('On', 'Off'):
+        if p not in ("On", "Off"):
             return None
-        if not rep.get('x.com.samsung.da.options'):
+        if not rep.get("x.com.samsung.da.options"):
             return None
-        return ['mode', 'vs', '0'], {
-            'x.com.samsung.da.options': _option_write(prefix, p),
+        return ["mode", "vs", "0"], {
+            "x.com.samsung.da.options": _option_write(prefix, p),
         }
+
     return write
 
 
@@ -242,43 +252,70 @@ def _option_switch_write(prefix):
 # ---------------------------------------------------------------------------
 
 OVEN_OPERATIONAL_STATE = Capability(
-    href='/operational/state/vs/0',
-    poll_tier='hot',
+    href="/operational/state/vs/0",
+    poll_tier="hot",
     entities=(
-        SensorDesc(key='machine_state', field='x.com.samsung.da.state',
-                   icon='mdi:stove',
-                   device_class='enum', options=('idle', 'active', 'pause'),
-                   translation_key='machine_state', value_fn=_to_ocf),
-        BinarySensorDesc(key='cycle_active', field='x.com.samsung.da.state',
-                         device_class='running',
-                         value_fn=lambda v: _SAMSUNG_STATE_TO_OCF.get(v) == 'active'),
-        SensorDesc(key='progress_percentage',
-                   field='x.com.samsung.da.progressPercentage',
-                   unit='%', state_class='measurement',
-                   value_fn=_int),
-        SensorDesc(key='operation_time_minutes',
-                   field='x.com.samsung.da.operationTime',
-                   unit='min',
-                   state_class='measurement', value_fn=_op_minutes),
-        SensorDesc(key='finish_time', field='x.com.samsung.da.remainingTime',
-                   device_class='timestamp',
-                   value_fn=_finish_time),
-        NumberDesc(key='cook_time', field='x.com.samsung.da.operationTime',
-                   unit='min', native_min=0, native_max=1439,
-                   step=1.0, icon='mdi:timer', value_fn=_op_minutes,
-                   write_fn=_cook_time_write),
+        SensorDesc(
+            key="machine_state",
+            field="x.com.samsung.da.state",
+            icon="mdi:stove",
+            device_class="enum",
+            options=("idle", "active", "pause"),
+            translation_key="machine_state",
+            value_fn=_to_ocf,
+        ),
+        BinarySensorDesc(
+            key="cycle_active",
+            field="x.com.samsung.da.state",
+            device_class="running",
+            value_fn=lambda v: _SAMSUNG_STATE_TO_OCF.get(v) == "active",
+        ),
+        SensorDesc(
+            key="progress_percentage",
+            field="x.com.samsung.da.progressPercentage",
+            unit="%",
+            state_class="measurement",
+            value_fn=_int,
+        ),
+        SensorDesc(
+            key="operation_time_minutes",
+            field="x.com.samsung.da.operationTime",
+            unit="min",
+            state_class="measurement",
+            value_fn=_op_minutes,
+        ),
+        SensorDesc(
+            key="finish_time",
+            field="x.com.samsung.da.remainingTime",
+            device_class="timestamp",
+            value_fn=_finish_time,
+        ),
+        NumberDesc(
+            key="cook_time",
+            field="x.com.samsung.da.operationTime",
+            unit="min",
+            native_min=0,
+            native_max=1439,
+            step=1.0,
+            icon="mdi:timer",
+            value_fn=_op_minutes,
+            write_fn=_cook_time_write,
+        ),
         STOP_BUTTON,
     ),
 )
 
 OVEN_CAVITY = Capability(
-    href='/oven/vs/0',
-    poll_tier='hot',
+    href="/oven/vs/0",
+    poll_tier="hot",
     entities=(
-        SensorDesc(key='oven_state', field='x.com.samsung.da.state',
-                   ),
+        SensorDesc(
+            key="oven_state",
+            field="x.com.samsung.da.state",
+        ),
     ),
 )
+
 
 def _oven_temp_unit(rep):
     """Same shape/risk as fridge.py's TEMPERATURES_FALLBACK: this is the
@@ -288,9 +325,9 @@ def _oven_temp_unit(rep):
     Keeps the verified '°C' default when the field is absent (the original
     NV7000BS-class dump this module was written against), but reads it live
     -- issue #44's range dump is the first to report 'Fahrenheit' here."""
-    items = rep.get('x.com.samsung.da.items') or []
-    unit = items[0].get('x.com.samsung.da.unit') if items else None
-    return normalize_temp_unit(unit, default='°C')
+    items = rep.get("x.com.samsung.da.items") or []
+    unit = items[0].get("x.com.samsung.da.unit") if items else None
+    return normalize_temp_unit(unit, default="°C")
 
 
 def _setpoint_bounds(rep):
@@ -298,54 +335,72 @@ def _setpoint_bounds(rep):
     constants above for provenance. Bounds must track the unit shown by
     unit_fn (both read the same live rep), or the HA slider's range would
     silently mismatch its own displayed unit."""
-    if _oven_temp_unit(rep) == '°F':
+    if _oven_temp_unit(rep) == "°F":
         return SETPOINT_MIN_F, SETPOINT_MAX_F, SETPOINT_STEP_F
     return SETPOINT_MIN_C, SETPOINT_MAX_C, SETPOINT_STEP_C
 
 
 OVEN_SETPOINT = Capability(
-    href='/temperatures/vs/0',
-    poll_tier='hot',
+    href="/temperatures/vs/0",
+    poll_tier="hot",
     entities=(
         # NumberDesc first — test_oven_setpoint_write_is_read_modify_write uses entities[0]
-        NumberDesc(key='oven_setpoint', field='x.com.samsung.da.items',
-                   device_class='temperature', unit_fn=_oven_temp_unit,
-                   native_min=float(SETPOINT_MIN_C), native_max=float(SETPOINT_MAX_C),
-                   step=float(SETPOINT_STEP_C), icon='mdi:thermometer-chevron-up',
-                   native_min_fn=lambda rep: float(_setpoint_bounds(rep)[0]),
-                   native_max_fn=lambda rep: float(_setpoint_bounds(rep)[1]),
-                   step_fn=lambda rep: float(_setpoint_bounds(rep)[2]),
-                   value_fn=lambda items: _int(
-                       (items[0].get('x.com.samsung.da.desired') if items else None)),
-                   write_fn=_oven_setpoint_write),
-        SensorDesc(key='current_temp_c', field='x.com.samsung.da.items',
-                   device_class='temperature',
-                   state_class='measurement', unit_fn=_oven_temp_unit,
-                   value_fn=lambda items: _int(
-                       (items[0].get('x.com.samsung.da.current') if items else None))),
+        NumberDesc(
+            key="oven_setpoint",
+            field="x.com.samsung.da.items",
+            device_class="temperature",
+            unit_fn=_oven_temp_unit,
+            native_min=float(SETPOINT_MIN_C),
+            native_max=float(SETPOINT_MAX_C),
+            step=float(SETPOINT_STEP_C),
+            icon="mdi:thermometer-chevron-up",
+            native_min_fn=lambda rep: float(_setpoint_bounds(rep)[0]),
+            native_max_fn=lambda rep: float(_setpoint_bounds(rep)[1]),
+            step_fn=lambda rep: float(_setpoint_bounds(rep)[2]),
+            value_fn=lambda items: _int(
+                items[0].get("x.com.samsung.da.desired") if items else None
+            ),
+            write_fn=_oven_setpoint_write,
+        ),
+        SensorDesc(
+            key="current_temp_c",
+            field="x.com.samsung.da.items",
+            device_class="temperature",
+            state_class="measurement",
+            unit_fn=_oven_temp_unit,
+            value_fn=lambda items: _int(
+                items[0].get("x.com.samsung.da.current") if items else None
+            ),
+        ),
     ),
 )
 
 OVEN_DOOR = Capability(
-    href='/doors/vs/0',
-    poll_tier='hot',
+    href="/doors/vs/0",
+    poll_tier="hot",
     entities=(
-        BinarySensorDesc(key='door_open', field='x.com.samsung.da.items',
-                         device_class='door',
-                         value_fn=lambda items: (
-                             items[0].get('x.com.samsung.da.openState') == 'Open'
-                             if items else None)),
+        BinarySensorDesc(
+            key="door_open",
+            field="x.com.samsung.da.items",
+            device_class="door",
+            value_fn=lambda items: (
+                items[0].get("x.com.samsung.da.openState") == "Open" if items else None
+            ),
+        ),
     ),
 )
 
 OVEN_CONNECTED = Capability(
-    href='/connected/vs/0',
-    poll_tier='warm',
+    href="/connected/vs/0",
+    poll_tier="warm",
     entities=(
-        BinarySensorDesc(key='cloud_connected', field='x.com.samsung.da.connected',
-                         device_class='connectivity',
-                         entity_category='diagnostic',
-                         value_fn=lambda v: v == 'On'),
+        BinarySensorDesc(
+            key="cloud_connected",
+            field="x.com.samsung.da.connected",
+            device_class="connectivity",
+            entity_category="diagnostic",
+            value_fn=lambda v: v == "On",
+        ),
     ),
 )
 
@@ -354,59 +409,82 @@ OVEN_CONNECTED = Capability(
 # range: single cavity, no supportedFeatureList entries). Bound with no
 # entities purely for coverage; revisit if a multi-cavity dump surfaces
 # fields worth exposing.
-OVEN_SPEC = Capability(href='/oven/spec/vs/0')
+OVEN_SPEC = Capability(href="/oven/spec/vs/0")
 
 # Quick-recipe display blob (combi microwave, issue #121) -- a JSON-encoded
 # string (language/menu/servingSize/option) with every field blank on the
 # only dump seen, and no documented write contract. No entity to bind per
 # the 'don't guess' rule; a bare Capability still marks the href covered.
-OVEN_RECIPE_COOK = Capability(href='/recipe/cook/vs/0')
+OVEN_RECIPE_COOK = Capability(href="/recipe/cook/vs/0")
 
 OVEN_MODE = Capability(
-    href='/mode/vs/0',
-    poll_tier='warm',
+    href="/mode/vs/0",
+    poll_tier="warm",
     entities=(
         # SelectDesc first — test_oven_mode_options_nonempty uses entities[0]
-        SelectDesc(key='oven_mode', field='x.com.samsung.da.modes',
-                   icon='mdi:tune',
-                   options=_oven_mode_options,
-                   value_fn=lambda v: v[0] if v else None,
-                   write_fn=_oven_mode_write),
-        SwitchDesc(key='lamp', field='x.com.samsung.da.options',
-                   icon='mdi:track-light',
-                   value_fn=lambda opts: _option_value(opts, 'UpperLamp') == 'On',
-                   write_fn=_option_switch_write('UpperLamp')),
-        SwitchDesc(key='sound', field='x.com.samsung.da.options',
-                   icon='mdi:volume-high',
-                   entity_category='config',
-                   value_fn=lambda opts: _option_value(opts, 'Sound') == 'On',
-                   write_fn=_option_switch_write('Sound')),
-        SwitchDesc(key='fast_preheat', field='x.com.samsung.da.options',
-                   icon='mdi:fire',
-                   exists_fn=_has_option('fastpreheat'),
-                   value_fn=lambda opts: _option_value(opts, 'fastpreheat') == 'On',
-                   write_fn=_option_switch_write('fastpreheat')),
-        SwitchDesc(key='natural_steam', field='x.com.samsung.da.options',
-                   icon='mdi:kettle-steam',
-                   exists_fn=_has_option('NaturalSteam'),
-                   value_fn=lambda opts: _option_value(opts, 'NaturalSteam') == 'On',
-                   write_fn=_option_switch_write('NaturalSteam')),
+        SelectDesc(
+            key="oven_mode",
+            field="x.com.samsung.da.modes",
+            icon="mdi:tune",
+            options=_oven_mode_options,
+            value_fn=lambda v: v[0] if v else None,
+            write_fn=_oven_mode_write,
+        ),
+        SwitchDesc(
+            key="lamp",
+            field="x.com.samsung.da.options",
+            icon="mdi:track-light",
+            value_fn=lambda opts: _option_value(opts, "UpperLamp") == "On",
+            write_fn=_option_switch_write("UpperLamp"),
+        ),
+        SwitchDesc(
+            key="sound",
+            field="x.com.samsung.da.options",
+            icon="mdi:volume-high",
+            entity_category="config",
+            value_fn=lambda opts: _option_value(opts, "Sound") == "On",
+            write_fn=_option_switch_write("Sound"),
+        ),
+        SwitchDesc(
+            key="fast_preheat",
+            field="x.com.samsung.da.options",
+            icon="mdi:fire",
+            exists_fn=_has_option("fastpreheat"),
+            value_fn=lambda opts: _option_value(opts, "fastpreheat") == "On",
+            write_fn=_option_switch_write("fastpreheat"),
+        ),
+        SwitchDesc(
+            key="natural_steam",
+            field="x.com.samsung.da.options",
+            icon="mdi:kettle-steam",
+            exists_fn=_has_option("NaturalSteam"),
+            value_fn=lambda opts: _option_value(opts, "NaturalSteam") == "On",
+            write_fn=_option_switch_write("NaturalSteam"),
+        ),
         # 120-hour energy-saving standby (issue #183): confirmed present in
         # this unit's options[] (EnergySaving_On) and directly requested --
         # unlike fast_preheat/natural_steam above, this token is real on this
         # hardware, just previously unbound entirely.
-        SwitchDesc(key='energy_saving', field='x.com.samsung.da.options',
-                   icon='mdi:leaf', entity_category='config',
-                   exists_fn=_has_option('EnergySaving'),
-                   value_fn=lambda opts: _option_value(opts, 'EnergySaving') == 'On',
-                   write_fn=_option_switch_write('EnergySaving')),
+        SwitchDesc(
+            key="energy_saving",
+            field="x.com.samsung.da.options",
+            icon="mdi:leaf",
+            entity_category="config",
+            exists_fn=_has_option("EnergySaving"),
+            value_fn=lambda opts: _option_value(opts, "EnergySaving") == "On",
+            write_fn=_option_switch_write("EnergySaving"),
+        ),
         # Cooktop-on alert (issue #183): also confirmed present
         # (BurnerOnAlert_Off) though the reporter noted it mainly matters for
         # the SmartThings app's own alerting, not local automation.
-        SwitchDesc(key='cooktop_on_alert', field='x.com.samsung.da.options',
-                   icon='mdi:alert-circle-outline', entity_category='config',
-                   exists_fn=_has_option('BurnerOnAlert'),
-                   value_fn=lambda opts: _option_value(opts, 'BurnerOnAlert') == 'On',
-                   write_fn=_option_switch_write('BurnerOnAlert')),
+        SwitchDesc(
+            key="cooktop_on_alert",
+            field="x.com.samsung.da.options",
+            icon="mdi:alert-circle-outline",
+            entity_category="config",
+            exists_fn=_has_option("BurnerOnAlert"),
+            value_fn=lambda opts: _option_value(opts, "BurnerOnAlert") == "On",
+            write_fn=_option_switch_write("BurnerOnAlert"),
+        ),
     ),
 )

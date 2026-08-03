@@ -6,6 +6,7 @@ device > the menu > Download diagnostics. This is what the Repairs issue
 users at: a redacted snapshot of the device's raw /device/0 state, plus
 enough version/coverage metadata to reproduce and diagnose the gap.
 """
+
 from __future__ import annotations
 
 from importlib.metadata import version as pkg_version
@@ -67,7 +68,7 @@ async def async_get_config_entry_diagnostics(
             **_seed_diag(su),
             "bound_entity_count": len(matching),
             "hrefs": sorted({b.href for b in matching}),
-            "model": res.get('/information/vs/0', {}).get('x.com.samsung.da.modelNum', ''),
+            "model": res.get("/information/vs/0", {}).get("x.com.samsung.da.modelNum", ""),
             # Keyed by this subdevice's *canonical* hrefs, not the real ones
             # it answers on -- '/mode/vs/0' rather than '/mode/vs/1' or
             # '/<uuid>/mode/vs/0'. That's the form the registry and every
@@ -86,7 +87,9 @@ async def async_get_config_entry_diagnostics(
             "model": identity.model,
             "device_types": list(identity.device_types),
             "resources": redact_resources(identity.raw),
-        } if identity is not None else None,
+        }
+        if identity is not None
+        else None,
         "unbound_hrefs": sorted(coordinator._unbound_hrefs),
         # This subdevice's own resources, and only this subdevice's -- what
         # the module docstring and the adding-device-support skill have
@@ -131,11 +134,13 @@ async def async_get_config_entry_diagnostics(
                 # candidate is never polled again and never enters the state
                 # cache, so `resources` above cannot contain them by
                 # construction.
-                "resources": redact_resources({
-                    canon: rep
-                    for href, rep in coordinator._skipped_subdevice_resources.items()
-                    if (canon := skip.subdevice.to_canonical(href)) is not None
-                }),
+                "resources": redact_resources(
+                    {
+                        canon: rep
+                        for href, rep in coordinator._skipped_subdevice_resources.items()
+                        if (canon := skip.subdevice.to_canonical(href)) is not None
+                    }
+                ),
             }
             for skip in coordinator._skipped_subdevices
         ],

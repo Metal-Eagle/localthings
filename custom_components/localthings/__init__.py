@@ -1,4 +1,5 @@
 """Local Things — Samsung appliance local control integration."""
+
 from __future__ import annotations
 
 import logging
@@ -58,7 +59,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_remove_config_entry_device(
-    hass: HomeAssistant, entry: ConfigEntry, device: dr.DeviceEntry,
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    device: dr.DeviceEntry,
 ) -> bool:
     """Allow deleting a device this entry no longer provides (issue #214).
 
@@ -82,16 +85,14 @@ async def async_remove_config_entry_device(
     area and automation references on a transient miss. The user gets the
     button; the integration doesn't guess.
     """
-    coordinator: LocalThingsCoordinator | None = hass.data.get(DOMAIN, {}).get(
-        entry.entry_id
-    )
+    coordinator: LocalThingsCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if coordinator is None:
         # Entry not loaded (or already unloaded) -- nothing is claiming this
         # device, so there's nothing to protect it from being removed.
         return True
-    live = set(coordinator.device_info.get('identifiers') or set())
+    live = set(coordinator.device_info.get("identifiers") or set())
     for subdevice in coordinator.subdevices:
-        live |= set(coordinator.device_info_for(subdevice).get('identifiers') or set())
+        live |= set(coordinator.device_info_for(subdevice).get("identifiers") or set())
     return not (device.identifiers & live)
 
 

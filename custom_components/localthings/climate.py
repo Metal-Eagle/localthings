@@ -18,58 +18,83 @@ applies the optimistic value/settle guard to that same href -- not the bound
 `/mode/vs/0` href -- so one descriptor drives writes to, and gets fresh state
 back for, power, mode, temperature and wind resources alike.
 """
+
 from __future__ import annotations
 
 import logging
 
 from homeassistant.components.climate import (
+    PRESET_NONE,
     ClimateEntity,
     ClimateEntityFeature,
     HVACMode,
-    PRESET_NONE,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .registry.entities import ClimateDesc
+from .const import DOMAIN
+from .coordinator import LocalThingsCoordinator
+from .entity import LocalThingsEntity, _is_included
+from .registry.capabilities.airconditioner import (
+    HREF_AIRFLOW as AIRFLOW_HREF,
+)
+from .registry.capabilities.airconditioner import (
+    HREF_CONVENIENT as CONVENIENT_HREF,
+)
+
 # The AC's canonical resource hrefs live in the capability module (the single
 # source of truth shared with its COVERAGE caps); power prefers the OCF-standard
 # href, falling back to the vendor one, mirroring common.POWER_GENERIC /
 # POWER_VS_FALLBACK.
 from .registry.capabilities.airconditioner import (
     HREF_MODE as MODE_HREF,
+)
+from .registry.capabilities.airconditioner import (
     HREF_POWER as POWER_HREF,
+)
+from .registry.capabilities.airconditioner import (
     HREF_POWER_VS as POWER_VS_HREF,
-    HREF_TEMP_CURRENT as TEMP_CURRENT_HREF,
-    HREF_TEMP_DESIRED as TEMP_DESIRED_HREF,
+)
+from .registry.capabilities.airconditioner import (
     HREF_TEMP_CONTROL as TEMP_CONTROL_HREF,
+)
+from .registry.capabilities.airconditioner import (
+    HREF_TEMP_CURRENT as TEMP_CURRENT_HREF,
+)
+from .registry.capabilities.airconditioner import (
+    HREF_TEMP_DESIRED as TEMP_DESIRED_HREF,
+)
+from .registry.capabilities.airconditioner import (
     HREF_TEMPS_VS as TEMPS_VS_HREF,
-    HREF_WIND_STRENGTH as WIND_STRENGTH_HREF,
+)
+from .registry.capabilities.airconditioner import (
     HREF_WIND_DIRECTION as WIND_DIRECTION_HREF,
+)
+from .registry.capabilities.airconditioner import (
     HREF_WIND_OSCILLATION as WIND_OSCILLATION_HREF,
-    HREF_CONVENIENT as CONVENIENT_HREF,
-    HREF_AIRFLOW as AIRFLOW_HREF,
+)
+from .registry.capabilities.airconditioner import (
+    HREF_WIND_STRENGTH as WIND_STRENGTH_HREF,
+)
+from .registry.capabilities.airconditioner import (
     is_legacy_board,
 )
 from .registry.capabilities.common import normalize_temp_unit
-
-from .const import DOMAIN
-from .coordinator import LocalThingsCoordinator
-from .entity import LocalThingsEntity, _is_included
+from .registry.entities import ClimateDesc
 
 _LOGGER = logging.getLogger(__name__)
 
-_MODES_FIELD = 'x.com.samsung.da.modes'
-_SUPPORTED_FIELD = 'x.com.samsung.da.supportedModes'
+_MODES_FIELD = "x.com.samsung.da.modes"
+_SUPPORTED_FIELD = "x.com.samsung.da.supportedModes"
 
 # --- device code <-> HA value maps -----------------------------------------
 # HVAC mode: Samsung /mode/vs/0 modes <-> HA HVACMode (excluding OFF, which is
 # driven by the power resource).
 _DEVICE_TO_HVAC: dict[str, HVACMode] = {
-    'Cool': HVACMode.COOL,
-    'Dry': HVACMode.DRY,
+    "Cool": HVACMode.COOL,
+    "Dry": HVACMode.DRY,
     # Fan-only is spelled 'Wind' on some boards (e.g. TP1X_DA-AC-RAC-01001) and
     # 'Fan' on others (e.g. TP1X_DA-AC-RAC-01011); both map to FAN_ONLY. The
     # reverse write can't rely on this map alone (two codes, one HA value) --
@@ -79,14 +104,14 @@ _DEVICE_TO_HVAC: dict[str, HVACMode] = {
     # comprehension below has 'Wind' win that fallback (last-key-wins),
     # preserving the original single-spelling behavior rather than silently
     # flipping it when 'Fan' was added.
-    'Fan': HVACMode.FAN_ONLY,
-    'Wind': HVACMode.FAN_ONLY,
+    "Fan": HVACMode.FAN_ONLY,
+    "Wind": HVACMode.FAN_ONLY,
     # The device's 'Auto' is a single-setpoint "device decides" mode -> HA
     # HVACMode.AUTO (renders "Auto"). Not HEAT_COOL: that renders "Heat/cool"
     # and implies a two-setpoint heat+cool range these single-setpoint units
     # (including cool-only models) don't have.
-    'Auto': HVACMode.AUTO,
-    'Heat': HVACMode.HEAT,
+    "Auto": HVACMode.AUTO,
+    "Heat": HVACMode.HEAT,
 }
 _HVAC_TO_DEVICE = {v: k for k, v in _DEVICE_TO_HVAC.items()}
 
@@ -100,28 +125,29 @@ _HVAC_TO_DEVICE = {v: k for k, v in _DEVICE_TO_HVAC.items()}
 # distinction a bare hvac_mode can't. Not reachable via async_set_hvac_mode --
 # entered/left only through the preset, since there's no dedicated HVACMode
 # value for it to write back to.
-_AI_COMFORT_MODE = 'AIComfort'
-PRESET_AI_COMFORT = 'ai_comfort'
+_AI_COMFORT_MODE = "AIComfort"
+PRESET_AI_COMFORT = "ai_comfort"
 
 # Fan (wind strength): device codes "0".."4" -> HA standard fan constants where
 # a clean match exists so they auto-localize; "turbo" is custom (translated).
 _DEVICE_TO_FAN: dict[str, str] = {
-    '0': 'auto',
-    '1': 'low',
-    '2': 'medium',
-    '3': 'high',
-    '4': 'turbo',
+    "0": "auto",
+    "1": "low",
+    "2": "medium",
+    "3": "high",
+    "4": "turbo",
 }
 _FAN_TO_DEVICE = {v: k for k, v in _DEVICE_TO_FAN.items()}
 
 # Swing (wind direction): all map onto HA standard swing constants (auto-localize).
 _DEVICE_TO_SWING: dict[str, str] = {
-    'Fix': 'off',
-    'All': 'both',
-    'Up_And_Low': 'vertical',
-    'Left_And_Right': 'horizontal',  # issue #75
+    "Fix": "off",
+    "All": "both",
+    "Up_And_Low": "vertical",
+    "Left_And_Right": "horizontal",  # issue #75
 }
 _SWING_TO_DEVICE = {v: k for k, v in _DEVICE_TO_SWING.items()}
+
 
 # Swing fallback via /wind/oscillation/vs/0 (issue #126) -- boards without
 # WIND_DIRECTION_HREF at all report two independent Swing|Fix toggles
@@ -129,19 +155,20 @@ _SWING_TO_DEVICE = {v: k for k, v in _DEVICE_TO_SWING.items()}
 # above (off/vertical/horizontal/both), just read from/written to a pair
 # of fields rather than a single one.
 def _oscillation_swing(rep: dict) -> str | None:
-    vertical = rep.get('vertical')
-    horizontal = rep.get('horizontal')
+    vertical = rep.get("vertical")
+    horizontal = rep.get("horizontal")
     if vertical is None and horizontal is None:
         return None
-    v = vertical == 'Swing'
-    h = horizontal == 'Swing'
+    v = vertical == "Swing"
+    h = horizontal == "Swing"
     if v and h:
-        return 'both'
+        return "both"
     if v:
-        return 'vertical'
+        return "vertical"
     if h:
-        return 'horizontal'
-    return 'off'
+        return "horizontal"
+    return "off"
+
 
 def _wind_strength_label(code, rep: dict) -> str:
     """Human label for a /wind/strength/vs/0 code from the device's own
@@ -152,8 +179,8 @@ def _wind_strength_label(code, rep: dict) -> str:
     "Auto"/"1"/"2"/"3"/"4"/"MAX"). No per-model numeric map -- mirrors
     preset_mode's dynamic code->str resolution. Falls back to the raw code
     lowercased when modesName is absent or misaligned."""
-    supported = rep.get('x.com.samsung.da.supportedModes') or []
-    names = rep.get('x.com.samsung.da.modesName') or []
+    supported = rep.get("x.com.samsung.da.supportedModes") or []
+    names = rep.get("x.com.samsung.da.modesName") or []
     if code in supported and len(names) == len(supported):
         return str(names[supported.index(code)]).lower()
     return str(code).lower()
@@ -170,7 +197,7 @@ def _wind_strength_label(code, rep: dict) -> str:
 # 'NanoSleep' codes on cool-only global RAC boards -- that's just a
 # translation label, not a hard-coded mode.)
 def _preset_to_ha(code) -> str:
-    return PRESET_NONE if code == 'Off' else str(code).lower()
+    return PRESET_NONE if code == "Off" else str(code).lower()
 
 
 async def async_setup_entry(
@@ -211,7 +238,7 @@ def _temps_vs_item(rep: dict) -> dict:
     `x.com.samsung.da.items[0]` carries current/desired/minimum/maximum/
     increment/unit. Returns {} when absent, so callers fall through cleanly.
     """
-    items = rep.get('x.com.samsung.da.items')
+    items = rep.get("x.com.samsung.da.items")
     if isinstance(items, (list, tuple)) and items and isinstance(items[0], dict):
         return items[0]
     return {}
@@ -249,16 +276,18 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
     # Preset codes on legacy ARTIK051 boards, learned by driving the same unit
     # through its cloud integration and reading the local token back each time:
     # Nano=windFree, Quiet, Comfort, 2Step, Speed=Fast Turbo, Off=none.
-    _LEGACY_PRESET_CODES = ('Off', 'Nano', 'Quiet', 'Comfort', '2Step', 'Speed')
+    _LEGACY_PRESET_CODES = ("Off", "Nano", "Quiet", "Comfort", "2Step", "Speed")
 
     def _legacy_convenient(self) -> dict:
         """A /mode/convenient/vs/0-shaped rep built from the Comode_* token in
         /mode/vs/0's options, for boards that have no convenient resource."""
-        options = self._rep(MODE_HREF).get('x.com.samsung.da.options') or []
+        options = self._rep(MODE_HREF).get("x.com.samsung.da.options") or []
         for option in options:
-            if isinstance(option, str) and option.startswith('Comode_'):
-                return {_MODES_FIELD: [option.split('_', 1)[1]],
-                        _SUPPORTED_FIELD: list(self._LEGACY_PRESET_CODES)}
+            if isinstance(option, str) and option.startswith("Comode_"):
+                return {
+                    _MODES_FIELD: [option.split("_", 1)[1]],
+                    _SUPPORTED_FIELD: list(self._LEGACY_PRESET_CODES),
+                }
         return {}
 
     def _legacy_airflow(self) -> dict:
@@ -304,8 +333,7 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         never look empty and this always resolve to the wrong side.
         """
         convenient_href = self._bound.subdevice.to_actual(CONVENIENT_HREF)
-        return (not self.coordinator.resource(convenient_href)
-                and bool(self._legacy_airflow()))
+        return not self.coordinator.resource(convenient_href) and bool(self._legacy_airflow())
 
     def _rep(self, href: str) -> dict:
         """`href` is one of this module's canonical HREF_* constants --
@@ -324,10 +352,10 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         # The OCF /power/0 is absent on many boards and a stale mirror on
         # some, so reading it first showed pre-write state after a power
         # toggle (issue #53: "can turn on but not off").
-        power = self._rep(POWER_VS_HREF).get('x.com.samsung.da.power')
+        power = self._rep(POWER_VS_HREF).get("x.com.samsung.da.power")
         if power is not None:
-            return str(power).lower() == 'on'
-        return bool(self._rep(POWER_HREF).get('value'))
+            return str(power).lower() == "on"
+        return bool(self._rep(POWER_HREF).get("value"))
 
     def _supported(self, href: str) -> list[str]:
         return list(self._rep(href).get(_SUPPORTED_FIELD) or [])
@@ -343,7 +371,9 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         _LOGGER.warning(
             "%s: device mode %r on %s has no HA mapping and was dropped; "
             "please file an issue with your diagnostics dump",
-            self.entity_id, code, href,
+            self.entity_id,
+            code,
+            href,
         )
 
     def _read_mode(self, href: str, mapping: dict):
@@ -378,18 +408,20 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
     @property
     def temperature_unit(self) -> str:
-        raw = self._rep(TEMP_DESIRED_HREF).get('units')
+        raw = self._rep(TEMP_DESIRED_HREF).get("units")
         if raw is None:
-            raw = self._temps_vs().get('x.com.samsung.da.unit')
-        return (UnitOfTemperature.FAHRENHEIT
-                if normalize_temp_unit(raw, '°C') == '°F'
-                else UnitOfTemperature.CELSIUS)
+            raw = self._temps_vs().get("x.com.samsung.da.unit")
+        return (
+            UnitOfTemperature.FAHRENHEIT
+            if normalize_temp_unit(raw, "°C") == "°F"
+            else UnitOfTemperature.CELSIUS
+        )
 
     @property
     def current_temperature(self):
-        v = _num(self._rep(TEMP_CURRENT_HREF).get('temperature'))
+        v = _num(self._rep(TEMP_CURRENT_HREF).get("temperature"))
         if v is None:
-            v = _num(self._temps_vs().get('x.com.samsung.da.current'))
+            v = _num(self._temps_vs().get("x.com.samsung.da.current"))
         return v
 
     @property
@@ -397,19 +429,19 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         # Read from the same channel writes go to (see async_set_temperature):
         # OCF /temperature/desired/0 on boards with the full OCF pair, vendor
         # /temperatures/vs/0 otherwise -- with the other as fallback.
-        ocf = _num(self._rep(TEMP_DESIRED_HREF).get('temperature'))
-        vs = _num(self._temps_vs().get('x.com.samsung.da.desired'))
+        ocf = _num(self._rep(TEMP_DESIRED_HREF).get("temperature"))
+        vs = _num(self._temps_vs().get("x.com.samsung.da.desired"))
         if self._ocf_temp_authoritative():
             return ocf if ocf is not None else vs
         return vs if vs is not None else ocf
 
     def _range(self) -> list | None:
-        r = self._rep(TEMP_DESIRED_HREF).get('range')
+        r = self._rep(TEMP_DESIRED_HREF).get("range")
         if isinstance(r, (list, tuple)) and len(r) == 2:
             return r
         item = self._temps_vs()
-        lo = _num(item.get('x.com.samsung.da.minimum'))
-        hi = _num(item.get('x.com.samsung.da.maximum'))
+        lo = _num(item.get("x.com.samsung.da.minimum"))
+        hi = _num(item.get("x.com.samsung.da.maximum"))
         return [lo, hi] if (lo is not None and hi is not None) else None
 
     @property
@@ -424,10 +456,12 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
 
     @property
     def target_temperature_step(self) -> float:
-        return (_num(self._rep(TEMP_CONTROL_HREF).get('increment'))
-                or _num(self._rep(TEMP_CONTROL_HREF).get('x.com.samsung.da.increment'))
-                or _num(self._temps_vs().get('x.com.samsung.da.increment'))
-                or 1.0)
+        return (
+            _num(self._rep(TEMP_CONTROL_HREF).get("increment"))
+            or _num(self._rep(TEMP_CONTROL_HREF).get("x.com.samsung.da.increment"))
+            or _num(self._temps_vs().get("x.com.samsung.da.increment"))
+            or 1.0
+        )
 
     # -- hvac mode ----------------------------------------------------------
 
@@ -462,7 +496,7 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
     def fan_mode(self):
         airflow = self._legacy_airflow()
         if airflow:
-            return _DEVICE_TO_FAN.get(str(airflow.get('x.com.samsung.da.speedLevel')))
+            return _DEVICE_TO_FAN.get(str(airflow.get("x.com.samsung.da.speedLevel")))
         rep = self._rep(WIND_STRENGTH_HREF)
         code = _first(rep.get(_MODES_FIELD))
         if code is None:
@@ -492,7 +526,7 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
     def swing_mode(self):
         airflow = self._legacy_airflow()
         if airflow:
-            return _DEVICE_TO_SWING.get(airflow.get('x.com.samsung.da.direction'))
+            return _DEVICE_TO_SWING.get(airflow.get("x.com.samsung.da.direction"))
         if self._swing_via_direction():
             return self._read_mode(WIND_DIRECTION_HREF, _DEVICE_TO_SWING)
         return _oscillation_swing(self._rep(WIND_OSCILLATION_HREF))
@@ -539,35 +573,35 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         # matching the climate contract other integrations follow. Without this a
         # set_temperature call carrying hvac_mode (e.g. a dashboard "turn on to
         # Auto 24" button) set the setpoint but never changed mode or powered on.
-        hvac_mode = kwargs.get('hvac_mode')
+        hvac_mode = kwargs.get("hvac_mode")
         if hvac_mode is not None:
             await self.async_set_hvac_mode(hvac_mode)
             if hvac_mode == HVACMode.OFF:
                 return
-        temp = kwargs.get('temperature')
+        temp = kwargs.get("temperature")
         if temp is None:
             return
         # OCF-pair boards write /temperature/desired/0; vendor boards write
         # /temperatures/vs/0 (see airconditioner._climate_write).
-        kind = 'temperature_ocf' if self._ocf_temp_authoritative() else 'temperature'
+        kind = "temperature_ocf" if self._ocf_temp_authoritative() else "temperature"
         await self.coordinator.async_send_command(self._bound, (kind, temp))
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:
-            await self.coordinator.async_send_command(self._bound, ('power', False))
+            await self.coordinator.async_send_command(self._bound, ("power", False))
             return
         device = self._device_code_for_hvac(hvac_mode)
         if device is None:
             return
         if not self._is_on():
-            await self.coordinator.async_send_command(self._bound, ('power', True))
-        await self.coordinator.async_send_command(self._bound, ('mode', device))
+            await self.coordinator.async_send_command(self._bound, ("power", True))
+        await self.coordinator.async_send_command(self._bound, ("mode", device))
 
     async def async_turn_on(self) -> None:
-        await self.coordinator.async_send_command(self._bound, ('power', True))
+        await self.coordinator.async_send_command(self._bound, ("power", True))
 
     async def async_turn_off(self) -> None:
-        await self.coordinator.async_send_command(self._bound, ('power', False))
+        await self.coordinator.async_send_command(self._bound, ("power", False))
 
     async def _set_mapped(self, kind: str, mapping: dict, value: str) -> None:
         """Map an HA fan/swing/preset value back to its device code and write it."""
@@ -579,8 +613,7 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         if self._legacy_airflow():
             level = _FAN_TO_DEVICE.get(fan_mode)
             if level is not None:
-                await self.coordinator.async_send_command(
-                    self._bound, ('fan_legacy', level))
+                await self.coordinator.async_send_command(self._bound, ("fan_legacy", level))
             return
         supported = self._supported(WIND_STRENGTH_HREF)
         device = _FAN_TO_DEVICE.get(fan_mode)
@@ -598,33 +631,31 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
                     device = code
                     break
         if device is not None:
-            await self.coordinator.async_send_command(self._bound, ('fan', device))
+            await self.coordinator.async_send_command(self._bound, ("fan", device))
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         if self._legacy_airflow():
             code = _SWING_TO_DEVICE.get(swing_mode)
             if code is not None:
-                await self.coordinator.async_send_command(
-                    self._bound, ('swing_legacy', code))
+                await self.coordinator.async_send_command(self._bound, ("swing_legacy", code))
             return
         if self._swing_via_direction():
-            await self._set_mapped('swing', _SWING_TO_DEVICE, swing_mode)
+            await self._set_mapped("swing", _SWING_TO_DEVICE, swing_mode)
             return
         if self._rep(WIND_OSCILLATION_HREF):
-            await self.coordinator.async_send_command(
-                self._bound, ('oscillation', swing_mode))
+            await self.coordinator.async_send_command(self._bound, ("oscillation", swing_mode))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         if preset_mode == PRESET_AI_COMFORT:
             # Writes the primary mode resource, not the convenient one --
             # 'AIComfort' lives in /mode/vs/0 alongside Cool/Dry/Auto, not in
             # /mode/convenient/vs/0 with Quiet/Smart/Speed/Sleep.
-            await self.coordinator.async_send_command(self._bound, ('mode', _AI_COMFORT_MODE))
+            await self.coordinator.async_send_command(self._bound, ("mode", _AI_COMFORT_MODE))
             return
         # Reverse-resolve against the unit's own supportedModes (codes aren't
         # a fixed transform of the HA value -- e.g. 'NanoSleep' -> 'nanosleep').
         for code in self._supported(CONVENIENT_HREF):
             if _preset_to_ha(code) == preset_mode:
-                kind = 'preset_legacy' if self._legacy_preset() else 'preset'
+                kind = "preset_legacy" if self._legacy_preset() else "preset"
                 await self.coordinator.async_send_command(self._bound, (kind, code))
                 return

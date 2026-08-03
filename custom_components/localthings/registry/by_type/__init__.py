@@ -1,42 +1,63 @@
 """Per-device-type registries."""
-import re
-from typing import Optional, Sequence
 
-from ._base import DeviceRegistry
+import re
+from collections.abc import Sequence
+
 from . import (
-    air_dresser, air_monitor, air_purifier, airconditioner, cooktop,
-    dehumidifier, dishwasher, dryer, ehs, induction_cooktop, microwave, oven,
-    range as _range, range_hood, refrigerator, vacuum_station, washer,
+    air_dresser,
+    air_monitor,
+    air_purifier,
+    airconditioner,
+    cooktop,
+    dehumidifier,
+    dishwasher,
+    dryer,
+    ehs,
+    induction_cooktop,
+    microwave,
+    oven,
+    range_hood,
+    refrigerator,
+    vacuum_station,
+    washer,
     water_purifier,
 )
+from . import (
+    range as _range,
+)
+from ._base import DeviceRegistry
 
 __all__ = [
-    'DeviceRegistry', 'resolve', 'for_device_by_oic_type', 'for_device_by_model',
-    'for_device_by_resources', '_board_tokens',
+    "DeviceRegistry",
+    "_board_tokens",
+    "for_device_by_model",
+    "for_device_by_oic_type",
+    "for_device_by_resources",
+    "resolve",
 ]
 
 
 # One entry per registry, no aliases: every key here is reachable from
 # `_BOARD_TOKEN_TO_KEY`, `_CONSUMER_PREFIX_TO_KEY`, or `for_device_by_resources`.
 _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
-    'air_dresser': air_dresser.REGISTRY,
-    'air_monitor': air_monitor.REGISTRY,
-    'air_purifier': air_purifier.REGISTRY,
-    'airconditioner': airconditioner.REGISTRY,
-    'cooktop': cooktop.REGISTRY,
-    'dehumidifier': dehumidifier.REGISTRY,
-    'dishwasher': dishwasher.REGISTRY,
-    'dryer': dryer.REGISTRY,
-    'ehs': ehs.REGISTRY,
-    'induction_cooktop': induction_cooktop.REGISTRY,
-    'microwave': microwave.REGISTRY,
-    'oven': oven.REGISTRY,
-    'range': _range.REGISTRY,
-    'range_hood': range_hood.REGISTRY,
-    'refrigerator': refrigerator.REGISTRY,
-    'vacuum_station': vacuum_station.REGISTRY,
-    'washer': washer.REGISTRY,
-    'water_purifier': water_purifier.REGISTRY,
+    "air_dresser": air_dresser.REGISTRY,
+    "air_monitor": air_monitor.REGISTRY,
+    "air_purifier": air_purifier.REGISTRY,
+    "airconditioner": airconditioner.REGISTRY,
+    "cooktop": cooktop.REGISTRY,
+    "dehumidifier": dehumidifier.REGISTRY,
+    "dishwasher": dishwasher.REGISTRY,
+    "dryer": dryer.REGISTRY,
+    "ehs": ehs.REGISTRY,
+    "induction_cooktop": induction_cooktop.REGISTRY,
+    "microwave": microwave.REGISTRY,
+    "oven": oven.REGISTRY,
+    "range": _range.REGISTRY,
+    "range_hood": range_hood.REGISTRY,
+    "refrigerator": refrigerator.REGISTRY,
+    "vacuum_station": vacuum_station.REGISTRY,
+    "washer": washer.REGISTRY,
+    "water_purifier": water_purifier.REGISTRY,
 }
 
 
@@ -46,13 +67,13 @@ _REGISTRY_BY_KEY: dict[str, DeviceRegistry] = {
 # internal board-family prefix there, and dishwasher's modelNum contains
 # the substring 'WW', so a modelNum-only rule misroutes both.
 _CONSUMER_PREFIX_TO_KEY: dict[str, str] = {
-    'WW': 'washer',
-    'WD': 'washer',
-    'WF': 'washer',
-    'WV': 'washer',  # FlexWash twin units (e.g. WV55M9600AW) -- issue #19
-    'WA': 'washer',  # Top-load washers (e.g. WA8000T) -- issue #106
-    'DV': 'dryer',
-    'DW': 'dishwasher',
+    "WW": "washer",
+    "WD": "washer",
+    "WF": "washer",
+    "WV": "washer",  # FlexWash twin units (e.g. WV55M9600AW) -- issue #19
+    "WA": "washer",  # Top-load washers (e.g. WA8000T) -- issue #106
+    "DV": "dryer",
+    "DW": "dishwasher",
 }
 
 # Board-family token -> registry key, matched against whole tokens of
@@ -74,40 +95,40 @@ _CONSUMER_PREFIX_TO_KEY: dict[str, str] = {
 # air-conditioner spellings below), which is a statement about the hardware,
 # not a shortcut.
 _BOARD_TOKEN_TO_KEY: dict[str, str] = {
-    'REF': 'refrigerator',
+    "REF": "refrigerator",
     # Air conditioners. Every one of these is a distinct board family with
     # the same resource surface: room (issues #37, #91), package, Korean
     # (#136), window (#87), 2-in-1 floor+wall (#150, #153), system/commercial
     # (#52), cassette (#191), and ARA-WW wall-mount (#115, #116, #117, #120).
-    'RAC': 'airconditioner',
-    'PRAC': 'airconditioner',
-    'KRAC': 'airconditioner',
-    'WAC': 'airconditioner',
-    'FAC': 'airconditioner',
-    'CAWW': 'airconditioner',
-    'CAC': 'airconditioner',        # issue #191 -- TP1X_DA-AC-CAC-01001_0000
-    'ARA': 'airconditioner',
-    'DHM': 'dehumidifier',          # issue #88 -- target humidity, no climate
-    'EHS': 'ehs',                   # Eco Heating System air-to-water heat pump --
-                                     # zone1 space heating/cooling + dhw domestic
-                                     # hot water, its own /mode/*/vs/0 and
-                                     # /temperatures/*/vs/0 resource shapes
-    'TVTL': 'air_purifier',         # issue #56 (ARTIK051)
-    'VTWW': 'air_purifier',         # issue #151 (BESPOKE Cube Air)
-    'AVT': 'air_purifier',          # issue #190 -- AVT-WW-TP1-23-AXX500, a
-                                     # next-gen BESPOKE Cube Air board; same
-                                     # lineage as VTWW above but the '-WW-'
-                                     # delimiter now falls one letter to the
-                                     # left ('A-VTWW-' -> 'AVT-WW-'), splitting
-                                     # into a token the existing entry can't see
-    'AIR': 'air_purifier',          # issue #130 (TP1X_DA-AC-AIR)
-    'WATERPURIFIER': 'water_purifier',   # issue #90
-    'ADW': 'dishwasher',
-    'AHD': 'range_hood',
-    'RANGE': 'range',               # issue #44 -- cooktop+oven combo
-    'OVEN': 'oven',                 # issue #55 -- wall oven, no burners
-    'MICROWAVE': 'microwave',       # issues #66, #121
-    'COOKTOP': 'induction_cooktop',  # issue #86 -- standalone, no oven
+    "RAC": "airconditioner",
+    "PRAC": "airconditioner",
+    "KRAC": "airconditioner",
+    "WAC": "airconditioner",
+    "FAC": "airconditioner",
+    "CAWW": "airconditioner",
+    "CAC": "airconditioner",  # issue #191 -- TP1X_DA-AC-CAC-01001_0000
+    "ARA": "airconditioner",
+    "DHM": "dehumidifier",  # issue #88 -- target humidity, no climate
+    "EHS": "ehs",  # Eco Heating System air-to-water heat pump --
+    # zone1 space heating/cooling + dhw domestic
+    # hot water, its own /mode/*/vs/0 and
+    # /temperatures/*/vs/0 resource shapes
+    "TVTL": "air_purifier",  # issue #56 (ARTIK051)
+    "VTWW": "air_purifier",  # issue #151 (BESPOKE Cube Air)
+    "AVT": "air_purifier",  # issue #190 -- AVT-WW-TP1-23-AXX500, a
+    # next-gen BESPOKE Cube Air board; same
+    # lineage as VTWW above but the '-WW-'
+    # delimiter now falls one letter to the
+    # left ('A-VTWW-' -> 'AVT-WW-'), splitting
+    # into a token the existing entry can't see
+    "AIR": "air_purifier",  # issue #130 (TP1X_DA-AC-AIR)
+    "WATERPURIFIER": "water_purifier",  # issue #90
+    "ADW": "dishwasher",
+    "AHD": "range_hood",
+    "RANGE": "range",  # issue #44 -- cooktop+oven combo
+    "OVEN": "oven",  # issue #55 -- wall oven, no burners
+    "MICROWAVE": "microwave",  # issues #66, #121
+    "COOKTOP": "induction_cooktop",  # issue #86 -- standalone, no oven
     # Legacy ARTIK051 gas cooktops ('ARTIK051_GB_CT_001'), whose burner state
     # lives in /mode/vs/0's options array. Deliberately a bare two-letter
     # token, and so the loosest entry in this table -- it is only ever
@@ -115,14 +136,14 @@ _BOARD_TOKEN_TO_KEY: dict[str, str] = {
     # `description` ('ARTIK051_GLOBAL_COOKTOP') would otherwise read as an
     # induction cooktop via the COOKTOP entry above. See `for_device_by_model`
     # for the field ordering that makes that resolve correctly.
-    'CT': 'cooktop',
-    'VSKR': 'vacuum_station',       # issue #131 -- stick-vacuum clean station
-    'DF': 'air_dresser',            # issue #162
-    'VSWW': 'vacuum_station',       # issue #219
-    'ASM': 'air_monitor',           # issue #210 -- Air Monitor Plus
+    "CT": "cooktop",
+    "VSKR": "vacuum_station",  # issue #131 -- stick-vacuum clean station
+    "DF": "air_dresser",  # issue #162
+    "VSWW": "vacuum_station",  # issue #219
+    "ASM": "air_monitor",  # issue #210 -- Air Monitor Plus
 }
 
-_TOKEN_SPLIT_RE = re.compile(r'[^A-Z0-9]+')
+_TOKEN_SPLIT_RE = re.compile(r"[^A-Z0-9]+")
 
 
 def _board_tokens(value: str, cut_at: str) -> list[str]:
@@ -133,11 +154,11 @@ def _board_tokens(value: str, cut_at: str) -> list[str]:
     contain anything) and after description's first '/' (a '/DC92-...' board
     part number).
     """
-    head = (value or '').split(cut_at, 1)[0].upper()
+    head = (value or "").split(cut_at, 1)[0].upper()
     return [t for t in _TOKEN_SPLIT_RE.split(head) if t]
 
 
-def _board_family_key(value: str, cut_at: str) -> Optional[str]:
+def _board_family_key(value: str, cut_at: str) -> str | None:
     """First `_BOARD_TOKEN_TO_KEY` hit among `value`'s tokens, or None.
 
     No known modelNum or description yields two *conflicting* board keys, so
@@ -156,8 +177,8 @@ def _board_family_key(value: str, cut_at: str) -> Optional[str]:
     matching carve-out for this exact pair.
     """
     tokens = _board_tokens(value, cut_at)
-    if 'REF' in tokens and 'WATERPURIFIER' in tokens:
-        return 'water_purifier'
+    if "REF" in tokens and "WATERPURIFIER" in tokens:
+        return "water_purifier"
     for token in tokens:
         key = _BOARD_TOKEN_TO_KEY.get(token)
         if key is not None:
@@ -165,7 +186,7 @@ def _board_family_key(value: str, cut_at: str) -> Optional[str]:
     return None
 
 
-def _consumer_model_key(description: str) -> Optional[str]:
+def _consumer_model_key(description: str) -> str | None:
     """Registry key from the consumer-model token in `description`, or None.
 
     Usually that token is the last '_'-delimited segment before any
@@ -190,7 +211,7 @@ def _consumer_model_key(description: str) -> Optional[str]:
     that ambiguity resolves correctly without this function needing to know
     about unrelated device families.
     """
-    segments = (description or '').split('/', 1)[0].split('_')
+    segments = (description or "").split("/", 1)[0].split("_")
     for segment in reversed(segments):
         key = _CONSUMER_PREFIX_TO_KEY.get(segment[:2].upper())
         if key is not None:
@@ -230,21 +251,21 @@ def _consumer_model_key(description: str) -> Optional[str]:
 # override a `COOKTOP`/`CT` board token that had it right. Same reasoning as
 # `oic.d.robotcleaner` above: no unambiguous key to point at, so no row.
 _OIC_TYPE_TO_KEY: dict[str, str] = {
-    'oic.d.airconditioner': 'airconditioner',
-    'oic.d.airpurifier': 'air_purifier',
-    'oic.d.dishwasher': 'dishwasher',
-    'oic.d.dryer': 'dryer',
-    'oic.d.oven': 'oven',
-    'oic.d.refrigerator': 'refrigerator',
-    'oic.d.washer': 'washer',
-    'x.com.st.d.airqualitysensor': 'air_monitor',
-    'x.com.st.d.hood': 'range_hood',              # AHD-WW-TP1-22-COMMON
-    'x.com.st.d.stickcleaner': 'vacuum_station',
-    'x.com.st.d.steamcloset': 'air_dresser',
+    "oic.d.airconditioner": "airconditioner",
+    "oic.d.airpurifier": "air_purifier",
+    "oic.d.dishwasher": "dishwasher",
+    "oic.d.dryer": "dryer",
+    "oic.d.oven": "oven",
+    "oic.d.refrigerator": "refrigerator",
+    "oic.d.washer": "washer",
+    "x.com.st.d.airqualitysensor": "air_monitor",
+    "x.com.st.d.hood": "range_hood",  # AHD-WW-TP1-22-COMMON
+    "x.com.st.d.stickcleaner": "vacuum_station",
+    "x.com.st.d.steamcloset": "air_dresser",
 }
 
 
-def for_device_by_oic_type(device_types: Sequence[str]) -> Optional[DeviceRegistry]:
+def for_device_by_oic_type(device_types: Sequence[str]) -> DeviceRegistry | None:
     """Device-type detection from /oic/d's `rt` -- OCF's own device-type
     declaration.
 
@@ -261,7 +282,7 @@ def for_device_by_oic_type(device_types: Sequence[str]) -> Optional[DeviceRegist
     return None
 
 
-def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegistry]:
+def for_device_by_model(model_num: str, description: str) -> DeviceRegistry | None:
     """Device-type detection from /information/vs/0's model strings.
 
     The primary path: the board named in `modelNum` determines the resource
@@ -291,14 +312,14 @@ def for_device_by_model(model_num: str, description: str) -> Optional[DeviceRegi
         known type, None otherwise.
     """
     key = (
-        _board_family_key(model_num, '|')
-        or _board_family_key(description, '/')
+        _board_family_key(model_num, "|")
+        or _board_family_key(description, "/")
         or _consumer_model_key(description)
     )
     return _REGISTRY_BY_KEY.get(key) if key else None
 
 
-def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegistry]:
+def for_device_by_resources(resources: dict[str, dict]) -> DeviceRegistry | None:
     """Detect a device family from a distinctive local-resource signature.
 
     This runs first as an override path for non-standard devices, not because
@@ -312,23 +333,18 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
     putting this ahead of OIC/model metadata cannot let a common resource
     misclassify an unrelated family.
     """
-    mode = resources.get('/mode/vs/0', {})
-    options = mode.get('x.com.samsung.da.options') or ()
+    mode = resources.get("/mode/vs/0", {})
+    options = mode.get("x.com.samsung.da.options") or ()
     has_device_type = any(
-        isinstance(option, str) and option.startswith('DeviceType_')
-        for option in options
+        isinstance(option, str) and option.startswith("DeviceType_") for option in options
     )
     operation_states = sum(
-        1 for option in options
-        if isinstance(option, str) and option.startswith('OperationState')
+        1 for option in options if isinstance(option, str) and option.startswith("OperationState")
     )
     if has_device_type and operation_states >= 2:
-        return _REGISTRY_BY_KEY['cooktop']
-    if (
-        '/hood/fanspeed/vs/0' in resources
-        and '/hood/lamp/vs/0' in resources
-    ):
-        return _REGISTRY_BY_KEY['range_hood']
+        return _REGISTRY_BY_KEY["cooktop"]
+    if "/hood/fanspeed/vs/0" in resources and "/hood/lamp/vs/0" in resources:
+        return _REGISTRY_BY_KEY["range_hood"]
     # Oven/range/microwave boards that report no /information/vs/0 at all
     # (issue #74's NE63B8411SS, issue #172's ME8000T -- the resource is simply
     # absent from the dump, not just empty) can't be matched via
@@ -336,26 +352,26 @@ def for_device_by_resources(resources: dict[str, dict]) -> Optional[DeviceRegist
     # the oven cavity resource (/oven/vs/0) is a safe two-resource signature;
     # it also corrects Qooker's generic oic.d.oven / OVEN metadata (issue
     # PR #225) when resource detection runs before metadata.
-    supported_modes = mode.get('x.com.samsung.da.supportedModes') or ()
+    supported_modes = mode.get("x.com.samsung.da.supportedModes") or ()
     if not isinstance(supported_modes, (list, tuple)):
         supported_modes = ()
-    cavity = resources.get('/oven/vs/0')
+    cavity = resources.get("/oven/vs/0")
     if isinstance(cavity, dict):
         if any(
-            m in supported_modes
-            for m in ('MicroWave', 'MicroWaveGrill', 'MicroWaveConvection')
+            m in supported_modes for m in ("MicroWave", "MicroWaveGrill", "MicroWaveConvection")
         ):
-            return _REGISTRY_BY_KEY['microwave']
-        if 'Bake' in supported_modes:
-            if '/cooktopmonitoring/vs/0' in resources or '/cooktop/status/vs/0' in resources:
-                return _REGISTRY_BY_KEY['range']
-            return _REGISTRY_BY_KEY['oven']
+            return _REGISTRY_BY_KEY["microwave"]
+        if "Bake" in supported_modes:
+            if "/cooktopmonitoring/vs/0" in resources or "/cooktop/status/vs/0" in resources:
+                return _REGISTRY_BY_KEY["range"]
+            return _REGISTRY_BY_KEY["oven"]
     return None
 
 
 def resolve(
-    resources: dict[str, dict], device_types: Sequence[str] = (),
-) -> Optional[DeviceRegistry]:
+    resources: dict[str, dict],
+    device_types: Sequence[str] = (),
+) -> DeviceRegistry | None:
     """Device type for a parsed /device/0 dump, or None if unrecognized.
 
     The single entry point for detection -- the coordinator, the config
@@ -377,12 +393,12 @@ def resolve(
     device-support issue has ever been fixed by adding a mapping for it. It
     is still reported in diagnostics as a firmware-generation marker.
     """
-    info = resources.get('/information/vs/0', {})
+    info = resources.get("/information/vs/0", {})
     return (
         for_device_by_resources(resources)
         or for_device_by_oic_type(device_types)
         or for_device_by_model(
-            info.get('x.com.samsung.da.modelNum', ''),
-            info.get('x.com.samsung.da.description', ''),
+            info.get("x.com.samsung.da.modelNum", ""),
+            info.get("x.com.samsung.da.description", ""),
         )
     )

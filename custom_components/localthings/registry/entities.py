@@ -6,17 +6,19 @@ presence gating in exists_fn; write logic in write_fn on command platforms;
 pre-write rejection (surfaced to the user, not just logged) in validate_fn
 where a description declares one.
 """
+
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Optional
+from typing import Any
 
-WriteFn = Optional[Callable[[Any, dict], "tuple[list[str], dict] | None"]]
+WriteFn = Callable[[Any, dict], "tuple[list[str], dict] | None"] | None
 # (payload, rep, resources) -> a translation key, or None to allow the
 # write. resources is the coordinator's full href->rep snapshot, for the same
 # cross-resource lookups exists_fn needs (e.g. reading a sibling href's live
 # option list).
-ValidateFn = Optional[Callable[[Any, dict, dict], "str | None"]]
+ValidateFn = Callable[[Any, dict, dict], "str | None"] | None
 
 
 def _identity(v: Any) -> Any:
@@ -26,7 +28,7 @@ def _identity(v: Any) -> Any:
 @dataclass(frozen=True, kw_only=True)
 class SamsungEntityDescription:
     key: str
-    field: str = ''
+    field: str = ""
     # Defaults to `key`: entity names and states live in translations/, never
     # here, so a descriptor only sets this to share one catalog entry across
     # several descriptors, or to point at a differently-named one.
@@ -35,28 +37,28 @@ class SamsungEntityDescription:
     # snapshot and returns the key to use -- for a descriptor shared across
     # board generations whose state-code meaning isn't guaranteed consistent
     # between them; see laundry.cycle_select's table-id-gated resolver.
-    translation_placeholders: Optional[Mapping[str, str]] = None
+    translation_placeholders: Mapping[str, str] | None = None
     # Dynamic resources such as fridge compartments and ice makers use a
     # device-provided or href-derived instance label inside a translated name.
     use_instance_name: bool = False
-    icon: Optional[str] = None
-    entity_category: Optional[str] = None      # 'diagnostic' | 'config' | None
+    icon: str | None = None
+    entity_category: str | None = None  # 'diagnostic' | 'config' | None
     enabled_default: bool = True
     value_fn: Callable[[Any], Any] = _identity
-    rep_fn: Optional[Callable[[dict], Any]] = None   # replaces field+value_fn; receives full rep
+    rep_fn: Callable[[dict], Any] | None = None  # replaces field+value_fn; receives full rep
     # (rep, resources): rep is this entity's own href's representation;
     # resources is the coordinator's full href->rep snapshot, for gating
     # presence on a sibling resource (e.g. laundry.cycle_options's source).
-    exists_fn: Optional[Callable[[dict, dict], bool]] = None
+    exists_fn: Callable[[dict, dict], bool] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class SensorDesc(SamsungEntityDescription):
-    device_class: Optional[str] = None
-    state_class: Optional[str] = None
-    unit: Optional[str] = None
-    unit_fn: Optional[Callable[[dict], str]] = None  # overrides `unit` from the live rep, when set
-    options: Optional[tuple] = None  # required by HA when device_class == 'enum'
+    device_class: str | None = None
+    state_class: str | None = None
+    unit: str | None = None
+    unit_fn: Callable[[dict], str] | None = None  # overrides `unit` from the live rep, when set
+    options: tuple | None = None  # required by HA when device_class == 'enum'
     # Opt-in: gate this sensor's reported value behind the user-configurable
     # CONF_FINISH_TIME_HYSTERESIS_MINUTES threshold (see sensor.py). Only for
     # values that are expected to jitter around their "true" value between
@@ -66,48 +68,48 @@ class SensorDesc(SamsungEntityDescription):
 
 @dataclass(frozen=True, kw_only=True)
 class BinarySensorDesc(SamsungEntityDescription):
-    device_class: Optional[str] = None         # value_fn must return bool
+    device_class: str | None = None  # value_fn must return bool
 
 
 @dataclass(frozen=True, kw_only=True)
 class SelectDesc(SamsungEntityDescription):
-    options: Any = ()        # tuple[str,...] | Callable[[dict[str, dict]], list[str]]
+    options: Any = ()  # tuple[str,...] | Callable[[dict[str, dict]], list[str]]
     # callable form receives the coordinator's full href->rep resource
     # snapshot (not just this entity's own href) and returns raw device
     # option values; see select.py's LocalThingsSelect._raw_options().
-    options_field: Optional[str] = None  # resource field that contains the live options list
+    options_field: str | None = None  # resource field that contains the live options list
     write_fn: WriteFn = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class SwitchDesc(SamsungEntityDescription):
-    device_class: Optional[str] = None
+    device_class: str | None = None
     write_fn: WriteFn = None
     validate_fn: ValidateFn = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class ButtonDesc(SamsungEntityDescription):
-    payload: str = ''
+    payload: str = ""
     write_fn: WriteFn = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class NumberDesc(SamsungEntityDescription):
-    device_class: Optional[str] = None
-    unit: Optional[str] = None
-    unit_fn: Optional[Callable[[dict], str]] = None  # overrides `unit` from the live rep, when set
-    native_min: Optional[float] = None
-    native_max: Optional[float] = None
-    step: Optional[float] = None
+    device_class: str | None = None
+    unit: str | None = None
+    unit_fn: Callable[[dict], str] | None = None  # overrides `unit` from the live rep, when set
+    native_min: float | None = None
+    native_max: float | None = None
+    step: float | None = None
     # Override native_min/native_max/step from the live rep, when set --
     # same "static default, live override" shape as unit_fn, for resources
     # whose sane bounds depend on a per-device value (e.g. a temperature
     # setpoint reported in Celsius on one device, Fahrenheit on another).
-    native_min_fn: Optional[Callable[[dict], float]] = None
-    native_max_fn: Optional[Callable[[dict], float]] = None
-    step_fn: Optional[Callable[[dict], float]] = None
-    range_field: Optional[str] = None  # resource field containing [min, max] list
+    native_min_fn: Callable[[dict], float] | None = None
+    native_max_fn: Callable[[dict], float] | None = None
+    step_fn: Callable[[dict], float] | None = None
+    range_field: str | None = None  # resource field containing [min, max] list
     write_fn: WriteFn = None
 
 
@@ -144,14 +146,14 @@ class WaterHeaterDesc(SamsungEntityDescription):
 
 
 PLATFORM_OF: dict[type, str] = {
-    SensorDesc:       'sensor',
-    BinarySensorDesc: 'binary_sensor',
-    SelectDesc:       'select',
-    SwitchDesc:       'switch',
-    ButtonDesc:       'button',
-    NumberDesc:       'number',
-    TimeDesc:         'time',
-    ClimateDesc:      'climate',
-    FanDesc:          'fan',
-    WaterHeaterDesc:  'water_heater',
+    SensorDesc: "sensor",
+    BinarySensorDesc: "binary_sensor",
+    SelectDesc: "select",
+    SwitchDesc: "switch",
+    ButtonDesc: "button",
+    NumberDesc: "number",
+    TimeDesc: "time",
+    ClimateDesc: "climate",
+    FanDesc: "fan",
+    WaterHeaterDesc: "water_heater",
 }
