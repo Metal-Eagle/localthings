@@ -91,7 +91,7 @@ def _fetch_samsung_uuid() -> str:
         raise RuntimeError(f"No certificate received from {_SAMSUNG_CLOUD_HOST}")
     cert = _x509.load_der_x509_certificate(der)
     for attr in cert.subject:
-        if attr.oid == _x509.oid.NameOID.ORGANIZATIONAL_UNIT_NAME:
+        if attr.oid == _x509.oid.NameOID.ORGANIZATIONAL_UNIT_NAME and isinstance(attr.value, str):
             m = re.search(r"uuid:([0-9a-f-]+)", attr.value, re.IGNORECASE)
             if m:
                 return m.group(1)

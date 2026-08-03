@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import cast
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
@@ -47,7 +47,7 @@ class LocalThingsSensor(LocalThingsEntity, SensorEntity):
         self._attr_device_class = (
             SensorDeviceClass(desc.device_class) if desc.device_class else None
         )
-        self._attr_state_class = desc.state_class
+        self._attr_state_class = SensorStateClass(desc.state_class) if desc.state_class else None
         if desc.options:
             self._attr_options = list(desc.options)
         self._hysteresis_value = None
