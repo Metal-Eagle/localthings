@@ -826,7 +826,21 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         normal on a flaky device; a run of them is a real problem. Any
         other exception (a `ConnectionError`, an explicitly closed
         session) is unambiguous and always reconnects immediately.
+
+        Never defers before the first successful discovery (issue #254).
+        Deferring is a *mid-session* judgement call — "keep the entities we
+        already have and try again next cycle" — which is only coherent once
+        there are entities to keep. Pre-discovery the same exception type
+        means something else entirely: `_poll_once` calls `_connect_session`,
+        so `connect()`'s own handshake timeout surfaces here as a
+        `TimeoutError` too, and that is a dead connection, not a slow
+        transfer. Deferring it returned an empty dict instead of raising,
+        which `DataUpdateCoordinator` counts as a successful first refresh —
+        and since platforms enumerate `bound` exactly once, the entry loaded
+        with zero entities and stayed that way until a manual reload.
         """
+        if not self._discovered:
+            return False
         if not isinstance(e, TimeoutError):
             return False
         if self._observe.mode == MODE_OBSERVE and self._observe.recently_notified():
@@ -893,7 +907,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except Exception as e2:
                     self._log.error("poll failed after reconnect: %s", e2)
                     snapshot = self._cache.snapshot()
-                    if snapshot:
+                    # `self._discovered` is the same precondition
+                    # `_defer_reconnect_for` applies (issue #254): returning
+                    # degraded-but-successful data is only meaningful once
+                    # there are bound entities to carry it. Pre-discovery the
+                    # cache happens to always be empty -- every apply() site
+                    # is gated on post-discovery state -- so this arm is
+                    # unreachable then, but that is a non-local accident
+                    # across four call sites, not something to rely on.
+                    if self._discovered and snapshot:
                         self._log.debug("Full error:", exc_info=e2)
                         return flatten(self.bound, snapshot)
                     raise UpdateFailed(f"poll failed after reconnect: {e2}") from e2
