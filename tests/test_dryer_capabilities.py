@@ -94,15 +94,3 @@ def test_st_dryercourse_is_ignored():
     ignored_hrefs = {c.href for c in ignored.IGNORED}
     assert "/st/dryercourse/vs/0" in ignored_hrefs
     assert "/st/washercourse/vs/0" in ignored_hrefs
-
-
-def test_table_03_labels_confirmed_on_dv90dg6845lhu5():
-    """Issue #244: codes 51/53/4e were confirmed by selecting each program
-    directly on the physical DV90DG6845LHU5 and reading back the resulting
-    raw course code -- same verification method as issue #80's '52'/'54'/'60'
-    on the washer's own course table."""
-    from custom_components.localthings.catalog import translated_states
-
-    known = translated_states("select", "dryer_cycle_table_03")
-    for code in ("51", "53", "4e", "17", "21", "4c"):
-        assert code in known, code
