@@ -278,9 +278,9 @@
         "name": "Ciclo",
         "state": {
           "80": "Delicato",
-          "83": "Express 60",
+          "83": "Normale",
           "84": "Intenso",
-          "86": "Normale",
+          "86": "Express 60",
           "90": "Autopulizia",
           "0e": "AI Wash",
           "07": "Prelavaggio intenso",

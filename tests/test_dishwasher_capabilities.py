@@ -33,6 +33,17 @@ class TestCycleOptions:
         assert body == {"x.com.samsung.da.options": ["Course_90"]}
 
 
+def test_normal_and_express_60_labels_are_not_transposed():
+    """Issue #226: '83'/'86' were swapped in the shipped catalog -- '86' is
+    Express 60, '83' is Normal (see dishwasher.py's CYCLE_OPTIONS comment for
+    how this was confirmed)."""
+    from custom_components.localthings.catalog import _ENTITY_CATALOG
+
+    state = _ENTITY_CATALOG["select"]["dishwasher_cycle"]["state"]
+    assert state["83"] == "Normal"
+    assert state["86"] == "Express 60"
+
+
 class TestDishwasherOptions:
     def test_storm_wash_read_and_write(self):
         desc = next(

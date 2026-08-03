@@ -278,9 +278,9 @@
         "name": "Cyklus",
         "state": {
           "80": "Jemné",
-          "83": "Express 60",
+          "83": "Normální",
           "84": "Intenzivní",
-          "86": "Normální",
+          "86": "Express 60",
           "90": "Samočištění",
           "0e": "AI mytí",
           "07": "Předoplach",

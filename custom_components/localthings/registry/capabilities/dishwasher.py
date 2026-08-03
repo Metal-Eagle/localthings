@@ -48,6 +48,18 @@ DISHWASHER_SETTINGS = Capability(
 # boolean-toggle contract washer's bubble-soak/pre-wash/intensive switches
 # use). Course display names live in translations under
 # entity.select.dishwasher_cycle (see laundry.cycle_select).
+#
+# '83'/'86' were transposed in that catalog until issue #226: both the
+# original DW9000F-class fixture this table was built from and the issue
+# #226 reporter's board report the identical DeviceType_0812 (a real
+# per-board-generation id also seen on unrelated washer/dryer fixtures, so
+# this is one shared course table, not a Table_02/Table_03-style generation
+# split), and the original fixture's own live editCourseList
+# ('EditCourseList_0E07908683848D808E8F') puts '86' and '83' back to back at
+# positions 4-5 -- exactly the kind of adjacent pair a manual screenshot
+# transcription slips on. The reporter's live confirmation (selecting
+# 'Normal' ran the physical Express 60 program and vice versa) settles
+# which way: '86' is Express 60, '83' is Normal.
 # ---------------------------------------------------------------------------
 
 CYCLE_OPTIONS = Capability(
