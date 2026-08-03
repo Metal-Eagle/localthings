@@ -16,23 +16,24 @@ from custom_components.localthings.registry.discovery import discover
 from tests.conftest import _load_device
 
 
-def _state(fixture_name):
+def _dryer(fixture_name):
     resources = _load_device(fixture_name)
     info = resources["/information/vs/0"]
     reg = for_device_by_model(
         info["x.com.samsung.da.modelNum"],
         info["x.com.samsung.da.description"],
     )
+    return reg, resources
+
+
+def _state(fixture_name):
+    reg, resources = _dryer(fixture_name)
     bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
     return flatten(bound, resources)
 
 
 def test_no_unbound_hrefs():
-    resources = _load_device("dryer_tp1_21_drum_clean")
-    info = resources["/information/vs/0"]
-    reg = for_device_by_model(
-        info["x.com.samsung.da.modelNum"], info["x.com.samsung.da.description"]
-    )
+    reg, resources = _dryer("dryer_tp1_21_drum_clean")
     unbound = []
     discover(resources, reg.capabilities, reg.pattern_capabilities, log=unbound.append)
     assert unbound == []
