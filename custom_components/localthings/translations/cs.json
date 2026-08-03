@@ -643,6 +643,9 @@
       },
       "air_filter_pm1_threshold": {
         "name": "Práh alarmu PM1 filtru"
+      },
+      "freezer_temperature_setpoint": {
+        "name": "Teplota mrazicí zóny"
       }
     },
     "sensor": {

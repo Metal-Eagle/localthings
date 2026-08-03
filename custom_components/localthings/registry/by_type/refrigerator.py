@@ -28,6 +28,7 @@ REGISTRY = DeviceRegistry(
             fridge.DEFROST_DELAY_NATIVE_DUPLICATE,
             fridge.DEFROST_BLOCK_STATUS,
             fridge.DEFINITE_TEMPERATURE_COOLER,
+            fridge.DEFINITE_TEMPERATURE_FREEZER,
             fridge.DOORS_FALLBACK,
             fridge.TEMPERATURES_FALLBACK,
             fridge.ICEMAKER_STATUS_FALLBACK,

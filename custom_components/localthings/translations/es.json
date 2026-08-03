@@ -757,6 +757,9 @@
       },
       "air_filter_pm1_threshold": {
         "name": "Umbral de alarma del filtro PM1"
+      },
+      "freezer_temperature_setpoint": {
+        "name": "Temperatura del congelador"
       }
     },
     "sensor": {

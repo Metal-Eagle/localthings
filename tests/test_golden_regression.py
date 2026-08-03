@@ -1296,6 +1296,23 @@ def test_registry_reproduces_golden_state_keys_for_dryer_tp1_21_drum_clean():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_refrigerator_tp1x_ref_21k_definite():
+    """TP1X_REF_21K (issue #229) reports the discrete definite-setpoint
+    pattern (issue #186) on *both* compartments -- previously only the
+    cooler half was modeled; DEFINITE_TEMPERATURE_FREEZER covers the
+    freezer's identical-shape /temperature/definite/freezer/vs/0."""
+    from tests.conftest import _load_device
+
+    resources = _load_device("refrigerator_tp1x_ref_21k_definite")
+    golden = json.loads((GOLDEN / "refrigerator_tp1x_ref_21k_definite.json").read_text())
+    state_keys = _new_state_keys("refrigerator_tp1x_ref_21k_definite", resources)
+    assert set(state_keys) == set(golden["state_keys"]), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
 

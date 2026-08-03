@@ -643,6 +643,9 @@
       },
       "air_filter_pm1_threshold": {
         "name": "PM1 filter alarm threshold"
+      },
+      "freezer_temperature_setpoint": {
+        "name": "Freezer temperature"
       }
     },
     "sensor": {

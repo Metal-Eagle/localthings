@@ -643,6 +643,9 @@
       },
       "air_filter_pm1_threshold": {
         "name": "PM1-filteralarmdrempel"
+      },
+      "freezer_temperature_setpoint": {
+        "name": "Temperatuur vriesgedeelte"
       }
     },
     "sensor": {
