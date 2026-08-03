@@ -1290,7 +1290,7 @@ def test_local_source_port_non_ipv4_falls_back_to_hash() -> None:
 # successful first refresh. See `_defer_reconnect_for` for the mechanism.
 # ----------------------------------------------------------------------
 
-_HANDSHAKE_TIMEOUT = TimeoutError('DTLS handshake timed out')
+_HANDSHAKE_TIMEOUT = TimeoutError("DTLS handshake timed out")
 
 
 async def test_first_refresh_timeout_recovers_via_reconnect(
@@ -1298,12 +1298,12 @@ async def test_first_refresh_timeout_recovers_via_reconnect(
 ) -> None:
     """A pre-discovery handshake timeout reconnects instead of deferring."""
     with (
-        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session'),
+        patch("custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session"),
         patch(
-            'custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once',
+            "custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once",
             side_effect=[_HANDSHAKE_TIMEOUT, fridge_resources],
         ) as mock_poll,
-        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._close_session'),
+        patch("custom_components.localthings.coordinator.LocalThingsCoordinator._close_session"),
     ):
         await hass.config_entries.async_setup(mock_entry.entry_id)
         await hass.async_block_till_done()
@@ -1331,17 +1331,19 @@ async def test_first_refresh_persistent_timeout_fails_setup(
     left open is closed on the way out (`_poll_once` keeps it up on a
     `TimeoutError`, and the source port is fixed per device)."""
     with (
-        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session'),
+        patch("custom_components.localthings.coordinator.LocalThingsCoordinator._connect_session"),
         patch(
-            'custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once',
+            "custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once",
             side_effect=_HANDSHAKE_TIMEOUT,
         ),
-        patch('custom_components.localthings.coordinator.LocalThingsCoordinator._close_session'),
+        patch("custom_components.localthings.coordinator.LocalThingsCoordinator._close_session"),
         # Asserted on `async_close` rather than `_close_session`: the
         # reconnect path calls the latter on its own, so it is already true
         # whether or not setup cleans up after itself.
         patch.object(
-            LocalThingsCoordinator, 'async_close', autospec=True,
+            LocalThingsCoordinator,
+            "async_close",
+            autospec=True,
         ) as mock_async_close,
     ):
         await hass.config_entries.async_setup(mock_entry.entry_id)
@@ -1366,11 +1368,11 @@ async def test_post_discovery_timeout_is_still_deferred(
 
     with (
         patch(
-            'custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once',
-            side_effect=TimeoutError('GET /device/0 block 11 timeout'),
+            "custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once",
+            side_effect=TimeoutError("GET /device/0 block 11 timeout"),
         ),
         patch(
-            'custom_components.localthings.coordinator.LocalThingsCoordinator._close_session',
+            "custom_components.localthings.coordinator.LocalThingsCoordinator._close_session",
         ) as mock_close,
     ):
         await coordinator.async_request_refresh()
@@ -1391,7 +1393,7 @@ async def test_close_notify_sent_on_homeassistant_stop(
     await hass.async_block_till_done()
 
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
-    with patch.object(coordinator, 'async_close', new=AsyncMock()) as mock_close:
+    with patch.object(coordinator, "async_close", new=AsyncMock()) as mock_close:
         hass.bus.async_fire(EVENT_HOMEASSISTANT_STOP)
         await hass.async_block_till_done()
 
