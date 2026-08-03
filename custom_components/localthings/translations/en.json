@@ -621,6 +621,22 @@
       },
       "zone_mode": {
         "name": "Zone mode"
+      },
+      "watertank_light_color": {
+        "name": "Water tank light color",
+        "state": {
+          "warmwhite": "Warm white",
+          "naturalwhite": "Natural white",
+          "coolwhite": "Cool white",
+          "green": "Green",
+          "purple": "Purple",
+          "blue": "Blue",
+          "orange": "Orange",
+          "pink": "Pink"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Water tank light brightness"
       }
     },
     "sensor": {
@@ -969,6 +985,9 @@
       },
       "zone_temperature": {
         "name": "Zone temperature"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Water tank full alarm status"
       }
     },
     "switch": {
@@ -1136,6 +1155,9 @@
       },
       "away_mode": {
         "name": "Away mode"
+      },
+      "watertank_light": {
+        "name": "Water tank light"
       }
     },
     "time": {

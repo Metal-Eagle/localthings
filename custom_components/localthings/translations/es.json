@@ -735,6 +735,22 @@
       },
       "zone_mode": {
         "name": "Modo de zona"
+      },
+      "watertank_light_color": {
+        "name": "Color de la luz del depósito de agua",
+        "state": {
+          "warmwhite": "Blanco cálido",
+          "naturalwhite": "Blanco natural",
+          "coolwhite": "Blanco frío",
+          "green": "Verde",
+          "purple": "Púrpura",
+          "blue": "Azul",
+          "orange": "Naranja",
+          "pink": "Rosa"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Brillo de la luz del depósito de agua"
       }
     },
     "sensor": {
@@ -1083,6 +1099,9 @@
       },
       "zone_temperature": {
         "name": "Temperatura de zona"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Estado de alarma de depósito de agua lleno"
       }
     },
     "switch": {
@@ -1250,6 +1269,9 @@
       },
       "zone_power": {
         "name": "Alimentación de zona"
+      },
+      "watertank_light": {
+        "name": "Luz del depósito de agua"
       }
     },
     "time": {

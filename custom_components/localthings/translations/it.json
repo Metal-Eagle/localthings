@@ -621,6 +621,22 @@
       },
       "zone_mode": {
         "name": "Modalità zona"
+      },
+      "watertank_light_color": {
+        "name": "Colore della luce del serbatoio dell'acqua",
+        "state": {
+          "warmwhite": "Bianco caldo",
+          "naturalwhite": "Bianco naturale",
+          "coolwhite": "Bianco freddo",
+          "green": "Verde",
+          "purple": "Viola",
+          "blue": "Blu",
+          "orange": "Arancione",
+          "pink": "Rosa"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Luminosità della luce del serbatoio dell'acqua"
       }
     },
     "sensor": {
@@ -969,6 +985,9 @@
       },
       "zone_temperature": {
         "name": "Temperatura zona"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Stato allarme serbatoio d'acqua pieno"
       }
     },
     "switch": {
@@ -1136,6 +1155,9 @@
       },
       "away_mode": {
         "name": "Modalità assenza"
+      },
+      "watertank_light": {
+        "name": "Luce del serbatoio dell'acqua"
       }
     },
     "time": {

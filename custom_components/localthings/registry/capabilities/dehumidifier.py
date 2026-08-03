@@ -9,7 +9,7 @@ entities rather than folded into one card.
 """
 
 from ..capability import Capability
-from ..entities import NumberDesc, SelectDesc, SensorDesc
+from ..entities import NumberDesc, SelectDesc, SensorDesc, SwitchDesc
 from .common import int_or_none
 
 
@@ -73,6 +73,60 @@ HUMIDITY = Capability(
                 ["humidity", "vs", "0"],
                 {"x.com.samsung.da.desiredHumidity": str(round(float(p)))},
             ),
+        ),
+    ),
+)
+
+# Water-tank ambient light (issues #271/#231, TP1X_DA_AC_DHM_01001_0000):
+# on/off, color, and brightness are three independent controls on this one
+# resource. `waterfullAlarmStatus` differs between the two dumps that
+# reported this href (On vs. Off) so it's a real live flag, not a constant --
+# but its exact meaning (tank actually full vs. the chime feature merely
+# enabled) isn't confirmed by either dump alone, and /alarms/vs/0's
+# alarm_code already surfaces a live WaterTankFull condition when one fires
+# (see common._active_alarm_codes), so this is exposed read-only as a plain
+# diagnostic value rather than guessed at as a binary_sensor.
+WATERTANK_LIGHTING = Capability(
+    href="/watertank/lighting/vs/0",
+    poll_tier="cold",
+    entities=(
+        SwitchDesc(
+            key="watertank_light",
+            field="status",
+            icon="mdi:led-on",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["watertank", "lighting", "vs", "0"],
+                {"status": "On" if p == "On" else "Off"},
+            ),
+        ),
+        SelectDesc(
+            key="watertank_light_color",
+            field="colorOption",
+            icon="mdi:palette",
+            entity_category="config",
+            options_field="colorSupportedList",
+            write_fn=lambda p, rep, href=None: (
+                ["watertank", "lighting", "vs", "0"],
+                {"colorOption": p},
+            ),
+        ),
+        SelectDesc(
+            key="watertank_light_brightness",
+            field="mode",
+            icon="mdi:brightness-6",
+            entity_category="config",
+            options_field="modeSupportedList",
+            write_fn=lambda p, rep, href=None: (
+                ["watertank", "lighting", "vs", "0"],
+                {"mode": p},
+            ),
+        ),
+        SensorDesc(
+            key="watertank_full_alarm_status",
+            field="waterfullAlarmStatus",
+            entity_category="diagnostic",
         ),
     ),
 )

@@ -259,6 +259,7 @@ _OIC_TYPE_TO_KEY: dict[str, str] = {
     "oic.d.refrigerator": "refrigerator",
     "oic.d.washer": "washer",
     "x.com.st.d.airqualitysensor": "air_monitor",
+    "x.com.st.d.dehumidifier": "dehumidifier",
     "x.com.st.d.hood": "range_hood",  # AHD-WW-TP1-22-COMMON
     "x.com.st.d.stickcleaner": "vacuum_station",
     "x.com.st.d.steamcloset": "air_dresser",

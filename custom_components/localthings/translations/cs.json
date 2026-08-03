@@ -621,6 +621,22 @@
       },
       "zone_mode": {
         "name": "Režim zóny"
+      },
+      "watertank_light_color": {
+        "name": "Barva osvětlení nádržky na vodu",
+        "state": {
+          "warmwhite": "Teplá bílá",
+          "naturalwhite": "Přirozená bílá",
+          "coolwhite": "Studená bílá",
+          "green": "Zelená",
+          "purple": "Fialová",
+          "blue": "Modrá",
+          "orange": "Oranžová",
+          "pink": "Růžová"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Jas osvětlení nádržky na vodu"
       }
     },
     "sensor": {
@@ -969,6 +985,9 @@
       },
       "zone_temperature": {
         "name": "Teplota zóny"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Stav alarmu plné nádržky na vodu"
       }
     },
     "switch": {
@@ -1136,6 +1155,9 @@
       },
       "away_mode": {
         "name": "Režim nepřítomnosti"
+      },
+      "watertank_light": {
+        "name": "Osvětlení nádržky na vodu"
       }
     },
     "time": {

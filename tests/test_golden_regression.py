@@ -1226,6 +1226,23 @@ def test_registry_reproduces_golden_state_keys_for_range_ne6516a():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_dehumidifier_tp1x_dhm01001():
+    """TP1X_DA_AC_DHM_01001_0000 revision (issues #271/#231) additionally
+    reports /display/vs/0 (air_purifier.DISPLAY's exact shape, reused as-is)
+    and /watertank/lighting/vs/0 (new WATERTANK_LIGHTING capability), both
+    unbound on the original issue #88 dump."""
+    from tests.conftest import _load_device
+
+    resources = _load_device("dehumidifier_tp1x_dhm01001")
+    golden = json.loads((GOLDEN / "dehumidifier_tp1x_dhm01001.json").read_text())
+    state_keys = _new_state_keys("dehumidifier_tp1x_dhm01001", resources)
+    assert set(state_keys) == set(golden["state_keys"]), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
 

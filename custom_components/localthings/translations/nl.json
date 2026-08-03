@@ -621,6 +621,22 @@
       },
       "zone_mode": {
         "name": "Zonemodus"
+      },
+      "watertank_light_color": {
+        "name": "Kleur van het waterreservoirlicht",
+        "state": {
+          "warmwhite": "Warm wit",
+          "naturalwhite": "Natuurlijk wit",
+          "coolwhite": "Koel wit",
+          "green": "Groen",
+          "purple": "Paars",
+          "blue": "Blauw",
+          "orange": "Oranje",
+          "pink": "Roze"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Helderheid van het waterreservoirlicht"
       }
     },
     "sensor": {
@@ -969,6 +985,9 @@
       },
       "zone_temperature": {
         "name": "Zonetemperatuur"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Status alarm waterreservoir vol"
       }
     },
     "switch": {
@@ -1136,6 +1155,9 @@
       },
       "away_mode": {
         "name": "Afwezigheidsmodus"
+      },
+      "watertank_light": {
+        "name": "Waterreservoirlicht"
       }
     },
     "time": {
