@@ -75,7 +75,9 @@ def test_course_bound_to_shared_course_vs_0():
     the shipped dryer_cycle_table_03 translations, consistent with
     washer/dishwasher."""
     assert dryer.DRYER_COURSE.href == "/course/vs/0"
-    desc = next(e for e in dryer.DRYER_COURSE.entities if e.key == "cycle" and isinstance(e, SelectDesc))
+    desc = next(
+        e for e in dryer.DRYER_COURSE.entities if e.key == "cycle" and isinstance(e, SelectDesc)
+    )
     assert callable(desc.translation_key)
     table_03 = {"/st/dryercourse/vs/0": {"x.com.samsung.da.st.courseTable": "Table_03"}}
     assert desc.translation_key(table_03) == "dryer_cycle_table_03"

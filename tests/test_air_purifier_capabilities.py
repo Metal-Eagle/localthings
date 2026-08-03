@@ -92,7 +92,9 @@ def test_light_switch_write_contract():
     that the device merges by prefix itself, so no read-modify-write of the
     whole packed /mode/vs/0 options list is needed."""
     desc = next(
-        e for e in air_purifier.MODE.entities if e.key == "display_light" and isinstance(e, SwitchDesc)
+        e
+        for e in air_purifier.MODE.entities
+        if e.key == "display_light" and isinstance(e, SwitchDesc)
     )
     rep = {
         "x.com.samsung.da.options": [
@@ -118,7 +120,9 @@ def test_operating_mode_is_a_read_only_diagnostic():
     guess that it was the fan-speed selector; its real purpose is still
     unconfirmed (see the air_purifier.py module docstring)."""
     operating_mode = next(
-        e for e in air_purifier.MODE.entities if e.key == "operating_mode" and isinstance(e, SensorDesc)
+        e
+        for e in air_purifier.MODE.entities
+        if e.key == "operating_mode" and isinstance(e, SensorDesc)
     )
     rep = {"x.com.samsung.da.options": ["Comode_Off"]}
     assert operating_mode.rep_fn is not None
@@ -154,7 +158,9 @@ def test_airflow_fan_write_contract():
     is a clean, monotonic 0-4 code, so the write is a plain int passthrough
     -- no named-preset table needed (see fan.py's LocalThingsAirflowFan)."""
     fan_desc = next(
-        e for e in air_purifier.AIRFLOW_GENERIC.entities if e.key == "airflow_fan" and isinstance(e, FanDesc)
+        e
+        for e in air_purifier.AIRFLOW_GENERIC.entities
+        if e.key == "airflow_fan" and isinstance(e, FanDesc)
     )
     assert fan_desc.write_fn is not None
     assert fan_desc.write_fn(("speed", 3), {}) == (["airflow", "0"], {"speed": 3})

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Iterable, cast
+from collections.abc import Iterable
+from typing import cast
 from unittest.mock import patch
 
 from homeassistant.core import HomeAssistant
