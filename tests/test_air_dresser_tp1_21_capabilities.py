@@ -13,6 +13,7 @@ raw code until a reporter can map codes to names in the SmartThings app.
 from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import air_dresser, for_device_by_model
 from custom_components.localthings.registry.discovery import discover
+from custom_components.localthings.registry.entities import SelectDesc, SwitchDesc
 from tests.conftest import _load_device
 
 
@@ -53,9 +54,12 @@ def test_buzzer_sound_present_and_writable():
     desc = next(
         e
         for e in air_dresser.REGISTRY.capabilities["/buzzersound/vs/0"][0].entities
-        if e.key == "buzzer_sound"
+        if e.key == "buzzer_sound" and isinstance(e, SelectDesc)
     )
-    path, body = desc.write_fn("Off", {})
+    assert desc.write_fn is not None
+    result = desc.write_fn("Off", {})
+    assert result is not None
+    path, body = result
     assert path == ["buzzersound", "vs", "0"]
     assert body == {"setBuzzerSound": "Off"}
 
@@ -75,8 +79,11 @@ def test_sanitize_present_and_toggles():
     desc = next(
         e
         for e in air_dresser.REGISTRY.capabilities["/airdresseroption/sanitize/vs/0"][0].entities
-        if e.key == "sanitize"
+        if e.key == "sanitize" and isinstance(e, SwitchDesc)
     )
-    path, body = desc.write_fn("On", {})
+    assert desc.write_fn is not None
+    result = desc.write_fn("On", {})
+    assert result is not None
+    path, body = result
     assert path == ["airdresseroption", "sanitize", "vs", "0"]
     assert body == {"x.com.samsung.da.sanitize": "On"}

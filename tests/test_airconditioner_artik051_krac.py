@@ -19,9 +19,10 @@ the same model with a slightly different token set (no ``Spi``,
 gating handles the same way it handles newer boards.
 """
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from custom_components.localthings.climate import LocalThingsClimate
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import (
     airconditioner,
@@ -82,7 +83,7 @@ def _climate(resources, coordinator=None):
     bound, _ = _discover(resources)
     climate_bound = next(item for item in bound if isinstance(item.desc, ClimateDesc))
     return LocalThingsClimate(
-        coordinator or _FakeCoordinator(resources),
+        cast(LocalThingsCoordinator, coordinator or _FakeCoordinator(resources)),
         climate_bound,
     )
 

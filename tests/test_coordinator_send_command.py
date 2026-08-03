@@ -14,12 +14,14 @@ only the minimal body over the wire.
 
 from __future__ import annotations
 
+from typing import cast
 from unittest.mock import AsyncMock
 
 import cbor2
 import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from smartthings_local.protocol.dtls_session import DtlsCoapSession
 
 from custom_components.localthings.const import (
     CONF_HOST,
@@ -31,6 +33,7 @@ from custom_components.localthings.const import (
 from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry.capabilities import laundry
 from custom_components.localthings.registry.capabilities.airconditioner import _climate_write
+from custom_components.localthings.registry.capability import Capability
 from custom_components.localthings.registry.discovery import BoundEntity
 from custom_components.localthings.registry.entities import ClimateDesc
 from custom_components.localthings.registry.subdevices import Subdevice
@@ -65,7 +68,7 @@ def coordinator(hass: HomeAssistant) -> LocalThingsCoordinator:
     entry.add_to_hass(hass)
     coord = LocalThingsCoordinator(hass, entry)
     coord.async_request_refresh = AsyncMock()
-    coord._session = _FakeSendSession()
+    coord._session = cast(DtlsCoapSession, _FakeSendSession())
     return coord
 
 
@@ -80,7 +83,7 @@ async def test_options_write_posts_only_the_changed_token(coordinator) -> None:
     )
 
     desc = laundry.cycle_select(translation_key="dryer_cycle", icon="x")
-    bound = BoundEntity(href=href, capability=None, desc=desc)
+    bound = BoundEntity(href=href, capability=Capability(), desc=desc)
 
     await coordinator.async_send_command(bound, "1D")
 
@@ -102,7 +105,7 @@ async def test_options_write_optimistic_cache_keeps_sibling_tokens(coordinator) 
     )
 
     desc = laundry.cycle_select(translation_key="dryer_cycle", icon="x")
-    bound = BoundEntity(href=href, capability=None, desc=desc)
+    bound = BoundEntity(href=href, capability=Capability(), desc=desc)
 
     await coordinator.async_send_command(bound, "1D")
 
@@ -127,7 +130,7 @@ async def test_options_write_optimistic_cache_keeps_sibling_tokens(coordinator) 
 
 def _climate_bound(href: str, subdevice: Subdevice) -> BoundEntity:
     desc = ClimateDesc(key="climate", translation_key="airconditioner", write_fn=_climate_write)
-    return BoundEntity(href=href, capability=None, desc=desc, subdevice=subdevice)
+    return BoundEntity(href=href, capability=Capability(), desc=desc, subdevice=subdevice)
 
 
 async def test_indexed_subdevice_write_posts_to_translated_path(coordinator) -> None:

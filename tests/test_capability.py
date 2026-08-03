@@ -14,7 +14,7 @@ def test_capability_defaults():
 def test_capability_is_frozen():
     c = Capability(href="/kidslock/vs/0", entities=())
     try:
-        c.href = "/other/vs/0"
+        setattr(c, "href", "/other/vs/0")
     except Exception:
         return
     raise AssertionError("expected frozen dataclass")

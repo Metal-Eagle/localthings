@@ -1,5 +1,7 @@
 """Tests for samsung_appliance/registry/by_type."""
 
+from typing import cast
+
 import pytest
 
 from custom_components.localthings.registry.by_type import (
@@ -110,7 +112,10 @@ class TestBoardTokens:
         from custom_components.localthings.registry.by_type import _board_tokens
 
         assert _board_tokens("", "|") == []
-        assert _board_tokens(None, "|") == []
+        # value is annotated `str`, but the implementation is defensive
+        # against a caller passing a genuinely missing modelNum/description
+        # (see the `value or ""` in _board_tokens) -- exercise that directly.
+        assert _board_tokens(cast(str, None), "|") == []
 
 
 class TestBoardTokenTable:

@@ -135,13 +135,19 @@ class TestPowerFallback:
         desc = next(e for e in common.POWER_GENERIC.entities if isinstance(e, SwitchDesc))
         assert desc.value_fn(True) is True
         assert desc.value_fn(False) is False
-        path, body = desc.write_fn("On", {})
+        assert desc.write_fn is not None
+        result = desc.write_fn("On", {})
+        assert result is not None
+        path, body = result
         assert path == ["power", "0"]
         assert body == {"value": True}
-        assert desc.write_fn("Off", {})[1] == {"value": False}
+        off_result = desc.write_fn("Off", {})
+        assert off_result is not None
+        assert off_result[1] == {"value": False}
 
     def test_vs_fallback_binds_only_when_generic_absent(self):
         assert common.POWER_VS_FALLBACK.href == "/power/vs/0"
+        assert common.POWER_VS_FALLBACK.match_fn is not None
         assert common.POWER_VS_FALLBACK.match_fn({}, {"/power/vs/0": {}}) is True
         assert common.POWER_VS_FALLBACK.match_fn({}, {"/power/0": {}, "/power/vs/0": {}}) is False
 
@@ -149,7 +155,10 @@ class TestPowerFallback:
         desc = next(e for e in common.POWER_VS_FALLBACK.entities if isinstance(e, SwitchDesc))
         assert desc.value_fn("On") is True
         assert desc.value_fn("Off") is False
-        path, body = desc.write_fn("On", {})
+        assert desc.write_fn is not None
+        result = desc.write_fn("On", {})
+        assert result is not None
+        path, body = result
         assert path == ["power", "vs", "0"]
         assert body == {"x.com.samsung.da.power": "On"}
 
@@ -160,6 +169,8 @@ class TestPowerFallback:
             "/power/0": {"value": True},
             "/wm/setinfo/vs/0": {"x.com.samsung.da.isModelSettingPowerOnOff": "false"},
         }
+        assert switch.exists_fn is not None
+        assert sensor.exists_fn is not None
         assert switch.exists_fn(resources["/power/0"], resources) is False
         assert sensor.exists_fn(resources["/power/0"], resources) is True
 
@@ -170,6 +181,8 @@ class TestPowerFallback:
             "/power/0": {"value": True},
             "/wm/setinfo/vs/0": {"x.com.samsung.da.isModelSettingPowerOnOff": "true"},
         }
+        assert switch.exists_fn is not None
+        assert sensor.exists_fn is not None
         assert switch.exists_fn(resources["/power/0"], resources) is True
         assert sensor.exists_fn(resources["/power/0"], resources) is False
 
@@ -177,6 +190,8 @@ class TestPowerFallback:
         switch = next(e for e in common.POWER_GENERIC.entities if isinstance(e, SwitchDesc))
         sensor = next(e for e in common.POWER_GENERIC.entities if isinstance(e, BinarySensorDesc))
         resources = {"/power/0": {"value": True}}
+        assert switch.exists_fn is not None
+        assert sensor.exists_fn is not None
         assert switch.exists_fn(resources["/power/0"], resources) is True
         assert sensor.exists_fn(resources["/power/0"], resources) is False
 
@@ -291,6 +306,7 @@ class TestKidsLockFallback:
         assert desc.value_fn(True) is False  # value=True -> Off=Locked
 
     def test_vs_fallback_gated(self):
+        assert common.KIDS_LOCK_VS_FALLBACK.match_fn is not None
         assert common.KIDS_LOCK_VS_FALLBACK.match_fn({}, {"/kidslock/vs/0": {}}) is True
         assert (
             common.KIDS_LOCK_VS_FALLBACK.match_fn({}, {"/kidslock/0": {}, "/kidslock/vs/0": {}})
@@ -316,6 +332,7 @@ class TestRemoteControlFallback:
         assert desc.value_fn(False) is False
 
     def test_vs_fallback_gated(self):
+        assert common.REMOTE_CONTROL_VS_FALLBACK.match_fn is not None
         assert common.REMOTE_CONTROL_VS_FALLBACK.match_fn({}, {"/remotectrl/vs/0": {}}) is True
         assert (
             common.REMOTE_CONTROL_VS_FALLBACK.match_fn(
@@ -351,18 +368,22 @@ class TestEnergyMeter:
 
     def test_power_watts_hidden_for_dead_sentinel(self):
         pw = next(e for e in common.ENERGY_METER.entities if e.key == "power_watts")
+        assert pw.exists_fn is not None
         assert pw.exists_fn({"x.com.samsung.da.instantaneousPower": "-500"}, {}) is False
 
     def test_power_watts_shown_for_real_value(self):
         pw = next(e for e in common.ENERGY_METER.entities if e.key == "power_watts")
+        assert pw.exists_fn is not None
         assert pw.exists_fn({"x.com.samsung.da.instantaneousPower": "150"}, {}) is True
 
     def test_energy_kwh_hidden_when_cumulative_power_absent(self):
         kwh = next(e for e in common.ENERGY_METER.entities if e.key == "energy_kwh")
+        assert kwh.exists_fn is not None
         assert kwh.exists_fn({"x.com.samsung.da.instantaneousPower": "-500"}, {}) is False
 
     def test_energy_kwh_shown_when_present(self):
         kwh = next(e for e in common.ENERGY_METER.entities if e.key == "energy_kwh")
+        assert kwh.exists_fn is not None
         assert kwh.exists_fn({"x.com.samsung.da.cumulativePower": "58900"}, {}) is True
 
     def test_both_entities_included_on_true_stub(self):
@@ -371,6 +392,8 @@ class TestEnergyMeter:
         but data isn't fetched yet; include both so sub-polls populate them."""
         pw = next(e for e in common.ENERGY_METER.entities if e.key == "power_watts")
         kwh = next(e for e in common.ENERGY_METER.entities if e.key == "energy_kwh")
+        assert pw.exists_fn is not None
+        assert kwh.exists_fn is not None
         stub = {"href": "/energy/consumption/vs/0"}
         assert pw.exists_fn(stub, {}) is True
         assert kwh.exists_fn(stub, {}) is True
@@ -381,6 +404,8 @@ class TestEnergyMeter:
         resource doesn't get a phantom always-"unknown" entity (issue #127)."""
         pw = next(e for e in common.ENERGY_METER.entities if e.key == "power_watts")
         kwh = next(e for e in common.ENERGY_METER.entities if e.key == "energy_kwh")
+        assert pw.exists_fn is not None
+        assert kwh.exists_fn is not None
         assert pw.exists_fn({}, {}) is False
         assert kwh.exists_fn({}, {}) is False
 
@@ -388,6 +413,7 @@ class TestEnergyMeter:
         """A populated rep that lacks instantaneousPower must not spawn a
         phantom power sensor (the exists_fn replaces the field-presence gate)."""
         pw = next(e for e in common.ENERGY_METER.entities if e.key == "power_watts")
+        assert pw.exists_fn is not None
         assert pw.exists_fn({"x.com.samsung.da.cumulativePower": "5"}, {}) is False
 
 

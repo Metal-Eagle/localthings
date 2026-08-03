@@ -1,7 +1,8 @@
 """HA fan-entity mapping tests for the range hood."""
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.fan import LocalThingsRangeHoodFan
 from custom_components.localthings.registry.by_type import microwave, range_hood
 from custom_components.localthings.registry.discovery import discover
@@ -39,7 +40,7 @@ def _entity(resources, coordinator=None, registry=range_hood.REGISTRY):
     )
     fan_bound = next(item for item in bound if isinstance(item.desc, FanDesc))
     return LocalThingsRangeHoodFan(
-        coordinator or _FakeCoordinator(resources),
+        cast(LocalThingsCoordinator, coordinator or _FakeCoordinator(resources)),
         fan_bound,
     )
 

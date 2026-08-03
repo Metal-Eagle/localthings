@@ -10,7 +10,12 @@ from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.capabilities import airconditioner
 from custom_components.localthings.registry.discovery import discover
-from custom_components.localthings.registry.entities import ClimateDesc, SelectDesc
+from custom_components.localthings.registry.entities import (
+    ClimateDesc,
+    SelectDesc,
+    SensorDesc,
+    SwitchDesc,
+)
 from tests.conftest import _load_device
 
 
@@ -103,7 +108,9 @@ def test_climate_write_targets():
     /power/0 is absent on most boards and a non-authoritative mirror where
     present; /temperature/desired/0 is only written via the temperature_ocf
     kind, on boards that have the OCF pair)."""
-    write = airconditioner.CLIMATE.entities[0].write_fn
+    climate_desc = next(e for e in airconditioner.CLIMATE.entities if isinstance(e, ClimateDesc))
+    assert climate_desc.write_fn is not None
+    write = climate_desc.write_fn
     assert write(("power", True), {}) == (["power", "vs", "0"], {"x.com.samsung.da.power": "On"})
     assert write(("power", False), {}) == (["power", "vs", "0"], {"x.com.samsung.da.power": "Off"})
     assert write(("mode", "Heat"), {}) == (
@@ -285,13 +292,17 @@ def test_caww_tp2_sac_installationinfo_is_ignored():
 
 
 def test_mute_once_write_target():
-    write = airconditioner.MUTE_ONCE.entities[0].write_fn
+    desc = next(e for e in airconditioner.MUTE_ONCE.entities if isinstance(e, SwitchDesc))
+    assert desc.write_fn is not None
+    write = desc.write_fn
     assert write("On", {}) == (["option", "muteonce", "vs", "0"], {"muteonce": "On"})
     assert write("Off", {}) == (["option", "muteonce", "vs", "0"], {"muteonce": "Off"})
 
 
 def test_display_light_write_target():
-    write = airconditioner.DISPLAY_LIGHT.entities[0].write_fn
+    desc = next(e for e in airconditioner.DISPLAY_LIGHT.entities if isinstance(e, SwitchDesc))
+    assert desc.write_fn is not None
+    write = desc.write_fn
     assert write("On", {}) == (["light", "vs", "0"], {"mode": "On"})
     assert write("Off", {}) == (["light", "vs", "0"], {"mode": "Off"})
 
@@ -375,7 +386,12 @@ def test_display_light_option_parsing_and_gating():
 def test_mode_options_display_light_write_is_inverted_single_token():
     """Turning the lamp ON writes the inverted 'Light_Off' token as a
     single-element options list (single-token merge); OFF writes 'Light_On'."""
-    sw = next(e for e in airconditioner.CLIMATE.entities if e.key == "display_light")
+    sw = next(
+        e
+        for e in airconditioner.CLIMATE.entities
+        if e.key == "display_light" and isinstance(e, SwitchDesc)
+    )
+    assert sw.write_fn is not None
     assert sw.write_fn("On", {}) == (
         ["mode", "vs", "0"],
         {"x.com.samsung.da.options": ["Light_Off"]},
@@ -433,12 +449,14 @@ def test_current_temperature_vs_only_binds_when_ocf_href_absent():
     CURRENT_TEMPERATURE when a device (like this one) reports both
     /temperature/current/0 and /temperatures/vs/0."""
     match = airconditioner.CURRENT_TEMPERATURE_VS.match_fn
+    assert match is not None
     assert match({}, {"/temperature/current/0": {}}) is False
     assert match({}, {}) is True
 
 
 def test_humidity_reads_five_percent_field_not_stuck_humidity_field():
     desc = airconditioner.HUMIDITY.entities[0]
+    assert desc.rep_fn is not None
     rep = {"x.com.samsung.da.humidity": "0", "x.com.samsung.da.fivepercentHumidity": "42"}
     assert desc.rep_fn(rep) == 42.0
 
@@ -448,6 +466,7 @@ def test_humidity_falls_back_to_the_plain_field_where_five_percent_is_absent():
     Their plain field is not stuck -- it carries a reading while Air monitoring
     is on -- so 0 means "not measuring" on both generations, not 0% humidity."""
     desc = airconditioner.HUMIDITY.entities[0]
+    assert desc.rep_fn is not None
     assert desc.rep_fn({"x.com.samsung.da.humidity": "51"}) == 51.0
     assert desc.rep_fn({"x.com.samsung.da.humidity": "0"}) is None
     assert desc.rep_fn({}) is None
@@ -461,6 +480,7 @@ def test_humidity_five_percent_field_passes_a_genuine_zero_through():
     fallback field collapses 0 -- fivepercentHumidity's 0 is a real
     reading."""
     desc = airconditioner.HUMIDITY.entities[0]
+    assert desc.rep_fn is not None
     assert desc.rep_fn({"x.com.samsung.da.fivepercentHumidity": "0"}) == 0.0
 
 
@@ -580,21 +600,25 @@ def test_lnx_rac_heatpump_enable_switches_are_writable():
 
 
 def test_lnx_rac_heatpump_absence_power_saving_write_target():
-    write = next(
+    desc = next(
         e
         for e in airconditioner.ABSENCE_POWER_SAVING.entities
-        if e.key == "absence_power_saving_active"
-    ).write_fn
+        if e.key == "absence_power_saving_active" and isinstance(e, SwitchDesc)
+    )
+    assert desc.write_fn is not None
+    write = desc.write_fn
     assert write("On", {}) == (["mds", "absencepowersaving", "vs", "0"], {"status": "On"})
     assert write("Off", {}) == (["mds", "absencepowersaving", "vs", "0"], {"status": "Off"})
 
 
 def test_lnx_rac_heatpump_motion_detect_wind_write_target():
-    write = next(
+    desc = next(
         e
         for e in airconditioner.MOTION_DETECT_WIND.entities
-        if e.key == "motion_detect_wind_active"
-    ).write_fn
+        if e.key == "motion_detect_wind_active" and isinstance(e, SwitchDesc)
+    )
+    assert desc.write_fn is not None
+    write = desc.write_fn
     assert write("On", {}) == (
         ["option", "motiondetectwind", "stateful", "vs", "0"],
         {"status": "On"},
@@ -710,6 +734,7 @@ def test_tropical_night_absent_when_no_sleep_token():
     reg = for_device_by_model(
         info["x.com.samsung.da.modelNum"], info["x.com.samsung.da.description"]
     )
+    assert reg is not None
     state = flatten(discover(resources, reg.capabilities, reg.pattern_capabilities), resources)
     assert "tropical_night_mode" not in state
 
@@ -723,6 +748,7 @@ def test_tropical_night_state_levels_across_fixtures():
         r = for_device_by_model(
             info["x.com.samsung.da.modelNum"], info["x.com.samsung.da.description"]
         )
+        assert r is not None
         return flatten(discover(res, r.capabilities, r.pattern_capabilities), res).get(
             "tropical_night_mode"
         )
@@ -736,13 +762,18 @@ def test_air_filter_usage_hours_reads_raw_count():
     """filterUsage is a lifetime hour counter (41 of 500) that resets on
     filter replacement -- total_increasing, not measurement. Unit comes from
     filterCapacityUnit via unit_fn, not a hardcoded 'h'."""
-    desc = next(e for e in airconditioner.AIR_FILTER.entities if e.key == "air_filter_usage_hours")
+    desc = next(
+        e
+        for e in airconditioner.AIR_FILTER.entities
+        if e.key == "air_filter_usage_hours" and isinstance(e, SensorDesc)
+    )
     assert desc.value_fn("41") == 41
     assert desc.value_fn(41) == 41
     assert desc.value_fn(None) is None
     assert desc.value_fn("not-a-number") is None
     assert desc.device_class == "duration"
     assert desc.state_class == "total_increasing"
+    assert desc.unit_fn is not None
     assert desc.unit_fn({"x.com.samsung.da.filterCapacityUnit": "Hour"}) == "h"
     assert desc.unit_fn({"x.com.samsung.da.filterCapacityUnit": "Minute"}) == "min"
     assert desc.unit_fn({}) == "h"  # static fallback when the field is absent
@@ -758,6 +789,7 @@ def test_air_filter_threshold_is_writable_select():
     desc = next(e for e in airconditioner.AIR_FILTER.entities if e.key == "air_filter_threshold")
     assert isinstance(desc, SelectDesc)
     assert desc.options_field == "x.com.samsung.da.supportedFilterDesiredUsage"
+    assert desc.exists_fn is not None
     assert (
         desc.exists_fn(
             {"x.com.samsung.da.supportedFilterDesiredUsage": ["180", "300", "500", "700"]}, {}
@@ -770,6 +802,7 @@ def test_air_filter_threshold_is_writable_select():
     assert desc.value_fn(500) == "500"
     assert desc.value_fn(None) is None
     # Write POSTs the selected option as the scalar field.
+    assert desc.write_fn is not None
     assert desc.write_fn("700", {}) == (
         ["filter", "airdustfilter", "vs", "0"],
         {"x.com.samsung.da.filterDesiredUsage": "700"},

@@ -11,6 +11,7 @@ capability #162's dump doesn't report at all.
 from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import air_dresser, for_device_by_model
 from custom_components.localthings.registry.discovery import discover
+from custom_components.localthings.registry.entities import SwitchDesc
 from tests.conftest import _load_device
 
 
@@ -77,9 +78,12 @@ def test_sanitize_present_and_toggles():
     desc = next(
         e
         for e in air_dresser.REGISTRY.capabilities["/airdresseroption/sanitize/vs/0"][0].entities
-        if e.key == "sanitize"
+        if e.key == "sanitize" and isinstance(e, SwitchDesc)
     )
-    path, body = desc.write_fn("On", {})
+    assert desc.write_fn is not None
+    result = desc.write_fn("On", {})
+    assert result is not None
+    path, body = result
     assert path == ["airdresseroption", "sanitize", "vs", "0"]
     assert body == {"x.com.samsung.da.sanitize": "On"}
     assert desc.write_fn("Sparkle", {}) is None

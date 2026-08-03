@@ -1,5 +1,8 @@
 """Tests for translated entity naming and dynamic instance placeholders."""
 
+from typing import cast
+
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.entity import LocalThingsEntity
 from custom_components.localthings.registry.capability import Capability
 from custom_components.localthings.registry.discovery import BoundEntity
@@ -23,7 +26,7 @@ def _make_entity(desc, href="/x/vs/0", key_override=None, instance="", instance_
         key_override=key_override,
         instance_name=instance_name,
     )
-    return LocalThingsEntity(_FakeCoordinator(), bound)
+    return LocalThingsEntity(cast(LocalThingsCoordinator, _FakeCoordinator()), bound)
 
 
 def test_descriptor_key_is_the_default_translation_key():

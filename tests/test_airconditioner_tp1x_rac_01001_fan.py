@@ -11,13 +11,14 @@ any code _DEVICE_TO_FAN doesn't already cover, instead of hardcoding a
 second numeric scale.
 """
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from custom_components.localthings.climate import (
     _DEVICE_TO_FAN,
     LocalThingsClimate,
     _wind_strength_label,
 )
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry import by_type
 from custom_components.localthings.registry.discovery import discover
 from custom_components.localthings.registry.entities import ClimateDesc
@@ -53,9 +54,12 @@ def _climate(resources, coordinator=None):
     reg = by_type.for_device_by_model(
         info["x.com.samsung.da.modelNum"], info["x.com.samsung.da.description"]
     )
+    assert reg is not None
     bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
     climate_bound = next(item for item in bound if isinstance(item.desc, ClimateDesc))
-    return LocalThingsClimate(coordinator or _FakeCoordinator(resources), climate_bound)
+    return LocalThingsClimate(
+        cast(LocalThingsCoordinator, coordinator or _FakeCoordinator(resources)), climate_bound
+    )
 
 
 def test_wind_strength_label_reads_the_devices_own_modes_name():

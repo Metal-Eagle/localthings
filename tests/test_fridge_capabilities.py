@@ -1,8 +1,15 @@
 """Tests for fridge-specific capabilities."""
 
-from typing import ClassVar
+from collections.abc import Callable
+from typing import ClassVar, cast
 
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry.capabilities import fridge
+from custom_components.localthings.registry.entities import (
+    NumberDesc,
+    SelectDesc,
+    SensorDesc,
+)
 
 
 class TestTempCurrentGeneric:
@@ -11,15 +18,18 @@ class TestTempCurrentGeneric:
     resource in Celsius."""
 
     def test_unit_reads_celsius(self):
-        desc = fridge.TEMP_CURRENT_GENERIC.entities[0]
+        desc = next(e for e in fridge.TEMP_CURRENT_GENERIC.entities if isinstance(e, SensorDesc))
+        assert desc.unit_fn is not None
         assert desc.unit_fn({"temperature": 3.0, "units": "C"}) == "°C"
 
     def test_unit_reads_fahrenheit(self):
-        desc = fridge.TEMP_CURRENT_GENERIC.entities[0]
+        desc = next(e for e in fridge.TEMP_CURRENT_GENERIC.entities if isinstance(e, SensorDesc))
+        assert desc.unit_fn is not None
         assert desc.unit_fn({"temperature": 5.0, "units": "F"}) == "°F"
 
     def test_unit_defaults_to_fahrenheit_when_missing(self):
-        desc = fridge.TEMP_CURRENT_GENERIC.entities[0]
+        desc = next(e for e in fridge.TEMP_CURRENT_GENERIC.entities if isinstance(e, SensorDesc))
+        assert desc.unit_fn is not None
         assert desc.unit_fn({"temperature": 5.0}) == "°F"
 
 
@@ -32,23 +42,27 @@ class TestDoorGeneric:
 
     def test_reads_bare_open_state(self):
         desc = fridge.DOOR_GENERIC.entities[0]
+        assert desc.rep_fn is not None
         assert desc.rep_fn({"openState": "Open"}) is True
         assert desc.rep_fn({"openState": "Close"}) is False
 
     def test_reads_vendor_prefixed_open_state(self):
         desc = fridge.DOOR_GENERIC.entities[0]
+        assert desc.rep_fn is not None
         assert desc.rep_fn({"x.com.samsung.da.openState": "Open"}) is True
         assert desc.rep_fn({"x.com.samsung.da.openState": "Close"}) is False
 
     def test_prefers_bare_field_when_both_present(self):
         desc = fridge.DOOR_GENERIC.entities[0]
+        assert desc.rep_fn is not None
         rep = {"openState": "Open", "x.com.samsung.da.openState": "Close"}
         assert desc.rep_fn(rep) is True
 
 
 class TestTempSetpointGeneric:
     def test_unit_reads_celsius(self):
-        desc = fridge.TEMP_SETPOINT.entities[0]
+        desc = next(e for e in fridge.TEMP_SETPOINT.entities if isinstance(e, NumberDesc))
+        assert desc.unit_fn is not None
         assert desc.unit_fn({"temperature": -19.0, "units": "C"}) == "°C"
 
 
@@ -58,8 +72,11 @@ class TestTemperaturesFallback:
 
     def test_freezer_unit_celsius(self):
         desc = next(
-            e for e in fridge.TEMPERATURES_FALLBACK.entities if e.key == "freezer_temperature"
+            e
+            for e in fridge.TEMPERATURES_FALLBACK.entities
+            if e.key == "freezer_temperature" and isinstance(e, SensorDesc)
         )
+        assert desc.unit_fn is not None
         rep = {
             "x.com.samsung.da.items": [
                 {
@@ -79,8 +96,11 @@ class TestTemperaturesFallback:
 
     def test_fridge_unit_fahrenheit(self):
         desc = next(
-            e for e in fridge.TEMPERATURES_FALLBACK.entities if e.key == "fridge_temperature"
+            e
+            for e in fridge.TEMPERATURES_FALLBACK.entities
+            if e.key == "fridge_temperature" and isinstance(e, SensorDesc)
         )
+        assert desc.unit_fn is not None
         rep = {
             "x.com.samsung.da.items": [
                 {
@@ -94,8 +114,11 @@ class TestTemperaturesFallback:
 
     def test_unit_defaults_to_fahrenheit_when_item_missing(self):
         desc = next(
-            e for e in fridge.TEMPERATURES_FALLBACK.entities if e.key == "freezer_temperature"
+            e
+            for e in fridge.TEMPERATURES_FALLBACK.entities
+            if e.key == "freezer_temperature" and isinstance(e, SensorDesc)
         )
+        assert desc.unit_fn is not None
         assert desc.unit_fn({"x.com.samsung.da.items": []}) == "°F"
 
 
@@ -130,17 +153,20 @@ class TestRefrigerationFallback:
         desc = next(e for e in fridge.REFRIGERATION_FALLBACK.entities if e.key == "defrost_active")
         assert desc.value_fn(True) is True
         assert desc.value_fn(False) is False
+        assert desc.exists_fn is not None
         assert desc.exists_fn({}, {"/refrigeration/0": {}}) is True
         assert desc.exists_fn({}, {"/refrigeration/0": {}, "/defrost/block/vs/0": {}}) is False
 
     def test_rapid_switches_hidden_when_vs_href_present(self):
         for key in ("rapid_fridge", "rapid_freezing"):
             desc = next(e for e in fridge.REFRIGERATION_FALLBACK.entities if e.key == key)
+            assert desc.exists_fn is not None
             assert desc.exists_fn({}, {"/refrigeration/vs/0": {}, "/refrigeration/0": {}}) is False
 
     def test_rapid_switches_shown_when_vs_href_absent(self):
         for key in ("rapid_fridge", "rapid_freezing"):
             desc = next(e for e in fridge.REFRIGERATION_FALLBACK.entities if e.key == key)
+            assert desc.exists_fn is not None
             assert desc.exists_fn({}, {"/refrigeration/0": {}}) is True
 
 
@@ -201,6 +227,7 @@ class TestFlexZone:
             "x.com.samsung.da.supportedOptions": ["KIMCHIT_STORAGE_FREEZER_NORMAL_[0]:[0]"],
         }
         desc = fridge.FLEX_ZONE.entities[0]
+        assert desc.exists_fn is not None
         assert desc.exists_fn(no_overlap_rep, {}) is False
 
         overlap_rep = {
@@ -250,8 +277,11 @@ class TestPantryZone:
         assert fridge.PANTRY_ZONE.href == "/status/pantry/one/vs/0"
 
     def test_write(self):
-        desc = fridge.PANTRY_ZONE.entities[0]
-        path, body = desc.write_fn("FDR_WINE", {})
+        desc = next(e for e in fridge.PANTRY_ZONE.entities if isinstance(e, SelectDesc))
+        assert desc.write_fn is not None
+        result = desc.write_fn("FDR_WINE", {})
+        assert result is not None
+        path, body = result
         assert path == ["status", "pantry", "one", "vs", "0"]
         assert body == {"x.com.samsung.da.mode": "FDR_WINE"}
 
@@ -266,8 +296,13 @@ class TestDefiniteTemperatureCooler:
         assert fridge.DEFINITE_TEMPERATURE_COOLER.href == "/temperature/definite/cooler/vs/0"
 
     def test_write(self):
-        desc = fridge.DEFINITE_TEMPERATURE_COOLER.entities[0]
-        path, body = desc.write_fn("3", {})
+        desc = next(
+            e for e in fridge.DEFINITE_TEMPERATURE_COOLER.entities if isinstance(e, SelectDesc)
+        )
+        assert desc.write_fn is not None
+        result = desc.write_fn("3", {})
+        assert result is not None
+        path, body = result
         assert path == ["temperature", "definite", "cooler", "vs", "0"]
         assert body == {"x.com.samsung.da.definite.desired": "3"}
 
@@ -304,14 +339,19 @@ class TestKimchiZone:
         assert fridge.KIMCHI_DOOR_GENERIC.href_prefix == "/kimchidoors/"
 
     def test_write_derives_path_from_href(self):
-        desc = fridge.KIMCHI_ZONE.entities[0]
+        desc = next(e for e in fridge.KIMCHI_ZONE.entities if isinstance(e, SelectDesc))
+        assert desc.write_fn is not None
+        write_fn = cast("Callable[..., tuple[list[str], dict] | None]", desc.write_fn)
         rep = {"x.com.samsung.da.supportMode": ["KIMCHI_STORAGE_COLD"]}
-        path, body = desc.write_fn("KIMCHI_STORAGE_COLD", rep, href="/status/kimchi/middle/vs/0")
+        result = write_fn("KIMCHI_STORAGE_COLD", rep, href="/status/kimchi/middle/vs/0")
+        assert result is not None
+        path, body = result
         assert path == ["status", "kimchi", "middle", "vs", "0"]
         assert body == {"x.com.samsung.da.currentMode": "KIMCHI_STORAGE_COLD"}
 
     def test_write_without_href_is_rejected(self):
-        desc = fridge.KIMCHI_ZONE.entities[0]
+        desc = next(e for e in fridge.KIMCHI_ZONE.entities if isinstance(e, SelectDesc))
+        assert desc.write_fn is not None
         rep = {"x.com.samsung.da.supportMode": ["KIMCHI_STORAGE_COLD"]}
         assert desc.write_fn("KIMCHI_STORAGE_COLD", rep) is None
 
@@ -320,10 +360,12 @@ class TestKimchiZone:
         written blind -- this write path is unconfirmed against real
         hardware (module docstring above KIMCHI_ZONE), so a bad value here
         is a food-safety-adjacent outcome, not just a cosmetic one."""
-        desc = fridge.KIMCHI_ZONE.entities[0]
+        desc = next(e for e in fridge.KIMCHI_ZONE.entities if isinstance(e, SelectDesc))
+        assert desc.write_fn is not None
+        write_fn = cast("Callable[..., tuple[list[str], dict] | None]", desc.write_fn)
         rep = {"x.com.samsung.da.supportMode": ["KIMCHI_STORAGE_COLD"]}
         assert (
-            desc.write_fn(
+            write_fn(
                 "KIMCHI_STORAGE_WARM",
                 rep,
                 href="/status/kimchi/middle/vs/0",
@@ -340,6 +382,7 @@ class TestKimchiZone:
 
     def test_door_reuses_open_state_helper(self):
         desc = fridge.KIMCHI_DOOR_GENERIC.entities[0]
+        assert desc.rep_fn is not None
         assert desc.rep_fn({"x.com.samsung.da.openState": "Open"}) is True
         assert desc.rep_fn({"x.com.samsung.da.openState": "Close"}) is False
 
@@ -381,7 +424,7 @@ class TestKimchiZone:
                 self.commands.append(value)
 
         coordinator = _FakeCoordinator(resources, flatten(bound, resources))
-        entity = LocalThingsSelect(coordinator, mode_bound)
+        entity = LocalThingsSelect(cast(LocalThingsCoordinator, coordinator), mode_bound)
 
         assert entity.current_option == "kimchi_storage_normal"
         assert "kimchi_storage_cold" in entity.options

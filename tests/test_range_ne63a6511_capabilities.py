@@ -5,10 +5,13 @@ hrefs, plus oven.OVEN_MODE reading this dump's ConvectionRoast/KeepWarm/
 BreadProof/AirFryer/Dehydrate/SelfClean/SteamClean modes live from its own
 /mode/vs/0 supportedModes rather than needing them hardcoded."""
 
+from typing import cast
+
 from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import for_device_by_resources
 from custom_components.localthings.registry.capabilities import oven
 from custom_components.localthings.registry.discovery import discover
+from custom_components.localthings.registry.entities import SelectDesc
 from tests.conftest import _load_device
 
 
@@ -64,7 +67,9 @@ def test_oven_mode_accepts_this_devices_supported_modes():
     those modes added to any Python list."""
     _, resources = _range()
     live_rep = resources["/mode/vs/0"]
-    desc = oven.OVEN_MODE.entities[0]
+    desc = cast(SelectDesc, oven.OVEN_MODE.entities[0])
+    assert desc.options is not None
+    assert desc.write_fn is not None
     assert desc.options(resources) == live_rep["x.com.samsung.da.supportedModes"]
     for mode in (
         "ConvectionRoast",
@@ -75,6 +80,8 @@ def test_oven_mode_accepts_this_devices_supported_modes():
         "SelfClean",
         "SteamClean",
     ):
-        path, body = desc.write_fn(mode, live_rep)
+        result = desc.write_fn(mode, live_rep)
+        assert result is not None
+        path, body = result
         assert path == ["mode", "vs", "0"]
         assert body["x.com.samsung.da.modes"] == [mode]

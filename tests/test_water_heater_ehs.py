@@ -1,6 +1,6 @@
 """HA water_heater-entity mapping tests for the EHS DHW loop."""
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from homeassistant.components.water_heater import (
     STATE_ECO,
@@ -11,6 +11,7 @@ from homeassistant.components.water_heater import (
 )
 from homeassistant.const import STATE_OFF, UnitOfTemperature
 
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry.by_type import ehs
 from custom_components.localthings.registry.discovery import discover
 from custom_components.localthings.registry.entities import WaterHeaterDesc
@@ -47,7 +48,9 @@ def _entity(resources, coordinator=None):
         ehs.REGISTRY.pattern_capabilities,
     )
     water_heater_bound = next(item for item in bound if isinstance(item.desc, WaterHeaterDesc))
-    return LocalThingsWaterHeater(coordinator or _FakeCoordinator(resources), water_heater_bound)
+    return LocalThingsWaterHeater(
+        cast(LocalThingsCoordinator, coordinator or _FakeCoordinator(resources)), water_heater_bound
+    )
 
 
 def test_current_operation_reads_eco_when_on():
