@@ -124,10 +124,15 @@ def test_find_live_ports_detects_silent_port(socket_enabled) -> None:
     finally:
         live_sock.close()
 
-    assert result == [live_port]
+    assert result.live == [live_port]
+    # Refused, not unreachable: loopback is up and answered. That distinction
+    # is what stops a wrong-but-live IP and an address with nothing on it
+    # producing the same message.
+    assert result.refused == sorted(closed_ports)
+    assert result.unreachable == []
 
 
-def test_find_live_ports_rescues_preferred_ports_the_sweep_missed(
+def test_sweep_ports_rescues_preferred_ports_the_sweep_missed(
     socket_enabled,
     monkeypatch,
 ) -> None:
@@ -145,7 +150,7 @@ def test_find_live_ports_rescues_preferred_ports_the_sweep_missed(
     import socket
 
     from custom_components.localthings import config_flow
-    from custom_components.localthings.config_flow import _find_live_ports
+    from custom_components.localthings.config_flow import _sweep_ports
 
     # Bind an OS-assigned port and immediately close it, same technique
     # test_find_live_ports_detects_silent_port uses for its "closed" ports --
@@ -162,11 +167,14 @@ def test_find_live_ports_rescues_preferred_ports_the_sweep_missed(
     live_port = live_sock.getsockname()[1]
 
     try:
-        result = _find_live_ports("127.0.0.1", [preferred_port, live_port], 0.8)
+        sweep, candidates = _sweep_ports("127.0.0.1", [preferred_port, live_port], 0.8)
     finally:
         live_sock.close()
 
-    assert set(result) == {preferred_port, live_port}
+    # The sweep's own verdict stays honest -- it really didn't see the
+    # preferred port -- and the rescue shows up only in the candidate list.
+    assert sweep.live == [live_port]
+    assert set(candidates) == {preferred_port, live_port}
 
 
 WASHER_DEVICE0 = [
@@ -200,7 +208,9 @@ class FakeSession:
 
     def connect(self):
         if self.cert_pem in FakeSession.reject_certs:
-            raise ConnectionError("DTLS handshake error: bad_certificate")
+            raise ConnectionError(
+                "DTLS handshake error: [('SSL routines', '', 'sslv3 alert bad certificate')]"
+            )
 
     def start_reader(self):
         pass
@@ -304,8 +314,8 @@ async def test_probe_uses_discovered_low_port(hass: HomeAssistant, monkeypatch, 
     _patch_clienthello(monkeypatch, set())
     monkeypatch.setattr(
         config_flow,
-        "_find_live_ports",
-        lambda host, ports, timeout: [49153],
+        "_sweep_ports",
+        lambda host, ports, timeout: (_sweep_result(live=[49153]), [49153]),
     )
 
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
@@ -334,8 +344,8 @@ async def test_probe_falls_back_when_library_lacks_the_clienthello_probe(
     monkeypatch.setattr(config_flow, "_clienthello_probe", _missing)
     monkeypatch.setattr(
         config_flow,
-        "_find_live_ports",
-        lambda host, ports, timeout: [49154],
+        "_sweep_ports",
+        lambda host, ports, timeout: (_sweep_result(live=[49154]), [49154]),
     )
 
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
@@ -444,7 +454,11 @@ async def test_unconfirmed_port_failure_is_not_reminted(
     existing = MockConfigEntry(domain=DOMAIN, data=ENTRY_DATA, unique_id="localthings_other")
     existing.add_to_hass(hass)
     _patch_clienthello(monkeypatch, set())
-    monkeypatch.setattr(config_flow, "_find_live_ports", lambda host, ports, timeout: [49154])
+    monkeypatch.setattr(
+        config_flow,
+        "_sweep_ports",
+        lambda host, ports, timeout: (_sweep_result(live=[49154]), [49154]),
+    )
 
     def _timeout(self):
         raise TimeoutError("DTLS handshake timeout")
@@ -459,8 +473,268 @@ async def test_unconfirmed_port_failure_is_not_reminted(
     assert result["type"] == FlowResultType.FORM
     errors = result["errors"]
     assert errors is not None
-    assert errors["base"] == "cannot_connect"
+    assert errors["base"] == "no_dtls_server"
     assert len(FakeSession.instances) == 1
+
+
+# ---------------------------------------------------------------------------
+# Failure classification: one "cannot connect" used to cover all of these
+# ---------------------------------------------------------------------------
+
+
+def _sweep_result(live=(), refused=(), unreachable=()):
+    from custom_components.localthings.config_flow import _SweepResult
+
+    return _SweepResult(list(live), list(refused), list(unreachable))
+
+
+def _scan(confirmed=(), swept=None, candidates=(49154,)):
+    from custom_components.localthings.config_flow import _PortScan
+
+    return _PortScan(list(candidates), list(confirmed), swept)
+
+
+def _openssl_alert(name: str) -> ConnectionError:
+    """How the library surfaces a fatal alert received from the appliance."""
+    return ConnectionError(f"DTLS handshake error: [('SSL routines', '', '{name}')]")
+
+
+def test_cert_alert_is_reported_as_a_certificate_problem() -> None:
+    """The single most common real setup mistake -- CA credentials that
+    aren't the AC14K_M CA the appliance trusts -- used to render as "check
+    the IP address is reachable and the CA credentials are correct", which
+    is half wrong and gives no way to tell which half."""
+    from custom_components.localthings.config_flow import (
+        CertRejected,
+        _classify_handshake_failure,
+    )
+
+    for alert in ("tlsv1 alert unknown ca", "sslv3 alert bad certificate"):
+        err = _classify_handshake_failure(
+            MOCK_HOST, _scan(confirmed=[49154]), [(49154, _openssl_alert(alert))]
+        )
+        assert isinstance(err, CertRejected), alert
+        assert err.error_key == "cert_rejected"
+
+
+def test_non_cert_alert_is_kept_distinct_from_a_cert_problem() -> None:
+    """A cipher or version mismatch is also a deliberate refusal, but no
+    amount of fiddling with CA credentials will fix it."""
+    from custom_components.localthings.config_flow import (
+        HandshakeFailed,
+        _classify_handshake_failure,
+    )
+
+    err = _classify_handshake_failure(
+        MOCK_HOST,
+        _scan(confirmed=[49154]),
+        [(49154, _openssl_alert("tlsv1 alert protocol version"))],
+    )
+    assert isinstance(err, HandshakeFailed)
+    assert err.error_key == "handshake_failed"
+
+
+def test_confirmed_port_that_times_out_is_reported_as_a_stuck_session() -> None:
+    """The ClientHello probe proved a DTLS server is right there, so this is
+    not a connectivity or credentials problem -- it's the appliance still
+    holding the association from the last attempt, which clears itself."""
+    from custom_components.localthings.config_flow import (
+        HandshakeTimeout,
+        _classify_handshake_failure,
+    )
+
+    err = _classify_handshake_failure(
+        MOCK_HOST, _scan(confirmed=[49154]), [(49154, TimeoutError("handshake timeout"))]
+    )
+    assert isinstance(err, HandshakeTimeout)
+    assert err.error_key == "handshake_timeout"
+
+
+def test_every_port_refused_is_reported_as_closed_ports() -> None:
+    """ICMP port-unreachable on the whole range means the host is up and
+    answering -- it just isn't exposing a local API. Cloud-only firmware and
+    a wrong-but-live IP both land here."""
+    from custom_components.localthings.config_flow import (
+        PROBE_PORT_RANGE,
+        PortsClosed,
+        _classify_handshake_failure,
+    )
+
+    err = _classify_handshake_failure(
+        MOCK_HOST,
+        _scan(swept=_sweep_result(refused=PROBE_PORT_RANGE)),
+        [(49154, TimeoutError("handshake timeout"))],
+    )
+    assert isinstance(err, PortsClosed)
+    assert err.error_key == "ports_closed"
+
+
+def test_unreachable_host_is_not_reported_as_closed_ports() -> None:
+    """A wrong IP on the local subnet never answers ARP, so the kernel fails
+    every send with EHOSTUNREACH -- no port is "live", but nothing refused
+    us either. Lumping that in with a genuine refusal would tell the user
+    their appliance is on cloud-only firmware when in fact there is nothing
+    at that address at all."""
+    from custom_components.localthings.config_flow import (
+        PROBE_PORT_RANGE,
+        NoResponse,
+        _classify_handshake_failure,
+    )
+
+    err = _classify_handshake_failure(
+        MOCK_HOST,
+        _scan(swept=_sweep_result(unreachable=PROBE_PORT_RANGE)),
+        [(49154, TimeoutError("handshake timeout"))],
+    )
+    assert isinstance(err, NoResponse)
+    assert err.error_key == "no_response"
+
+
+def test_total_silence_is_reported_as_no_response() -> None:
+    """Not one ICMP refusal across a nine-port ephemeral range: a host that
+    is really there answers for at least some of it, so this reads as
+    nothing at that address rather than as a device that won't talk."""
+    from custom_components.localthings.config_flow import (
+        PROBE_PORT_RANGE,
+        NoResponse,
+        _classify_handshake_failure,
+    )
+
+    err = _classify_handshake_failure(
+        MOCK_HOST,
+        _scan(swept=_sweep_result(live=PROBE_PORT_RANGE)),
+        [(49154, TimeoutError("handshake timeout"))],
+    )
+    assert isinstance(err, NoResponse)
+    assert err.error_key == "no_response"
+
+
+def test_partially_open_range_is_reported_as_no_dtls_server() -> None:
+    """Some ports answered, some refused -- something is listening at that
+    address, it just isn't a DTLS appliance."""
+    from custom_components.localthings.config_flow import (
+        NoDtlsServer,
+        _classify_handshake_failure,
+    )
+
+    err = _classify_handshake_failure(
+        MOCK_HOST,
+        _scan(swept=_sweep_result(live=[49154, 49155], refused=[49153])),
+        [(49154, TimeoutError("timeout"))],
+    )
+    assert isinstance(err, NoDtlsServer)
+    assert err.error_key == "no_dtls_server"
+
+
+async def test_cert_rejection_surfaces_its_own_error_in_the_form(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """End to end: an appliance that rejects the certificate tells the user
+    that, rather than the blanket connectivity message."""
+    _patch_clienthello(monkeypatch, {49154})
+    FakeSession.reject_certs = {"FULLCHAIN"}
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+            CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+        },
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    errors = result["errors"]
+    assert errors is not None
+    assert errors["base"] == "cert_rejected"
+
+
+async def test_unreachable_cloud_gateway_is_reported_separately(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """Minting a certificate needs Samsung's cloud once, for the UUID. Losing
+    that is an internet problem on Home Assistant's side, not anything about
+    the appliance or the CA credentials the old message pointed at."""
+    from custom_components.localthings import config_flow
+
+    _patch_clienthello(monkeypatch, {49154})
+
+    def _no_cloud():
+        raise OSError("Name or service not known")
+
+    monkeypatch.setattr(config_flow, "_fetch_samsung_uuid", _no_cloud)
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+            CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+        },
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    errors = result["errors"]
+    assert errors is not None
+    assert errors["base"] == "cloud_unreachable"
+
+
+async def test_unusable_device0_is_reported_separately(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """Authenticating fine and then getting something we can't read is
+    neither a connectivity nor a credentials problem, and saying so saves a
+    user checking both."""
+    _patch_clienthello(monkeypatch, {49154})
+    monkeypatch.setattr(FakeSession, "get", lambda self, path, timeout=15.0: (0x84, b""))
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+            CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+        },
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    errors = result["errors"]
+    assert errors is not None
+    assert errors["base"] == "unexpected_response"
+
+
+def test_every_error_key_the_flow_can_raise_has_a_message() -> None:
+    """A key with no catalog entry renders as the bare key in the UI, so the
+    taxonomy and the strings have to stay in step."""
+    import json
+    from pathlib import Path
+
+    from custom_components.localthings import config_flow
+
+    keys = {
+        cls.error_key
+        for cls in vars(config_flow).values()
+        if isinstance(cls, type)
+        and issubclass(cls, (config_flow.CannotConnect, config_flow.InvalidCA))
+    }
+    keys.add("unknown")
+
+    catalog = json.loads(
+        (
+            Path(__file__).parents[2]
+            / "custom_components"
+            / "localthings"
+            / "translations"
+            / "en.json"
+        ).read_text()
+    )["config"]["error"]
+
+    assert keys <= set(catalog)
+    # And nothing unreachable left behind in the catalog either.
+    assert set(catalog) == keys
 
 
 async def test_cannot_connect(hass: HomeAssistant) -> None:
