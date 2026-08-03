@@ -41,14 +41,14 @@ DRYER_SETTINGS = Capability(
 # laundry.cycle_select (options read live from /wm/editcourse/vs/0, written as
 # an RMW on the options array). Course display names live in translations
 # under entity.select.dryer_cycle (Table_03, DV5000-class, captured
-# 2026-05-29). Codes 0x21 and 0x4C appear in the issue #14 DV90BB5245AES1
-# editCourseList but aren't identified yet -- they render as the raw code
-# until named. Codes '01' Normal and '06' Time dry were confirmed on a
+# 2026-05-29). Codes '01' Normal and '06' Time dry were confirmed on a
 # DVE50A8600V/A3 (also Table_03) by selecting each cycle on the physical
 # appliance and reading back the raw code from the entity's state (issue
-# #80). The /st/dryercourse/vs/0 resource re-encodes the same selected
-# course and is ignored (ignored.py) -- the mirror of how /st/washercourse/vs/0
-# is ignored for washers.
+# #80). Codes '51' Eco Cotton, '53' AI Dry+, and '4e' Self Dry were
+# confirmed the same way on a DV90DG6845LHU5 (issue #244). The
+# /st/dryercourse/vs/0 resource re-encodes the same selected course and is
+# ignored (ignored.py) -- the mirror of how /st/washercourse/vs/0 is ignored
+# for washers.
 #
 # Drum Clean+ maintenance tracking (issue #258) reuses washer.py's
 # DrumCleanProposal_/WashingTimes_/DrumCleanLog_ tokens on this same

@@ -325,7 +325,10 @@
           "1e": "Capi outdoor",
           "1f": "Carico misto",
           "2b": "Asciugatura cestello",
-          "4c": "Rinfresca"
+          "4c": "Rinfresca",
+          "51": "Eco cotone",
+          "53": "Asciugatura AI+",
+          "4e": "Autoasciugatura"
         }
       },
       "favorite_capacity": {

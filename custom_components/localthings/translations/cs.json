@@ -325,7 +325,10 @@
           "1e": "Outdoor",
           "1f": "Smíšená náplň",
           "2b": "Sušení bubnu",
-          "4c": "Osvěžení vzduchem"
+          "4c": "Osvěžení vzduchem",
+          "51": "Eko bavlna",
+          "53": "AI sušení+",
+          "4e": "Automatické sušení"
         }
       },
       "favorite_capacity": {

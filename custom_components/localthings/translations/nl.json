@@ -325,7 +325,10 @@
           "1e": "Outdoor",
           "1f": "Gemengde was",
           "2b": "Zelf trommel drogen",
-          "4c": "Opfrissen"
+          "4c": "Opfrissen",
+          "51": "Eco katoen",
+          "53": "AI drogen+",
+          "4e": "Zelf drogen"
         }
       },
       "favorite_capacity": {

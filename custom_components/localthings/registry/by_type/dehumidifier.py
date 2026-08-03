@@ -8,7 +8,7 @@ air_purifier.py's screen-on/off resource on the identical href/shape, so
 that's reused too rather than re-defined.
 """
 
-from ..capabilities import airconditioner, air_purifier, common, dehumidifier, ignored
+from ..capabilities import air_purifier, airconditioner, common, dehumidifier, ignored
 from ._base import DeviceRegistry, _build
 
 REGISTRY = DeviceRegistry(

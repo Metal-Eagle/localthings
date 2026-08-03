@@ -325,7 +325,10 @@
           "1e": "Outdoor",
           "1f": "Mixed load",
           "2b": "Self Tub Dry",
-          "4c": "Air Refresh"
+          "4c": "Air Refresh",
+          "51": "Eco Cotton",
+          "53": "AI Dry+",
+          "4e": "Self Dry"
         }
       },
       "favorite_capacity": {
