@@ -751,6 +751,9 @@
       },
       "watertank_light_brightness": {
         "name": "Brillo de la luz del depósito de agua"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "Umbral de alarma del filtro PM1"
       }
     },
     "sensor": {
@@ -1102,6 +1105,12 @@
       },
       "watertank_full_alarm_status": {
         "name": "Estado de alarma de depósito de agua lleno"
+      },
+      "air_filter_pm1_usage": {
+        "name": "Uso del filtro PM1"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "Horas de uso del filtro PM1"
       }
     },
     "switch": {
@@ -1272,6 +1281,12 @@
       },
       "watertank_light": {
         "name": "Luz del depósito de agua"
+      },
+      "uv_led": {
+        "name": "LED UV"
+      },
+      "ventilation_alarm": {
+        "name": "Alarma de ventilación"
       }
     },
     "time": {

@@ -1243,6 +1243,26 @@ def test_registry_reproduces_golden_state_keys_for_dehumidifier_tp1x_dhm01001():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_fac_time_23k():
+    """TP1X_FAC_TIME_23K (issue #270) reports a UV-C LED, a ventilation-alarm
+    toggle, and a second (PM1-rated, no live usage field) dust filter, none
+    previously modeled. Also a 2-in-1 system on this dump (numofsubdevice=2,
+    a UUID-prefixed sibling materializes via the flat fallback) -- the three
+    new/ignored hrefs are fixed on their canonical form so the sibling picks
+    them up too, per the adding-device-support skill's 'never index or
+    prefix a registry href' rule."""
+    from tests.conftest import _load_device
+
+    resources = _load_device("airconditioner_tp1x_fac_time_23k")
+    golden = json.loads((GOLDEN / "airconditioner_tp1x_fac_time_23k.json").read_text())
+    state_keys = _new_state_keys("airconditioner_tp1x_fac_time_23k", resources)
+    assert set(state_keys) == set(golden["state_keys"]), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_resources_from_batch_preferred_over_flat():
     from tests.conftest import _resources_from_dump
 

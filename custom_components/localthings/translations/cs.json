@@ -637,6 +637,9 @@
       },
       "watertank_light_brightness": {
         "name": "Jas osvětlení nádržky na vodu"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "Práh alarmu PM1 filtru"
       }
     },
     "sensor": {
@@ -988,6 +991,12 @@
       },
       "watertank_full_alarm_status": {
         "name": "Stav alarmu plné nádržky na vodu"
+      },
+      "air_filter_pm1_usage": {
+        "name": "Využití PM1 filtru"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "Hodiny využití PM1 filtru"
       }
     },
     "switch": {
@@ -1158,6 +1167,12 @@
       },
       "watertank_light": {
         "name": "Osvětlení nádržky na vodu"
+      },
+      "uv_led": {
+        "name": "UV LED"
+      },
+      "ventilation_alarm": {
+        "name": "Alarm větrání"
       }
     },
     "time": {

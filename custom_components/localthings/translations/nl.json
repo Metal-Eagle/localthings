@@ -637,6 +637,9 @@
       },
       "watertank_light_brightness": {
         "name": "Helderheid van het waterreservoirlicht"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "PM1-filteralarmdrempel"
       }
     },
     "sensor": {
@@ -988,6 +991,12 @@
       },
       "watertank_full_alarm_status": {
         "name": "Status alarm waterreservoir vol"
+      },
+      "air_filter_pm1_usage": {
+        "name": "PM1-filtergebruik"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "PM1-filtergebruik in uren"
       }
     },
     "switch": {
@@ -1158,6 +1167,12 @@
       },
       "watertank_light": {
         "name": "Waterreservoirlicht"
+      },
+      "uv_led": {
+        "name": "Uv-led"
+      },
+      "ventilation_alarm": {
+        "name": "Ventilatiealarm"
       }
     },
     "time": {

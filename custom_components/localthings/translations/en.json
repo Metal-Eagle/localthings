@@ -637,6 +637,9 @@
       },
       "watertank_light_brightness": {
         "name": "Water tank light brightness"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "PM1 filter alarm threshold"
       }
     },
     "sensor": {
@@ -988,6 +991,12 @@
       },
       "watertank_full_alarm_status": {
         "name": "Water tank full alarm status"
+      },
+      "air_filter_pm1_usage": {
+        "name": "PM1 filter usage"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "PM1 filter usage hours"
       }
     },
     "switch": {
@@ -1158,6 +1167,12 @@
       },
       "watertank_light": {
         "name": "Water tank light"
+      },
+      "uv_led": {
+        "name": "UV LED"
+      },
+      "ventilation_alarm": {
+        "name": "Ventilation alarm"
       }
     },
     "time": {

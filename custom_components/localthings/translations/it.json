@@ -637,6 +637,9 @@
       },
       "watertank_light_brightness": {
         "name": "Luminosità della luce del serbatoio dell'acqua"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "Soglia di allarme del filtro PM1"
       }
     },
     "sensor": {
@@ -988,6 +991,12 @@
       },
       "watertank_full_alarm_status": {
         "name": "Stato allarme serbatoio d'acqua pieno"
+      },
+      "air_filter_pm1_usage": {
+        "name": "Utilizzo del filtro PM1"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "Ore di utilizzo del filtro PM1"
       }
     },
     "switch": {
@@ -1158,6 +1167,12 @@
       },
       "watertank_light": {
         "name": "Luce del serbatoio dell'acqua"
+      },
+      "uv_led": {
+        "name": "LED UV"
+      },
+      "ventilation_alarm": {
+        "name": "Allarme ventilazione"
       }
     },
     "time": {
