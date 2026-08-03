@@ -8,6 +8,7 @@ fallback pairs and the energy meter in test_common_capabilities.py.
 from datetime import UTC
 
 from custom_components.localthings.registry.capabilities import laundry, washer
+from custom_components.localthings.registry.entities import SelectDesc
 
 
 def _rep_by_href(cap, href):
@@ -20,25 +21,50 @@ class TestWasherSettings:
         assert washer.WASHER_SETTINGS.href == "/washer/vs/0"
 
     def test_wash_temperature_read(self):
-        desc = next(e for e in washer.WASHER_SETTINGS.entities if e.key == "wash_temperature")
+        desc = next(
+            e
+            for e in washer.WASHER_SETTINGS.entities
+            if e.key == "wash_temperature" and isinstance(e, SelectDesc)
+        )
         assert desc.field == "x.com.samsung.da.waterTemperature"
         assert desc.options_field == "x.com.samsung.da.supportedWaterTemperature"
 
     def test_wash_temperature_write(self):
-        desc = next(e for e in washer.WASHER_SETTINGS.entities if e.key == "wash_temperature")
-        path, body = desc.write_fn("60", {})
+        desc = next(
+            e
+            for e in washer.WASHER_SETTINGS.entities
+            if e.key == "wash_temperature" and isinstance(e, SelectDesc)
+        )
+        assert desc.write_fn is not None
+        result = desc.write_fn("60", {})
+        assert result is not None
+        path, body = result
         assert path == ["washer", "vs", "0"]
         assert body == {"x.com.samsung.da.waterTemperature": "60"}
 
     def test_spin_speed_write(self):
-        desc = next(e for e in washer.WASHER_SETTINGS.entities if e.key == "spin_speed")
-        path, body = desc.write_fn("1400", {})
+        desc = next(
+            e
+            for e in washer.WASHER_SETTINGS.entities
+            if e.key == "spin_speed" and isinstance(e, SelectDesc)
+        )
+        assert desc.write_fn is not None
+        result = desc.write_fn("1400", {})
+        assert result is not None
+        path, body = result
         assert path == ["washer", "vs", "0"]
         assert body == {"x.com.samsung.da.spinLevel": "1400"}
 
     def test_rinse_cycles_write(self):
-        desc = next(e for e in washer.WASHER_SETTINGS.entities if e.key == "rinse_cycles")
-        path, body = desc.write_fn("3", {})
+        desc = next(
+            e
+            for e in washer.WASHER_SETTINGS.entities
+            if e.key == "rinse_cycles" and isinstance(e, SelectDesc)
+        )
+        assert desc.write_fn is not None
+        result = desc.write_fn("3", {})
+        assert result is not None
+        path, body = result
         assert path == ["washer", "vs", "0"]
         assert body == {"x.com.samsung.da.rinseCycles": "3"}
 
@@ -49,12 +75,20 @@ class TestDryLevel:
 
     def test_exists_only_when_supported_dry_level_present(self):
         desc = next(e for e in washer.WASHER_SETTINGS.entities if e.key == "dry_level")
+        assert desc.exists_fn is not None
         assert desc.exists_fn({"x.com.samsung.da.supportedDryLevel": ["None", "30"]}, {}) is True
         assert desc.exists_fn({}, {}) is False
 
     def test_write(self):
-        desc = next(e for e in washer.WASHER_SETTINGS.entities if e.key == "dry_level")
-        path, body = desc.write_fn("Cupboard", {})
+        desc = next(
+            e
+            for e in washer.WASHER_SETTINGS.entities
+            if e.key == "dry_level" and isinstance(e, SelectDesc)
+        )
+        assert desc.write_fn is not None
+        result = desc.write_fn("Cupboard", {})
+        assert result is not None
+        path, body = result
         assert path == ["washer", "vs", "0"]
         assert body == {"x.com.samsung.da.dryLevel": "Cupboard"}
 
@@ -82,15 +116,21 @@ class TestWasherCourse:
         translations/en.json via translation_key, not Python (see select.py's
         _display())."""
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == "cycle")
+        assert desc.rep_fn is not None
         rep = {"x.com.samsung.da.options": ["DeviceType_0167", "Course_1C", "GMT_04"]}
         assert desc.rep_fn(rep) == "1C"
 
     def test_missing_course_option_returns_none(self):
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == "cycle")
+        assert desc.rep_fn is not None
         assert desc.rep_fn({"x.com.samsung.da.options": ["GMT_04"]}) is None
 
     def test_cycle_desc_uses_cycle_options_callable(self):
-        desc = next(e for e in washer.WASHER_COURSE.entities if e.key == "cycle")
+        desc = next(
+            e
+            for e in washer.WASHER_COURSE.entities
+            if e.key == "cycle" and isinstance(e, SelectDesc)
+        )
         assert desc.options is laundry.cycle_options
 
     def test_exists_only_when_edit_course_list_is_live(self):
@@ -98,6 +138,7 @@ class TestWasherCourse:
         when a device actually populates editCourseList (see
         _cycle_options's docstring for why MostUsed_ isn't used either)."""
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == "cycle")
+        assert desc.exists_fn is not None
         assert desc.exists_fn({}, {}) is False
         assert desc.exists_fn({}, {"/wm/editcourse/vs/0": {}}) is False
         live = {"/wm/editcourse/vs/0": {"x.com.samsung.da.editCourseList": "EditCourseList_1C"}}
@@ -107,9 +148,16 @@ class TestWasherCourse:
         """Confirmed on real hardware (issue #54): the write only needs to
         carry the changed token -- the device matches by prefix, evicts the
         stale token, and merges the result into the array itself."""
-        desc = next(e for e in washer.WASHER_COURSE.entities if e.key == "cycle")
+        desc = next(
+            e
+            for e in washer.WASHER_COURSE.entities
+            if e.key == "cycle" and isinstance(e, SelectDesc)
+        )
+        assert desc.write_fn is not None
         rep = {"x.com.samsung.da.options": ["DeviceType_0167", "Course_1C", "GMT_04"]}
-        path, body = desc.write_fn("1D", rep)
+        result = desc.write_fn("1D", rep)
+        assert result is not None
+        path, body = result
         assert path == ["course", "vs", "0"]
         assert body == {"x.com.samsung.da.options": ["Course_1D"]}
 
@@ -121,6 +169,7 @@ class TestDrumClean:
         desc = next(
             e for e in washer.WASHER_COURSE.entities if e.key == "drum_clean_cycles_remaining"
         )
+        assert desc.rep_fn is not None
         rep = {"x.com.samsung.da.options": ["WashingTimes_3", "DrumCleanProposal_40"]}
         assert desc.rep_fn(rep) == 37
 
@@ -128,6 +177,7 @@ class TestDrumClean:
         desc = next(
             e for e in washer.WASHER_COURSE.entities if e.key == "drum_clean_cycles_remaining"
         )
+        assert desc.rep_fn is not None
         rep = {"x.com.samsung.da.options": ["WashingTimes_50", "DrumCleanProposal_40"]}
         assert desc.rep_fn(rep) == 0
 
@@ -135,12 +185,14 @@ class TestDrumClean:
         desc = next(
             e for e in washer.WASHER_COURSE.entities if e.key == "drum_clean_cycles_remaining"
         )
+        assert desc.rep_fn is not None
         assert desc.rep_fn({"x.com.samsung.da.options": []}) is None
 
     def test_cycles_remaining_exists_only_when_computable(self):
         desc = next(
             e for e in washer.WASHER_COURSE.entities if e.key == "drum_clean_cycles_remaining"
         )
+        assert desc.exists_fn is not None
         assert desc.exists_fn({"x.com.samsung.da.options": []}, {}) is False
         rep = {"x.com.samsung.da.options": ["WashingTimes_3", "DrumCleanProposal_40"]}
         assert desc.exists_fn(rep, {}) is True
@@ -149,6 +201,7 @@ class TestDrumClean:
         """DrumCleanLog_2026-07-01T20:18:07 -> a UTC-aware datetime,
         matching the same screenshot's '10 days ago' (as of 2026-07-11)."""
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == "drum_clean_last_cleaned")
+        assert desc.rep_fn is not None
         rep = {"x.com.samsung.da.options": ["DrumCleanLog_2026-07-01T20:18:07"]}
         from datetime import datetime
 
@@ -156,7 +209,9 @@ class TestDrumClean:
 
     def test_last_cleaned_missing(self):
         desc = next(e for e in washer.WASHER_COURSE.entities if e.key == "drum_clean_last_cleaned")
+        assert desc.rep_fn is not None
         assert desc.rep_fn({"x.com.samsung.da.options": []}) is None
+        assert desc.exists_fn is not None
         assert desc.exists_fn({"x.com.samsung.da.options": []}, {}) is False
 
 

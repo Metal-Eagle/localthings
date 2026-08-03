@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 from custom_components.localthings.const import CONF_FINISH_TIME_HYSTERESIS_MINUTES
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry.capabilities.operational import OPERATIONAL_STATE
 from custom_components.localthings.registry.discovery import BoundEntity
 from custom_components.localthings.sensor import LocalThingsSensor
@@ -32,12 +34,14 @@ class _FakeCoordinator:
 
 def _sensor(threshold_minutes=3):
     coordinator = _FakeCoordinator(threshold_minutes)
+    href = OPERATIONAL_STATE.href
+    assert href is not None
     bound = BoundEntity(
-        href=OPERATIONAL_STATE.href,
+        href=href,
         capability=OPERATIONAL_STATE,
         desc=_FINISH_TIME_DESC,
     )
-    sensor = LocalThingsSensor(coordinator, bound)
+    sensor = LocalThingsSensor(cast(LocalThingsCoordinator, coordinator), bound)
     return sensor, coordinator
 
 
@@ -92,12 +96,14 @@ def test_non_hysteresis_sensor_is_unaffected():
     """A SensorDesc without hysteresis=True reads straight through, unchanged."""
     machine_state_desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "machine_state")
     coordinator = _FakeCoordinator(threshold_minutes=3)
+    href = OPERATIONAL_STATE.href
+    assert href is not None
     bound = BoundEntity(
-        href=OPERATIONAL_STATE.href,
+        href=href,
         capability=OPERATIONAL_STATE,
         desc=machine_state_desc,
     )
-    sensor = LocalThingsSensor(coordinator, bound)
+    sensor = LocalThingsSensor(cast(LocalThingsCoordinator, coordinator), bound)
 
     coordinator.data = {"machine_state": "active"}
     assert sensor.native_value == "active"

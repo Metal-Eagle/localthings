@@ -4,6 +4,7 @@ from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.capabilities import range as range_caps
 from custom_components.localthings.registry.discovery import discover
+from custom_components.localthings.registry.entities import SelectDesc, SensorDesc, SwitchDesc
 from tests.conftest import _load_device
 
 
@@ -68,14 +69,21 @@ def test_unreported_burners_gated_out():
 
 
 def test_burner_power_level_write_is_read_modify_write():
-    desc = next(e for e in range_caps.COOKTOP_STATUS.entities if e.key == "burner_1_power_level")
+    desc = next(
+        e
+        for e in range_caps.COOKTOP_STATUS.entities
+        if e.key == "burner_1_power_level" and isinstance(e, SelectDesc)
+    )
     rep = {
         "burnerList": [
             {"burnerNumber": 0, "powerLevel": "3"},
             {"burnerNumber": 1, "powerLevel": "0"},
         ]
     }
-    path, body = desc.write_fn("boost", rep)
+    assert desc.write_fn is not None
+    result = desc.write_fn("boost", rep)
+    assert result is not None
+    path, body = result
     assert path == ["cooktop", "status", "vs", "0"]
     burners = {b["burnerNumber"]: b["powerLevel"] for b in body["burnerList"]}
     assert burners[1] == "boost"
@@ -83,8 +91,13 @@ def test_burner_power_level_write_is_read_modify_write():
 
 
 def test_burner_power_level_write_rejects_missing_burner():
-    desc = next(e for e in range_caps.COOKTOP_STATUS.entities if e.key == "burner_2_power_level")
+    desc = next(
+        e
+        for e in range_caps.COOKTOP_STATUS.entities
+        if e.key == "burner_2_power_level" and isinstance(e, SelectDesc)
+    )
     rep = {"burnerList": [{"burnerNumber": 0, "powerLevel": "0"}]}
+    assert desc.write_fn is not None
     assert desc.write_fn("5", rep) is None
 
 
@@ -109,17 +122,29 @@ def test_cooktop_power_is_read_only():  # issue #86
 
 
 def test_cooktop_child_lock_write():  # issue #86
-    desc = next(e for e in range_caps.COOKTOP_STATUS.entities if e.key == "cooktop_child_lock")
+    desc = next(
+        e
+        for e in range_caps.COOKTOP_STATUS.entities
+        if e.key == "cooktop_child_lock" and isinstance(e, SwitchDesc)
+    )
     assert desc.value_fn("on") is True
     assert desc.value_fn("off") is False
-    path, body = desc.write_fn("On", {})
+    assert desc.write_fn is not None
+    result = desc.write_fn("On", {})
+    assert result is not None
+    path, body = result
     assert path == ["cooktop", "status", "vs", "0"]
     assert body == {"childLock": "on"}
     assert desc.write_fn("Bogus", {}) is None
 
 
 def test_probe_status_temperature_unit_reads_live_field():  # issue #86
-    desc = next(e for e in range_caps.PROBE_STATUS.entities if e.key == "probe_temperature")
+    desc = next(
+        e
+        for e in range_caps.PROBE_STATUS.entities
+        if e.key == "probe_temperature" and isinstance(e, SensorDesc)
+    )
+    assert desc.unit_fn is not None
     assert desc.unit_fn({"temperatureUnit": "C"}) == "°C"
     assert desc.unit_fn({"temperatureUnit": "F"}) == "°F"
     assert desc.unit_fn({}) == "°C"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Iterable, cast
 from unittest.mock import patch
 
 from homeassistant.core import HomeAssistant
@@ -32,8 +33,10 @@ async def test_form_first_device(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user"
-    assert CONF_CA_CERT_PEM in result["data_schema"].schema
-    assert CONF_CA_KEY_PEM in result["data_schema"].schema
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+    assert CONF_CA_CERT_PEM in data_schema.schema
+    assert CONF_CA_KEY_PEM in data_schema.schema
 
 
 async def test_form_second_device_reuses_creds(hass: HomeAssistant) -> None:
@@ -44,8 +47,10 @@ async def test_form_second_device_reuses_creds(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user_reuse"
-    assert CONF_CA_CERT_PEM not in result["data_schema"].schema
-    assert CONF_CA_KEY_PEM not in result["data_schema"].schema
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+    assert CONF_CA_CERT_PEM not in data_schema.schema
+    assert CONF_CA_KEY_PEM not in data_schema.schema
 
 
 async def test_successful_setup(hass: HomeAssistant, mock_probe) -> None:
@@ -243,7 +248,9 @@ async def test_cannot_connect(hass: HomeAssistant) -> None:
             },
         )
     assert result["type"] == FlowResultType.FORM
-    assert result["errors"]["base"] == "cannot_connect"
+    errors = result["errors"]
+    assert errors is not None
+    assert errors["base"] == "cannot_connect"
 
 
 async def test_recognized_type_skips_confirmation_step(hass: HomeAssistant, mock_probe) -> None:
@@ -368,7 +375,7 @@ async def test_options_flow_init_shows_menu(hass: HomeAssistant) -> None:
 
     assert result["type"] == FlowResultType.MENU
     assert result["step_id"] == "init"
-    assert set(result["menu_options"]) == {"settings", "debug_write"}
+    assert set(cast(Iterable[str], result["menu_options"])) == {"settings", "debug_write"}
 
 
 async def test_options_flow_default_is_off(hass: HomeAssistant) -> None:
@@ -384,7 +391,9 @@ async def test_options_flow_default_is_off(hass: HomeAssistant) -> None:
 
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "settings"
-    assert result["data_schema"]({})[CONF_BYPASS_REMOTE_CONTROL] is False
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+    assert data_schema({})[CONF_BYPASS_REMOTE_CONTROL] is False
 
 
 async def test_options_flow_can_enable_bypass(hass: HomeAssistant) -> None:
@@ -421,7 +430,9 @@ async def test_options_flow_reflects_previously_saved_value(hass: HomeAssistant)
         result["flow_id"], user_input={"next_step_id": "settings"}
     )
 
-    assert result["data_schema"]({})[CONF_BYPASS_REMOTE_CONTROL] is True
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+    assert data_schema({})[CONF_BYPASS_REMOTE_CONTROL] is True
 
 
 async def test_options_flow_debug_write_shows_hrefs_from_coordinator(
@@ -495,7 +506,9 @@ async def test_options_flow_debug_edit_writes_and_shows_result(
 
     assert result["type"] == FlowResultType.MENU
     assert result["step_id"] == "debug_result"
-    assert result["description_placeholders"]["code"] == "2.04 (0x44)"
+    description_placeholders = result["description_placeholders"]
+    assert description_placeholders is not None
+    assert description_placeholders["code"] == "2.04 (0x44)"
 
 
 async def test_options_flow_debug_edit_rejects_empty_payload(

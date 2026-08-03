@@ -3,8 +3,9 @@
 and callable forms of SelectDesc.options.
 """
 
-from typing import ClassVar
+from typing import ClassVar, cast
 
+from custom_components.localthings.coordinator import LocalThingsCoordinator
 from custom_components.localthings.registry.capability import Capability
 from custom_components.localthings.registry.discovery import BoundEntity
 from custom_components.localthings.registry.entities import SelectDesc
@@ -27,7 +28,7 @@ class _FakeCoordinator:
 def _make_select(desc, href, last_resources):
     capability = Capability(href=href, entities=(desc,))
     bound = BoundEntity(href=href, capability=capability, desc=desc)
-    return LocalThingsSelect(_FakeCoordinator(last_resources), bound)
+    return LocalThingsSelect(cast(LocalThingsCoordinator, _FakeCoordinator(last_resources)), bound)
 
 
 def test_static_options_unaffected():
@@ -107,7 +108,7 @@ async def test_unknown_vendor_option_round_trips_to_exact_raw_value():
     capability = Capability(href="/x/vs/0", entities=(desc,))
     bound = BoundEntity(href="/x/vs/0", capability=capability, desc=desc)
     coordinator = _WritableCoordinator({})
-    entity = LocalThingsSelect(coordinator, bound)
+    entity = LocalThingsSelect(cast(LocalThingsCoordinator, coordinator), bound)
 
     assert entity.options[-1] == "Future Vendor Mode"
     await entity.async_select_option("Future Vendor Mode")

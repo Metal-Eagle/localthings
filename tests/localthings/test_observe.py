@@ -53,6 +53,7 @@ def test_apply_merges_partial_update_onto_prior_rep():
     mgr.apply("/mode/vs/0", partial, source="observe")
 
     cached = mgr.cache.get("/mode/vs/0")
+    assert cached is not None
     assert cached["x.com.samsung.da.modes"] == ["CVN_CONVERTIBLE_ZONE", "WATERFILTER_ENABLE"]
     assert cached["x.com.samsung.da.supportedOptions"] == ["CV_FDR_WINE", "CV_FDR_MEAT"]
 
@@ -435,6 +436,7 @@ def test_close_stops_the_refresh_thread():
     session = _FakeSession()
     mgr.start_refresh_task(session)
     thread = mgr._refresh_thread
+    assert thread is not None
 
     mgr.close()
     thread.join(timeout=2.0)
@@ -449,6 +451,7 @@ def test_downgrade_to_poll_stops_refresh_task():
     session = _FakeSession()
     mgr.start_refresh_task(session)
     thread = mgr._refresh_thread
+    assert thread is not None
 
     mgr.downgrade_to_poll()
     thread.join(timeout=2.0)

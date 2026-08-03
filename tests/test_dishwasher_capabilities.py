@@ -6,6 +6,7 @@ check the dishwasher wiring and its device-specific options.
 """
 
 from custom_components.localthings.registry.capabilities import dishwasher, laundry
+from custom_components.localthings.registry.entities import SwitchDesc
 
 
 class TestCycleOptions:
@@ -34,14 +35,27 @@ class TestCycleOptions:
 
 class TestDishwasherOptions:
     def test_storm_wash_read_and_write(self):
-        desc = next(e for e in dishwasher.CYCLE_OPTIONS.entities if e.key == "storm_wash")
+        desc = next(
+            e
+            for e in dishwasher.CYCLE_OPTIONS.entities
+            if e.key == "storm_wash" and isinstance(e, SwitchDesc)
+        )
+        assert desc.rep_fn is not None
         assert desc.rep_fn({"x.com.samsung.da.options": ["StormWashZone_On"]}) is True
         assert desc.rep_fn({"x.com.samsung.da.options": ["StormWashZone_Off"]}) is False
-        path, body = desc.write_fn("Off", {"x.com.samsung.da.options": ["StormWashZone_On"]})
+        assert desc.write_fn is not None
+        result = desc.write_fn("Off", {"x.com.samsung.da.options": ["StormWashZone_On"]})
+        assert result is not None
+        path, body = result
         assert path == ["course", "vs", "0"]
         assert "StormWashZone_Off" in body["x.com.samsung.da.options"]
 
     def test_auto_release_exists_only_when_field_present(self):
-        desc = next(e for e in dishwasher.CYCLE_OPTIONS.entities if e.key == "auto_release_dry")
+        desc = next(
+            e
+            for e in dishwasher.CYCLE_OPTIONS.entities
+            if e.key == "auto_release_dry" and isinstance(e, SwitchDesc)
+        )
+        assert desc.exists_fn is not None
         assert desc.exists_fn({"x.com.samsung.da.options": []}, {}) is False
         assert desc.exists_fn({"x.com.samsung.da.options": ["AutoDoorRelease_On"]}, {}) is True

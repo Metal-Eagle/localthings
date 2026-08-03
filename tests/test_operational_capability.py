@@ -1,6 +1,7 @@
 """Unit tests for operational state capabilities."""
 
 from custom_components.localthings.registry.capabilities.operational import OPERATIONAL_STATE
+from custom_components.localthings.registry.entities import NumberDesc
 
 
 def test_machine_state_maps_samsung_to_ocf():
@@ -17,11 +18,13 @@ class TestProgressPercentage:
 
     def test_zeroed_when_not_active(self):
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "progress_percentage")
+        assert desc.rep_fn is not None
         rep = {"x.com.samsung.da.state": "Ready", "x.com.samsung.da.progressPercentage": "1"}
         assert desc.rep_fn(rep) == 0
 
     def test_passes_through_when_active(self):
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "progress_percentage")
+        assert desc.rep_fn is not None
         rep = {"x.com.samsung.da.state": "Run", "x.com.samsung.da.progressPercentage": "42"}
         assert desc.rep_fn(rep) == 42
 
@@ -31,6 +34,7 @@ class TestCompletionMinutes:
 
     def test_completion_minutes_parsing(self):
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "completion_minutes")
+        assert desc.rep_fn is not None
 
         # 1 hour 25 mins 30 secs -> 85 mins + 1 sec ceiling = 86 mins
         rep = {"x.com.samsung.da.remainingTime": "01:25:30"}
@@ -42,6 +46,7 @@ class TestCompletionMinutes:
 
     def test_completion_minutes_fallback_key(self):
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "completion_minutes")
+        assert desc.rep_fn is not None
         rep = {"remainingTime": "00:45:00"}
         assert desc.rep_fn(rep) == 45
 
@@ -49,6 +54,7 @@ class TestCompletionMinutes:
         """Firmware freezes remainingTime at '00:01:00' when progress reaches 'Finish'.
         Should return 0 to prevent stuck values."""
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "completion_minutes")
+        assert desc.rep_fn is not None
         rep = {
             "x.com.samsung.da.progress": "Finish",
             "x.com.samsung.da.remainingTime": "00:01:00",
@@ -57,6 +63,7 @@ class TestCompletionMinutes:
 
     def test_completion_minutes_missing_or_invalid(self):
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "completion_minutes")
+        assert desc.rep_fn is not None
 
         rep = {}
         assert desc.rep_fn(rep) is None
@@ -71,6 +78,7 @@ class TestFinishTime:
 
     def test_seconds_and_microseconds_are_zeroed(self):
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "finish_time")
+        assert desc.rep_fn is not None
         rep = {
             "x.com.samsung.da.state": "Run",
             "x.com.samsung.da.remainingTime": "00:29:00",
@@ -81,6 +89,7 @@ class TestFinishTime:
 
     def test_stable_across_polls_within_same_minute(self):
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "finish_time")
+        assert desc.rep_fn is not None
         rep = {
             "x.com.samsung.da.state": "Run",
             "x.com.samsung.da.remainingTime": "00:29:00",
@@ -97,6 +106,7 @@ class TestDelayFieldFallback:
         )
 
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "delay_start_hours")
+        assert desc.rep_fn is not None
         rep = {"x.com.samsung.da.delayEndTime": "02:30:00"}
         assert desc.rep_fn(rep) == 2.5
 
@@ -106,6 +116,7 @@ class TestDelayFieldFallback:
         )
 
         desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "delay_start_hours")
+        assert desc.rep_fn is not None
         rep = {
             "x.com.samsung.da.delayStartTime": "01:00:00",
             "x.com.samsung.da.delayEndTime": "02:00:00",
@@ -117,9 +128,16 @@ class TestDelayFieldFallback:
             OPERATIONAL_STATE,
         )
 
-        desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "delay_start_hours")
+        desc = next(
+            e
+            for e in OPERATIONAL_STATE.entities
+            if e.key == "delay_start_hours" and isinstance(e, NumberDesc)
+        )
+        assert desc.write_fn is not None
         rep = {"x.com.samsung.da.delayEndTime": "00:00:00"}
-        path, body = desc.write_fn(1.5, rep)
+        result = desc.write_fn(1.5, rep)
+        assert result is not None
+        path, body = result
         assert path == ["operational", "state", "vs", "0"]
         assert body == {"x.com.samsung.da.delayEndTime": "1:30:00"}
 
@@ -128,7 +146,14 @@ class TestDelayFieldFallback:
             OPERATIONAL_STATE,
         )
 
-        desc = next(e for e in OPERATIONAL_STATE.entities if e.key == "delay_start_hours")
+        desc = next(
+            e
+            for e in OPERATIONAL_STATE.entities
+            if e.key == "delay_start_hours" and isinstance(e, NumberDesc)
+        )
+        assert desc.write_fn is not None
         rep = {"x.com.samsung.da.delayStartTime": "00:00:00"}
-        _path, body = desc.write_fn(1.5, rep)
+        result = desc.write_fn(1.5, rep)
+        assert result is not None
+        _path, body = result
         assert body == {"x.com.samsung.da.delayStartTime": "1:30:00"}

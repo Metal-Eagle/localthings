@@ -6,8 +6,11 @@ UUID-prefixed tree) this module unifies.
 
 from __future__ import annotations
 
+from typing import cast
+
 import cbor2
 
+from custom_components.localthings.registry.by_type import DeviceRegistry
 from custom_components.localthings.registry.capability import Capability
 from custom_components.localthings.registry.entities import BinarySensorDesc, SensorDesc
 from custom_components.localthings.registry.subdevices import (
@@ -621,7 +624,7 @@ def test_discover_partitioned_main_pass_excludes_subdevice_hrefs_from_unbound():
     discover_partitioned(
         resources,
         [sub1],
-        lambda r, **_: reg,
+        lambda r, **_: cast(DeviceRegistry, reg),
         fallback_capabilities={},
         log=unbound.append,
     )
@@ -752,7 +755,7 @@ def test_discover_partitioned_no_subdevices_matches_plain_discover():
     bound_via_helper, _, materialized, skipped = discover_partitioned(
         resources,
         [],
-        lambda r, **_: reg,
+        lambda r, **_: cast(DeviceRegistry, reg),
         fallback_capabilities={},
     )
     bound_direct = discover(resources, reg.capabilities, reg.pattern_capabilities)
@@ -789,7 +792,7 @@ def test_discover_partitioned_skips_candidate_with_no_live_primary_entity():
     bound, _, materialized, skipped = discover_partitioned(
         resources,
         [unit2],
-        lambda r, **_: reg,
+        lambda r, **_: cast(DeviceRegistry, reg),
         fallback_capabilities={},
     )
     assert materialized == []
@@ -828,7 +831,7 @@ def test_discover_partitioned_materializes_candidate_with_live_primary_entity():
     bound, _, materialized, skipped = discover_partitioned(
         resources,
         [sub1],
-        lambda r, **_: reg,
+        lambda r, **_: cast(DeviceRegistry, reg),
         fallback_capabilities={},
     )
     assert materialized == [sub1]
@@ -871,7 +874,7 @@ def test_discover_partitioned_skips_candidate_whose_only_live_primary_is_a_meter
     bound, _, materialized, skipped = discover_partitioned(
         resources,
         [unit1],
-        lambda r, **_: reg,
+        lambda r, **_: cast(DeviceRegistry, reg),
         fallback_capabilities={},
     )
     assert materialized == []
@@ -910,7 +913,7 @@ def test_discover_partitioned_meter_carve_out_does_not_gate_out_a_live_subdevice
     bound, _, materialized, skipped = discover_partitioned(
         resources,
         [unit1],
-        lambda r, **_: reg,
+        lambda r, **_: cast(DeviceRegistry, reg),
         fallback_capabilities={},
     )
     assert materialized == [unit1]
@@ -938,7 +941,7 @@ def test_discover_partitioned_skipped_candidate_contributes_no_hot_warm_hrefs():
     discover_partitioned(
         resources,
         [unit2],
-        lambda r, **_: reg,
+        lambda r, **_: cast(DeviceRegistry, reg),
         fallback_capabilities={},
         tier_log=lambda href, tier: tiers.append(href),
     )

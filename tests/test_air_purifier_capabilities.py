@@ -4,6 +4,7 @@ from custom_components.localthings.registry.adapter import flatten
 from custom_components.localthings.registry.by_type import for_device_by_model
 from custom_components.localthings.registry.capabilities import air_purifier
 from custom_components.localthings.registry.discovery import discover
+from custom_components.localthings.registry.entities import FanDesc, SensorDesc, SwitchDesc
 from tests.conftest import _load_device
 
 
@@ -90,7 +91,9 @@ def test_light_switch_write_contract():
     (via laundry.option_write) -- confirmed on real hardware (issue #54)
     that the device merges by prefix itself, so no read-modify-write of the
     whole packed /mode/vs/0 options list is needed."""
-    desc = next(e for e in air_purifier.MODE.entities if e.key == "display_light")
+    desc = next(
+        e for e in air_purifier.MODE.entities if e.key == "display_light" and isinstance(e, SwitchDesc)
+    )
     rep = {
         "x.com.samsung.da.options": [
             "Comode_Off",
@@ -99,7 +102,9 @@ def test_light_switch_write_contract():
             "OptionCode_60282",
         ]
     }
+    assert desc.rep_fn is not None
     assert desc.rep_fn(rep) is True
+    assert desc.write_fn is not None
     assert desc.write_fn("Off", rep) == (
         ["mode", "vs", "0"],
         {"x.com.samsung.da.options": ["Light_Off"]},
@@ -112,8 +117,11 @@ def test_operating_mode_is_a_read_only_diagnostic():
     regardless of the device's actual fan setting, ruling out the original
     guess that it was the fan-speed selector; its real purpose is still
     unconfirmed (see the air_purifier.py module docstring)."""
-    operating_mode = next(e for e in air_purifier.MODE.entities if e.key == "operating_mode")
+    operating_mode = next(
+        e for e in air_purifier.MODE.entities if e.key == "operating_mode" and isinstance(e, SensorDesc)
+    )
     rep = {"x.com.samsung.da.options": ["Comode_Off"]}
+    assert operating_mode.rep_fn is not None
     assert operating_mode.rep_fn(rep) == "Off"
     assert not hasattr(operating_mode, "write_fn")
 
@@ -128,14 +136,16 @@ def test_blooming_not_modeled():
 def test_airflow_vs_fallback_only_binds_without_generic():
     """/airflow/vs/0 is a match_fn fallback -- it must not bind when the
     OCF-standard /airflow/0 is also present (both are on every dump seen)."""
+    match_fn = air_purifier.AIRFLOW_VS_FALLBACK.match_fn
+    assert match_fn is not None
     assert (
-        air_purifier.AIRFLOW_VS_FALLBACK.match_fn(
+        match_fn(
             {},
             {"/airflow/0": {"speed": 0, "direction": "Off"}},
         )
         is False
     )
-    assert air_purifier.AIRFLOW_VS_FALLBACK.match_fn({}, {}) is True
+    assert match_fn({}, {}) is True
 
 
 def test_airflow_fan_write_contract():
@@ -143,7 +153,10 @@ def test_airflow_fan_write_contract():
     (two independent units, 60-90s apart per setting): /airflow/0's `speed`
     is a clean, monotonic 0-4 code, so the write is a plain int passthrough
     -- no named-preset table needed (see fan.py's LocalThingsAirflowFan)."""
-    fan_desc = next(e for e in air_purifier.AIRFLOW_GENERIC.entities if e.key == "airflow_fan")
+    fan_desc = next(
+        e for e in air_purifier.AIRFLOW_GENERIC.entities if e.key == "airflow_fan" and isinstance(e, FanDesc)
+    )
+    assert fan_desc.write_fn is not None
     assert fan_desc.write_fn(("speed", 3), {}) == (["airflow", "0"], {"speed": 3})
     assert fan_desc.write_fn(("power", True, "/power/vs/0"), {}) == (
         ["power", "vs", "0"],

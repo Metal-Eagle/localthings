@@ -291,7 +291,9 @@ def test_logger_is_scoped_to_device_host(hass: HomeAssistant, mock_entry) -> Non
     makes multi-device logs ambiguous."""
     coordinator = LocalThingsCoordinator(hass, mock_entry)
 
-    assert coordinator._log.name.endswith(ENTRY_DATA[CONF_HOST])
+    host = ENTRY_DATA[CONF_HOST]
+    assert isinstance(host, str)
+    assert coordinator._log.name.endswith(host)
     assert coordinator.logger is coordinator._log
     assert coordinator._observe.log is coordinator._log
 
@@ -393,7 +395,9 @@ async def test_reconnect_while_observe_mode_downgrades_to_poll(
     # still alive (see test_poll_failure_skips_reconnect_when_push_is_healthy)
     # and would not trigger a reconnect at all. This test covers a
     # genuinely dead channel: no recent push, poll fails, reconnect fires.
-    coordinator._observe._last_notify_ts -= PUSH_HEALTH_WINDOW_S + 1
+    last_notify_ts = coordinator._observe._last_notify_ts
+    assert last_notify_ts is not None
+    coordinator._observe._last_notify_ts = last_notify_ts - (PUSH_HEALTH_WINDOW_S + 1)
 
     # Simulate the existing "poll failed, reconnecting" branch: _poll_once
     # fails once (triggering the reconnect/backoff path), then succeeds.
@@ -490,7 +494,9 @@ async def test_poll_timeout_reconnects_after_consecutive_limit_even_with_push(
 
     # No notify is recent any more, so every timeout below counts toward
     # the consecutive-timeout limit instead of being deferred.
-    coordinator._observe._last_notify_ts -= PUSH_HEALTH_WINDOW_S + 1
+    last_notify_ts = coordinator._observe._last_notify_ts
+    assert last_notify_ts is not None
+    coordinator._observe._last_notify_ts = last_notify_ts - (PUSH_HEALTH_WINDOW_S + 1)
 
     # Call _async_update_data directly rather than via
     # async_request_refresh() — the coordinator's built-in debouncer
@@ -553,7 +559,9 @@ async def test_poll_timeout_counter_resets_when_push_is_healthy_again(
     assert coordinator.observe_mode == MODE_OBSERVE
 
     # Age the notify out so timeouts accrue toward the limit.
-    coordinator._observe._last_notify_ts -= PUSH_HEALTH_WINDOW_S + 1
+    last_notify_ts = coordinator._observe._last_notify_ts
+    assert last_notify_ts is not None
+    coordinator._observe._last_notify_ts = last_notify_ts - (PUSH_HEALTH_WINDOW_S + 1)
     with patch(
         "custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once",
         side_effect=TimeoutError("GET /device/0 block 11 timeout"),
@@ -605,7 +613,9 @@ async def test_reconnect_from_observe_mode_resubscribes_immediately(
     # failure below actually triggers a reconnect (see
     # test_poll_failure_skips_reconnect_when_push_is_healthy for the
     # healthy-push case, which now skips reconnecting entirely).
-    coordinator._observe._last_notify_ts -= PUSH_HEALTH_WINDOW_S + 1
+    last_notify_ts = coordinator._observe._last_notify_ts
+    assert last_notify_ts is not None
+    coordinator._observe._last_notify_ts = last_notify_ts - (PUSH_HEALTH_WINDOW_S + 1)
 
     # If a stale retry timer (rather than an immediate resubscribe) were
     # driving recovery, mode would still be 'poll' right after this single
@@ -734,7 +744,7 @@ async def test_write_marks_href_pending_before_post(
     await hass.async_block_till_done()
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
 
-    def _write_fn(payload, rep, href):
+    def _write_fn(payload, rep, href=None):
         return (["some", "path"], {"value": payload})
 
     desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
@@ -771,7 +781,7 @@ async def test_send_command_applies_write_optimistically_before_settling(
     await hass.async_block_till_done()
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
 
-    def _write_fn(payload, rep, href):
+    def _write_fn(payload, rep, href=None):
         return (["some", "path"], {"value": payload})
 
     desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
@@ -812,8 +822,10 @@ async def test_climate_power_write_applies_to_its_own_href_not_bound_href(
     await hass.async_block_till_done()
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
 
+    climate_href = airconditioner.CLIMATE.href
+    assert climate_href is not None
     bound = BoundEntity(
-        href=airconditioner.CLIMATE.href,
+        href=climate_href,
         capability=coordinator.bound[0].capability,
         desc=airconditioner.CLIMATE.entities[0],
     )
@@ -823,9 +835,7 @@ async def test_climate_power_write_applies_to_its_own_href_not_bound_href(
         await coordinator.async_send_command(bound, ("power", True))
 
     assert (coordinator._cache.get("/power/vs/0") or {}).get("x.com.samsung.da.power") == "On"
-    assert "x.com.samsung.da.power" not in (
-        coordinator._cache.get(airconditioner.CLIMATE.href) or {}
-    )
+    assert "x.com.samsung.da.power" not in (coordinator._cache.get(climate_href) or {})
     assert coordinator._observe._settle_until.get("/power/vs/0") is not None
 
 
@@ -858,7 +868,7 @@ async def test_send_command_survives_stale_confirm_poll(
     await hass.async_block_till_done()
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
 
-    def _write_fn(payload, rep, href):
+    def _write_fn(payload, rep, href=None):
         return (["test", "vs", "0"], {"value": payload})
 
     desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
@@ -917,12 +927,12 @@ async def test_second_write_to_same_href_lands_during_first_writes_settle_window
     desc_a = NumberDesc(
         key="cycle",
         field="cycle",
-        write_fn=lambda p, rep, href: (["test", "vs", "0"], {"cycle": p}),
+        write_fn=lambda p, rep, href=None: (["test", "vs", "0"], {"cycle": p}),
     )
     desc_b = NumberDesc(
         key="detergent",
         field="detergent",
-        write_fn=lambda p, rep, href: (["test", "vs", "0"], {"detergent": p}),
+        write_fn=lambda p, rep, href=None: (["test", "vs", "0"], {"detergent": p}),
     )
     bound_a = BoundEntity(
         href="/test/vs/0", capability=coordinator.bound[0].capability, desc=desc_a
@@ -1023,7 +1033,7 @@ async def test_send_command_blocked_when_remote_control_disabled(
         source="test",
     )
 
-    def _write_fn(payload, rep, href):
+    def _write_fn(payload, rep, href=None):
         return (["some", "path"], {"value": payload})
 
     desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
@@ -1064,7 +1074,7 @@ async def test_send_command_allowed_when_remote_control_enabled(
         source="test",
     )
 
-    def _write_fn(payload, rep, href):
+    def _write_fn(payload, rep, href=None):
         return (["some", "path"], {"value": payload})
 
     desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
@@ -1139,7 +1149,7 @@ async def test_send_command_bypasses_remote_control_when_option_enabled(
         source="test",
     )
 
-    def _write_fn(payload, rep, href):
+    def _write_fn(payload, rep, href=None):
         return (["some", "path"], {"value": payload})
 
     desc = NumberDesc(key="test", field="value", write_fn=_write_fn)

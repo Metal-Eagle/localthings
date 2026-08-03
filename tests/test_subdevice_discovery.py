@@ -8,8 +8,11 @@ together, including device_info_for/via_device and the "no phantom
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from smartthings_local.protocol.dtls_session import DtlsCoapSession
 
 from custom_components.localthings.const import (
     CONF_HOST,
@@ -52,7 +55,7 @@ async def _discover_with(
     without the polling/reconnect machinery around it -- see coordinator.py's
     _enumerate_subdevices_blocking/_run_discovery. `_discover` below is the
     fixture-file-backed convenience wrapper most tests want."""
-    coordinator._session = FakeCoapSession(seeds)
+    coordinator._session = cast(DtlsCoapSession, FakeCoapSession(seeds))
     # _connect_session (skipped here -- the session is pre-set) is what
     # normally populates _identity via read_identity; set it directly with
     # the fixture's real /oic/res so enumeration sees the same links a live
@@ -88,7 +91,7 @@ async def _discover(coordinator: LocalThingsCoordinator, name: str) -> None:
     await _discover_with(coordinator, resources, oic_res, seeds)
 
 
-def _climate_bound(coordinator, subdevice_key: str):
+def _climate_bound(coordinator, subdevice_key: str | None):
     from custom_components.localthings.registry.subdevices import MAIN
 
     for b in coordinator.bound:
@@ -369,12 +372,16 @@ async def test_flat_subdevice_materializes_and_repolls_end_to_end(hass: HomeAssi
     # Re-poll: a fresh reading under the prefix should reach
     # canonical_resources through _poll_subdevice_seed's flat-mode branch,
     # not just sit frozen at the one-time enumeration snapshot.
-    coordinator._session.seeds[f"/{_SUB_UUID}/temperature/current/0"] = {
+    # FakeCoapSession's `seeds` is typed `dict[str, list]` for the common
+    # batch-list shape, but (per its own docstring) also legitimately holds
+    # plain Property maps for probe-style hrefs like these two.
+    seeds_map = cast("dict[str, Any]", cast(FakeCoapSession, coordinator._session).seeds)
+    seeds_map[f"/{_SUB_UUID}/temperature/current/0"] = {
         "range": [18.0, 30.0],
         "units": "C",
         "temperature": 27.5,
     }
-    coordinator._session.seeds[f"/{_SUB_UUID}/option/autoclean/vs/0"] = {
+    seeds_map[f"/{_SUB_UUID}/option/autoclean/vs/0"] = {
         "x.com.samsung.da.settingStatus": "On",
     }
     refreshed = coordinator._poll_subdevice_seed(subdevice)
@@ -437,7 +444,7 @@ def test_poll_subdevice_seed_collection_mode_unaffected_by_flat_fallback(
             ],
         }
     )
-    coordinator._session = sess
+    coordinator._session = cast(DtlsCoapSession, sess)
     subdevice = Subdevice(kind="prefixed", key=_SUB_UUID, seed_path=(_SUB_UUID, "device", "0"))
 
     result = coordinator._poll_subdevice_seed(subdevice)
@@ -463,7 +470,7 @@ def test_poll_subdevice_seed_flat_mode_polls_each_href_individually(
             # (_SUB_UUID, 'power', 'vs', '0') deliberately absent -> drops out.
         }
     )
-    coordinator._session = sess
+    coordinator._session = cast(DtlsCoapSession, sess)
     subdevice = Subdevice(
         kind="prefixed",
         key=_SUB_UUID,
@@ -496,7 +503,7 @@ def test_poll_subdevice_seed_flat_mode_skips_hrefs_covered_by_hot_warm_subpolls(
             (_SUB_UUID, "power", "vs", "0"): {"power": "On"},
         }
     )
-    coordinator._session = sess
+    coordinator._session = cast(DtlsCoapSession, sess)
     coordinator._warm_hrefs = [f"/{_SUB_UUID}/mode/vs/0"]
     subdevice = Subdevice(
         kind="prefixed",
@@ -528,10 +535,19 @@ async def test_multidevice_probe_never_reaches_discovery_or_the_cache(
     """
     resources, _oic, _seeds = _load_device_full("washer_flexwash")
     coordinator = _coordinator(hass)
-    coordinator._session = FakeCoapSession(
-        {
-            "/multidevice/vs/0": {"x.com.samsung.da.numofsubdevice": "2"},
-        }
+    # /multidevice/vs/0 here is a plain Property map, not a batch list -- see
+    # FakeCoapSession's own docstring on the two shapes its `seeds` values can
+    # take; its `seeds` param type only names the more common (list) shape.
+    coordinator._session = cast(
+        DtlsCoapSession,
+        FakeCoapSession(
+            cast(
+                "dict[str, list]",
+                {
+                    "/multidevice/vs/0": {"x.com.samsung.da.numofsubdevice": "2"},
+                },
+            )
+        ),
     )
     coordinator._identity = DeviceIdentity(
         manufacturer="Samsung Electronics",

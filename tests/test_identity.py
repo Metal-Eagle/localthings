@@ -71,8 +71,12 @@ def test_read_identity_keeps_raw_payloads_for_diagnostics():
         }
     )
     ident = read_identity(sess, serial=None)
-    assert ident.raw["/oic/p"]["mnmo"] == "RF9000B"
-    assert ident.raw["/oic/d"]["di"] == "abc-123"
+    oic_p = ident.raw["/oic/p"]
+    assert isinstance(oic_p, dict)
+    assert oic_p["mnmo"] == "RF9000B"
+    oic_d = ident.raw["/oic/d"]
+    assert isinstance(oic_d, dict)
+    assert oic_d["di"] == "abc-123"
 
 
 def test_read_identity_captures_oic_res_links():

@@ -20,7 +20,13 @@ def test_value_fn_defaults_to_identity():
 def test_descriptions_are_frozen():
     d = SensorDesc(key="power", field="f")
     try:
-        d.key = "other"
+        # setattr() through a variable name (not `d.key = "other"`, and not a
+        # literal setattr(d, "key", ...) -- ruff's B010 rewrites that back to
+        # attribute-assignment syntax), so this reaches the same
+        # frozen-dataclass __setattr__ at runtime without ty statically
+        # flagging the (deliberately illegal) direct attribute assignment.
+        attr = "key"
+        setattr(d, attr, "other")
     except Exception as e:
         assert "frozen" in str(type(e)).lower() or "cannot" in str(e).lower()
     else:
@@ -46,4 +52,5 @@ def test_select_carries_options_and_write_fn():
         options=("voice", "tone", "mute"),
         write_fn=lambda p, rep: (["settings", "sound", "mode", "vs", "0"], {"mode": p}),
     )
+    assert d.write_fn is not None
     assert d.write_fn("tone", {}) == (["settings", "sound", "mode", "vs", "0"], {"mode": "tone"})

@@ -1,6 +1,7 @@
 """Tests for the shared laundry capabilities (washer/dryer/dishwasher)."""
 
 from custom_components.localthings.registry.capabilities import laundry
+from custom_components.localthings.registry.entities import SelectDesc
 
 
 class TestCourseHelpers:
@@ -261,14 +262,22 @@ class TestBuzzerSound:
         assert laundry.BUZZER_SOUND.href == "/buzzersound/vs/0"
 
     def test_buzzer_sound_write(self):
-        desc = next(e for e in laundry.BUZZER_SOUND.entities if e.key == "buzzer_sound")
+        desc = next(
+            e
+            for e in laundry.BUZZER_SOUND.entities
+            if e.key == "buzzer_sound" and isinstance(e, SelectDesc)
+        )
         assert desc.options_field == "supportedBuzzerSound"
-        path, body = desc.write_fn("On", {})
+        assert desc.write_fn is not None
+        result = desc.write_fn("On", {})
+        assert result is not None
+        path, body = result
         assert path == ["buzzersound", "vs", "0"]
         assert body == {"setBuzzerSound": "On"}
 
     def test_finish_sound_exists_only_when_supported(self):
         desc = next(e for e in laundry.BUZZER_SOUND.entities if e.key == "finish_sound")
+        assert desc.exists_fn is not None
         assert desc.exists_fn({"setBuzzerSound": "On"}, {}) is False
         assert desc.exists_fn({"supportedFinishSound": ["FinishSound_1"]}, {}) is True
 
