@@ -11,7 +11,7 @@ the /course/vs/0 cycle select -- lives in laundry.py.
 
 from ..capability import Capability
 from ..entities import SensorDesc, SwitchDesc
-from .laundry import cycle_select
+from .laundry import cycle_select, drum_clean_cycles_remaining, drum_clean_last_cleaned
 
 
 def _wrinkle_write(p, rep, href=None):
@@ -49,6 +49,17 @@ DRYER_SETTINGS = Capability(
 # #80). The /st/dryercourse/vs/0 resource re-encodes the same selected
 # course and is ignored (ignored.py) -- the mirror of how /st/washercourse/vs/0
 # is ignored for washers.
+#
+# Drum Clean+ maintenance tracking (issue #258) reuses washer.py's
+# DrumCleanProposal_/WashingTimes_/DrumCleanLog_ tokens on this same
+# options[] array -- see laundry.drum_clean_cycles_remaining/
+# drum_clean_last_cleaned's docstrings for the field contract, including
+# the dryer-specific '|'-joined multi-entry DrumCleanLog_ shape. No
+# separate heat-exchanger-clean tracking was found on either dump #258
+# supplied (DV90BB7445GES7, DV91T6440LE/SA) -- no HeatExchanger*-prefixed
+# token, nor any other options[] entry that looks like a second maintenance
+# counter -- so if the Samsung app surfaces that reminder for these units,
+# it isn't computed from anything this integration can read locally.
 DRYER_COURSE = Capability(
     href="/course/vs/0",
     entities=(
@@ -56,6 +67,22 @@ DRYER_COURSE = Capability(
             translation_key="dryer_cycle",
             icon="mdi:tumble-dryer",
             table_href="/st/dryercourse/vs/0",
+        ),
+        SensorDesc(
+            key="drum_clean_cycles_remaining",
+            unit="cycles",
+            icon="mdi:tumble-dryer-alert",
+            state_class="measurement",
+            exists_fn=lambda rep, resources: drum_clean_cycles_remaining(rep) is not None,
+            rep_fn=drum_clean_cycles_remaining,
+        ),
+        SensorDesc(
+            key="drum_clean_last_cleaned",
+            device_class="timestamp",
+            icon="mdi:calendar-clock",
+            entity_category="diagnostic",
+            exists_fn=lambda rep, resources: drum_clean_last_cleaned(rep) is not None,
+            rep_fn=drum_clean_last_cleaned,
         ),
     ),
 )

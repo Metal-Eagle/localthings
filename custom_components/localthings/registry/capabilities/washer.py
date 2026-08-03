@@ -15,8 +15,6 @@ here; they read washer-only fields off the same shared /course/vs/0 options
 array.
 """
 
-from datetime import UTC, datetime
-
 from ..capability import Capability
 from ..entities import BinarySensorDesc, SelectDesc, SensorDesc
 from .laundry import (
@@ -24,6 +22,8 @@ from .laundry import (
     bool_option_switch,
     cycle_options,
     cycle_select,
+    drum_clean_cycles_remaining,
+    drum_clean_last_cleaned,
     hex_pairs,
     option_value,
     option_write,
@@ -149,36 +149,10 @@ WASHER_SETTINGS = Capability(
 # ---------------------------------------------------------------------------
 
 
-# Drum Clean+ maintenance tracking, from the same options[] array as the
-# selected course. DrumCleanProposal_<N> is the wash-cycle interval between
-# recommended cleans; WashingTimes_<N> is the count since the last one --
-# their difference is exactly the "N cycles until due" figure the Samsung
-# app shows (verified: DrumCleanProposal_40 - WashingTimes_3 == 37, matching
-# a live app screenshot's "Potreba cistenia po 37 cykloch"). DrumCleanLog_
-# is the last-clean timestamp (verified against the same screenshot's "10
-# days ago"); no explicit timezone field accompanies it on this resource,
-# so it's treated as UTC, matching this integration's convention for other
-# bare ISO datetime fields (see fridge.py's night-light schedule comment).
-def _drum_clean_cycles_remaining(rep):
-    opts = rep.get("x.com.samsung.da.options") or []
-    proposal = option_value(opts, "DrumCleanProposal")
-    washed = option_value(opts, "WashingTimes")
-    if proposal is None or washed is None:
-        return None
-    try:
-        return max(int(proposal) - int(washed), 0)
-    except ValueError:
-        return None
-
-
-def _drum_clean_last_cleaned(rep):
-    raw = option_value(rep.get("x.com.samsung.da.options"), "DrumCleanLog")
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw).replace(tzinfo=UTC)
-    except ValueError:
-        return None
+# Drum Clean+ maintenance tracking (issue #9): drum_clean_cycles_remaining/
+# drum_clean_last_cleaned live in laundry.py, shared with dryer.py (issue
+# #258) since both families report identical DrumCleanProposal_/
+# WashingTimes_/DrumCleanLog_ tokens on the same options[] array.
 
 
 # Detergent/softener auto-dispense dosing, from the same options[] array
@@ -340,16 +314,16 @@ WASHER_COURSE = Capability(
             unit="cycles",
             icon="mdi:washing-machine-alert",
             state_class="measurement",
-            exists_fn=lambda rep, resources: _drum_clean_cycles_remaining(rep) is not None,
-            rep_fn=_drum_clean_cycles_remaining,
+            exists_fn=lambda rep, resources: drum_clean_cycles_remaining(rep) is not None,
+            rep_fn=drum_clean_cycles_remaining,
         ),
         SensorDesc(
             key="drum_clean_last_cleaned",
             device_class="timestamp",
             icon="mdi:calendar-clock",
             entity_category="diagnostic",
-            exists_fn=lambda rep, resources: _drum_clean_last_cleaned(rep) is not None,
-            rep_fn=_drum_clean_last_cleaned,
+            exists_fn=lambda rep, resources: drum_clean_last_cleaned(rep) is not None,
+            rep_fn=drum_clean_last_cleaned,
         ),
         SelectDesc(
             key="detergent_quantity",

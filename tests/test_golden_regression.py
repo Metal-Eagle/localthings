@@ -72,7 +72,12 @@ def test_registry_reproduces_golden_state_keys_for_ehs():
 def test_registry_reproduces_golden_state_keys_for_washer_wa8000t():
     """Top-load washer (WA8000T, issue #106) reports no oneUiVersion and
     used the 'WA' consumer-model prefix, previously unmapped in
-    _CONSUMER_PREFIX_TO_KEY -- fell back to 'unknown'."""
+    _CONSUMER_PREFIX_TO_KEY -- fell back to 'unknown'.
+
+    Also gains drum_clean_last_cleaned (issue #258): this fixture's
+    DrumCleanLog_ is a '|'-joined multi-entry history, which always failed
+    datetime.fromisoformat and silently returned None before
+    laundry.drum_clean_last_cleaned learned to take the last entry."""
     from tests.conftest import _load_device
 
     resources = _load_device("washer_wa8000t")
@@ -270,7 +275,10 @@ def test_registry_reproduces_golden_state_keys_for_range_hood():
 def test_registry_reproduces_golden_state_keys_for_washer_flexwash():
     """FlexWash twin washers (WV-prefix consumer model, e.g. WV55M9600AW)
     report no oneUiVersion and previously fell through for_device_by_model's
-    consumer-prefix map entirely -- issue #19."""
+    consumer-prefix map entirely -- issue #19.
+
+    Also gains drum_clean_last_cleaned (issue #258) -- see the wa8000t test
+    above for why."""
     from tests.conftest import _load_device
 
     resources = _load_device("washer_flexwash")
@@ -285,7 +293,10 @@ def test_registry_reproduces_golden_state_keys_for_washer_flexwash():
 
 def test_registry_reproduces_golden_state_keys_for_washer_dryer_combo():
     """Washer/dryer combo units carry a writable dryLevel field on
-    /washer/vs/0 itself, with no separate dryer resource -- issue #22."""
+    /washer/vs/0 itself, with no separate dryer resource -- issue #22.
+
+    Also gains drum_clean_last_cleaned (issue #258) -- see the wa8000t test
+    above for why."""
     from tests.conftest import _load_device
 
     resources = _load_device("washer_dryer_combo")
@@ -622,7 +633,10 @@ def test_registry_reproduces_golden_state_keys_for_washer_wa55a7700av():
     -- a different board generation than the WA8000T's TP2_20_COMMON,
     reached through the same 'WA' consumer-model-prefix fallback (issue
     #106). Binds cleanly against the existing washer registry with zero
-    unbound hrefs."""
+    unbound hrefs.
+
+    Also gains drum_clean_last_cleaned (issue #258) -- see the wa8000t test
+    above for why."""
     from tests.conftest import _load_device
 
     resources = _load_device("washer_wa55a7700av")
@@ -1256,6 +1270,25 @@ def test_registry_reproduces_golden_state_keys_for_airconditioner_tp1x_fac_time_
     resources = _load_device("airconditioner_tp1x_fac_time_23k")
     golden = json.loads((GOLDEN / "airconditioner_tp1x_fac_time_23k.json").read_text())
     state_keys = _new_state_keys("airconditioner_tp1x_fac_time_23k", resources)
+    assert set(state_keys) == set(golden["state_keys"]), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
+def test_registry_reproduces_golden_state_keys_for_dryer_tp1_21_drum_clean():
+    """DA_WM_TP1_21_COMMON/DV9400B (issue #258) is the first dryer dump with
+    live DrumCleanProposal_/WashingTimes_ tokens (dryer's default fixture
+    only ever had 'DrumCleanLog_Empty', same as the parallel washer capability
+    started from) -- locks in the new drum_clean_cycles_remaining/
+    drum_clean_last_cleaned entities, including the dryer-specific
+    '|'-joined multi-timestamp DrumCleanLog_ shape."""
+    from tests.conftest import _load_device
+
+    resources = _load_device("dryer_tp1_21_drum_clean")
+    golden = json.loads((GOLDEN / "dryer_tp1_21_drum_clean.json").read_text())
+    state_keys = _new_state_keys("dryer_tp1_21_drum_clean", resources)
     assert set(state_keys) == set(golden["state_keys"]), (
         f"state_keys mismatch:\n"
         f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"

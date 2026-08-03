@@ -1,18 +1,20 @@
 {
   "state_keys": [
     "alarm_code",
+    "buzzer_sound",
     "child_lock",
     "completion_minutes",
     "cycle",
     "cycle_active",
     "delay_start_hours",
-    "detergent_low",
-    "detergent_quantity",
-    "detergent_water_hardness",
-    "diagnosis_status",
+    "diagnosis",
     "drum_clean_cycles_remaining",
     "drum_clean_last_cleaned",
+    "dry_level",
+    "dry_time",
+    "dryer_type",
     "energy_kwh",
+    "energy_saved_kwh",
     "finish_time",
     "firmware_update",
     "job_beginning_status",
@@ -21,11 +23,6 @@
     "progress",
     "progress_percentage",
     "remote_control",
-    "rinse_cycles",
-    "softener_concentration",
-    "softener_low",
-    "softener_quantity",
-    "spin_speed",
-    "wash_temperature"
+    "wrinkle_prevent"
   ]
 }
