@@ -163,6 +163,34 @@ DEFINITE_TEMPERATURE_COOLER = Capability(
     ),
 )
 
+
+def _definite_freezer_write(p, rep, href=None):
+    return (
+        ["temperature", "definite", "freezer", "vs", "0"],
+        {"x.com.samsung.da.definite.desired": p},
+    )
+
+
+# Freezer half of the same discrete-setpoint pattern (issue #229): a
+# fridge/freezer combo reporting no /temperature/current|desired/freezer
+# pair, only this bundled vendor resource -- identical shape to
+# DEFINITE_TEMPERATURE_COOLER above (down to the field names), just negative
+# supportedList values (e.g. ['-23','-21','-19','-17','-15']).
+DEFINITE_TEMPERATURE_FREEZER = Capability(
+    href="/temperature/definite/freezer/vs/0",
+    poll_tier="warm",
+    entities=(
+        SelectDesc(
+            key="freezer_temperature_setpoint",
+            field="x.com.samsung.da.definite.desired",
+            icon="mdi:thermometer",
+            entity_category="config",
+            options_field="x.com.samsung.da.definite.supportedList",
+            write_fn=_definite_freezer_write,
+        ),
+    ),
+)
+
 # ---------------------------------------------------------------------------
 # Icemaker nighttime quiet mode
 # ---------------------------------------------------------------------------

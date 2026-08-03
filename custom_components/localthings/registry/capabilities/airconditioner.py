@@ -909,6 +909,80 @@ AIR_FILTER = Capability(
     ),
 )
 
+
+def _pm1_threshold_write(payload, rep, href=None):
+    """Same contract as _threshold_write, against this filter's own href --
+    not yet confirmed live (no dump seen advertises
+    supportedFilterDesiredUsage for this href), so the Select this backs
+    stays gated behind that field's presence, same as AIR_FILTER's."""
+    return ["filter", "airdustPM1filter", "vs", "0"], {
+        "x.com.samsung.da.filterDesiredUsage": payload,
+    }
+
+
+def _has_filter_field(field):
+    return lambda rep, resources: rep.get(field) is not None
+
+
+# Second, PM1-rated dust filter some TP1X_FAC-class boards report alongside
+# AIR_FILTER's /filter/airdustfilter/vs/0. TP1X_FAC_TIME_23K (issue #270)
+# reports only filterCapacity/filterCapacityUnit/filterResetType
+# ('notresetable') on this href, with no live filterUsage/filterStatus at
+# all -- but the TP1X_DA-AC-CAC-01001_0000 cassette AC (issue #191) reports
+# the identical href with full live fields. So this stays a real capability
+# rather than a blanket ignore, with every entity individually gated on its
+# own field's presence per the 'don't guess' rule: no entity on a board that
+# has nothing behind it, real readings on one that does.
+AIR_FILTER_PM1 = Capability(
+    href="/filter/airdustPM1filter/vs/0",
+    poll_tier="cold",
+    entities=(
+        SensorDesc(
+            key="air_filter_pm1_usage",
+            rep_fn=filter_usage_percent,
+            unit="%",
+            state_class="measurement",
+            icon="mdi:air-filter",
+            entity_category="diagnostic",
+            exists_fn=_has_filter_field("x.com.samsung.da.filterUsage"),
+        ),
+        SensorDesc(
+            key="air_filter_pm1_usage_hours",
+            field="x.com.samsung.da.filterUsage",
+            device_class="duration",
+            state_class="total_increasing",
+            unit_fn=_filter_unit,
+            icon="mdi:air-filter",
+            entity_category="diagnostic",
+            value_fn=_int,
+            exists_fn=_has_filter_field("x.com.samsung.da.filterUsage"),
+        ),
+        SelectDesc(
+            key="air_filter_pm1_threshold",
+            field="x.com.samsung.da.filterDesiredUsage",
+            options_field="x.com.samsung.da.supportedFilterDesiredUsage",
+            exists_fn=lambda rep, res: bool(
+                rep.get("x.com.samsung.da.supportedFilterDesiredUsage")
+            ),
+            icon="mdi:alarm",
+            entity_category="config",
+            write_fn=_pm1_threshold_write,
+            value_fn=lambda v: str(v) if v is not None else None,
+        ),
+        SensorDesc(
+            key="air_filter_pm1_status",
+            field="x.com.samsung.da.filterStatus",
+            device_class="enum",
+            options=("normal", "wash", "replace"),
+            translation_key="filter_status",
+            icon="mdi:air-filter",
+            entity_category="diagnostic",
+            value_fn=lambda v: v.lower() if isinstance(v, str) else v,
+            exists_fn=_has_filter_field("x.com.samsung.da.filterStatus"),
+        ),
+    ),
+)
+
 DISPLAY_LIGHT = Capability(
     href="/light/vs/0",
     poll_tier="cold",
@@ -922,6 +996,51 @@ DISPLAY_LIGHT = Capability(
             write_fn=lambda p, rep, href=None: (
                 ["light", "vs", "0"],
                 {"mode": "On" if p == "On" else "Off"},
+            ),
+        ),
+    ),
+)
+
+# UV-C sterilization LED (issue #270, TP1X_FAC_TIME_23K). Same On/Off
+# convention as everything else on this board, and (unlike VENTILATION_ALARM
+# below) a real supportedModes list confirms the value set.
+UV_LED = Capability(
+    href="/uvled/vs/0",
+    poll_tier="cold",
+    entities=(
+        SwitchDesc(
+            key="uv_led",
+            field="x.com.samsung.da.modes",
+            icon="mdi:lightbulb-fluorescent-tube",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["uvled", "vs", "0"],
+                {"x.com.samsung.da.modes": "On" if p == "On" else "Off"},
+            ),
+        ),
+    ),
+)
+
+# Ventilation-reminder alarm toggle (issue #270). Only a bare `alarm` field
+# is present -- no supportedModes list to confirm the value set against,
+# unlike UV_LED above. Modeled as a switch on the strength of the same
+# On/Off convention used everywhere else in this API; a rejected write is
+# the worst case for a wrong guess (see the adding-device-support skill),
+# but this hasn't been round-trip confirmed on real hardware.
+VENTILATION_ALARM = Capability(
+    href="/ventilation/setting/vs/0",
+    poll_tier="cold",
+    entities=(
+        SwitchDesc(
+            key="ventilation_alarm",
+            field="alarm",
+            icon="mdi:bell-alert",
+            entity_category="config",
+            value_fn=lambda v: v == "On",
+            write_fn=lambda p, rep, href=None: (
+                ["ventilation", "setting", "vs", "0"],
+                {"alarm": "On" if p == "On" else "Off"},
             ),
         ),
     ),

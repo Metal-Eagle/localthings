@@ -392,9 +392,9 @@
         "name": "Ciclo",
         "state": {
           "80": "Delicado",
-          "83": "Express 60",
+          "83": "Normal",
           "84": "Intenso",
-          "86": "Normal",
+          "86": "Express 60",
           "90": "Autolimpieza",
           "0e": "Lavado IA",
           "07": "Prelavado intenso",
@@ -439,7 +439,10 @@
           "1e": "Exterior",
           "1f": "Carga mixta",
           "2b": "Secado de tambor",
-          "4c": "Renovación de aire"
+          "4c": "Renovación de aire",
+          "51": "Eco algodón",
+          "53": "Secado IA+",
+          "4e": "Autosecado"
         }
       },
       "favorite_capacity": {
@@ -735,6 +738,28 @@
       },
       "zone_mode": {
         "name": "Modo de zona"
+      },
+      "watertank_light_color": {
+        "name": "Color de la luz del depósito de agua",
+        "state": {
+          "warmwhite": "Blanco cálido",
+          "naturalwhite": "Blanco natural",
+          "coolwhite": "Blanco frío",
+          "green": "Verde",
+          "purple": "Púrpura",
+          "blue": "Azul",
+          "orange": "Naranja",
+          "pink": "Rosa"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Brillo de la luz del depósito de agua"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "Umbral de alarma del filtro PM1"
+      },
+      "freezer_temperature_setpoint": {
+        "name": "Temperatura del congelador"
       }
     },
     "sensor": {
@@ -1083,6 +1108,15 @@
       },
       "zone_temperature": {
         "name": "Temperatura de zona"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Estado de alarma de depósito de agua lleno"
+      },
+      "air_filter_pm1_usage": {
+        "name": "Uso del filtro PM1"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "Horas de uso del filtro PM1"
       }
     },
     "switch": {
@@ -1250,6 +1284,15 @@
       },
       "zone_power": {
         "name": "Alimentación de zona"
+      },
+      "watertank_light": {
+        "name": "Luz del depósito de agua"
+      },
+      "uv_led": {
+        "name": "LED UV"
+      },
+      "ventilation_alarm": {
+        "name": "Alarma de ventilación"
       }
     },
     "time": {

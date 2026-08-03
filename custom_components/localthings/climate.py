@@ -128,6 +128,23 @@ _HVAC_TO_DEVICE = {v: k for k, v in _DEVICE_TO_HVAC.items()}
 _AI_COMFORT_MODE = "AIComfort"
 PRESET_AI_COMFORT = "ai_comfort"
 
+# Codes that appear in /mode/vs/0's supportedModes but are option/capability
+# flags rather than selectable thermodynamic operations -- dropped silently
+# (no _warn_unmapped call) rather than every owner of an affected unit
+# tripping the issue #93 warning on every start.
+#
+# HOMECARE_WIZARD_V2 (issue #235, TP2X_RAC_20K): also appears in
+# /configuration/vs/0's x.com.samsung.da.airconOptionList alongside
+# PRODUCT_GLOBAL/AI_3.0/SingleCommand_1 -- clearly a capability flag, not a
+# mode, on that resource. The unit's own `modes` (current mode) never
+# reported it as active across the reporter's logs, only ever a real
+# thermodynamic mode -- consistent with it being echoed into supportedModes
+# rather than genuinely selectable. Unlike _AI_COMFORT_MODE above, it isn't
+# modeled as a preset: there's no confirmation it's user-selectable at all,
+# so silently dropping it (rather than guessing a write contract) is the
+# 'don't guess' rule applied to a mode code instead of a resource field.
+_NON_HVAC_OPTION_CODES = frozenset({"HOMECARE_WIZARD_V2"})
+
 # Fan (wind strength): device codes "0".."4" -> HA standard fan constants where
 # a clean match exists so they auto-localize; "turbo" is custom (translated).
 _DEVICE_TO_FAN: dict[str, str] = {
@@ -363,7 +380,15 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
     def _warn_unmapped(self, href: str, code: str) -> None:
         """Log once per (href, code) when a device-reported mode has no
         entry in the relevant device<->HA map, so a real device gap surfaces
-        in the log instead of silently vanishing (issue #93)."""
+        in the log instead of silently vanishing (issue #93).
+
+        Falls back to `unique_id` when `entity_id` is unset (issue #235):
+        this fires during setup's first discovery pass, before the entity is
+        added to hass, so `entity_id` is always None at that point --
+        indistinguishable across multiple same-type devices in the log.
+        `unique_id` is set eagerly in `__init__` (see entity.py), so it's
+        always available here even though `entity_id` isn't.
+        """
         key = (href, code)
         if key in self._warned_unmapped:
             return
@@ -371,7 +396,7 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         _LOGGER.warning(
             "%s: device mode %r on %s has no HA mapping and was dropped; "
             "please file an issue with your diagnostics dump",
-            self.entity_id,
+            self.entity_id or self.unique_id,
             code,
             href,
         )
@@ -472,7 +497,11 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
         device = _first(self._rep(MODE_HREF).get(_MODES_FIELD))
         if device == _AI_COMFORT_MODE:
             return HVACMode.AUTO
-        if device is not None and device not in _DEVICE_TO_HVAC:
+        if (
+            device is not None
+            and device not in _DEVICE_TO_HVAC
+            and device not in _NON_HVAC_OPTION_CODES
+        ):
             self._warn_unmapped(MODE_HREF, device)
         return _DEVICE_TO_HVAC.get(device, HVACMode.AUTO)
 
@@ -480,7 +509,7 @@ class LocalThingsClimate(LocalThingsEntity, ClimateEntity):
     def hvac_modes(self) -> list[HVACMode]:
         modes = [HVACMode.OFF]
         for m in self._supported(MODE_HREF):
-            if m == _AI_COMFORT_MODE:
+            if m == _AI_COMFORT_MODE or m in _NON_HVAC_OPTION_CODES:
                 continue
             mapped = _DEVICE_TO_HVAC.get(m)
             if mapped is None:

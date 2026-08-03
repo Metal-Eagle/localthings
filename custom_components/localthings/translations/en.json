@@ -278,9 +278,9 @@
         "name": "Cycle",
         "state": {
           "80": "Delicate",
-          "83": "Express 60",
+          "83": "Normal",
           "84": "Heavy",
-          "86": "Normal",
+          "86": "Express 60",
           "90": "Self clean",
           "0e": "AI Wash",
           "07": "Pre blast",
@@ -325,7 +325,10 @@
           "1e": "Outdoor",
           "1f": "Mixed load",
           "2b": "Self Tub Dry",
-          "4c": "Air Refresh"
+          "4c": "Air Refresh",
+          "51": "Eco Cotton",
+          "53": "AI Dry+",
+          "4e": "Self Dry"
         }
       },
       "favorite_capacity": {
@@ -621,6 +624,28 @@
       },
       "zone_mode": {
         "name": "Zone mode"
+      },
+      "watertank_light_color": {
+        "name": "Water tank light color",
+        "state": {
+          "warmwhite": "Warm white",
+          "naturalwhite": "Natural white",
+          "coolwhite": "Cool white",
+          "green": "Green",
+          "purple": "Purple",
+          "blue": "Blue",
+          "orange": "Orange",
+          "pink": "Pink"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Water tank light brightness"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "PM1 filter alarm threshold"
+      },
+      "freezer_temperature_setpoint": {
+        "name": "Freezer temperature"
       }
     },
     "sensor": {
@@ -969,6 +994,15 @@
       },
       "zone_temperature": {
         "name": "Zone temperature"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Water tank full alarm status"
+      },
+      "air_filter_pm1_usage": {
+        "name": "PM1 filter usage"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "PM1 filter usage hours"
       }
     },
     "switch": {
@@ -1136,6 +1170,15 @@
       },
       "away_mode": {
         "name": "Away mode"
+      },
+      "watertank_light": {
+        "name": "Water tank light"
+      },
+      "uv_led": {
+        "name": "UV LED"
+      },
+      "ventilation_alarm": {
+        "name": "Ventilation alarm"
       }
     },
     "time": {

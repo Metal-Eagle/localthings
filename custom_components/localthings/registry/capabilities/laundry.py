@@ -20,6 +20,7 @@ Door-LED keys use NO `x.com.samsung.da.` prefix -- `setBrightness` /
 `setNightLight` -- preserved exactly as they appear in the OCF resource rep.
 """
 
+from datetime import UTC, datetime
 from datetime import time as dt_time
 
 from ...catalog import has_entity_translation
@@ -232,6 +233,47 @@ def option_value(options, prefix):
         if isinstance(o, str) and o.startswith(prefix + "_"):
             return o.split("_", 1)[1]
     return None
+
+
+# Drum Clean+ maintenance tracking, from the same options[] array as the
+# selected course -- shared by washer.py (issue #9) and dryer.py (issue
+# #258); both families use identical DrumCleanProposal_/WashingTimes_/
+# DrumCleanLog_ tokens. DrumCleanProposal_<N> is the wash/dry-cycle interval
+# between recommended cleans; WashingTimes_<N> is the count since the last
+# one -- their difference is exactly the "N cycles until due" figure the
+# Samsung app shows (verified on a washer: DrumCleanProposal_40 -
+# WashingTimes_3 == 37, matching a live app screenshot's "Potreba cistenia
+# po 37 cykloch").
+def drum_clean_cycles_remaining(rep):
+    opts = rep.get("x.com.samsung.da.options") or []
+    proposal = option_value(opts, "DrumCleanProposal")
+    washed = option_value(opts, "WashingTimes")
+    if proposal is None or washed is None:
+        return None
+    try:
+        return max(int(proposal) - int(washed), 0)
+    except ValueError:
+        return None
+
+
+# DrumCleanLog_ is the clean-history field: a washer reports one bare ISO
+# datetime (the last clean, verified against the same app screenshot's "10
+# days ago"); a dryer (issue #258's Dillton-reported dump) instead reports a
+# '|'-joined history of every past clean, ten deep on that dump, in
+# strictly increasing order. Splitting on '|' and taking the last element
+# handles both shapes identically -- a no-'|' value is unaffected. No
+# explicit timezone field accompanies either shape, so it's treated as UTC,
+# matching this integration's convention for other bare ISO datetime fields
+# (see fridge.py's night-light schedule comment).
+def drum_clean_last_cleaned(rep):
+    raw = option_value(rep.get("x.com.samsung.da.options"), "DrumCleanLog")
+    if not raw:
+        return None
+    last = raw.rsplit("|", 1)[-1]
+    try:
+        return datetime.fromisoformat(last).replace(tzinfo=UTC)
+    except ValueError:
+        return None
 
 
 def _course_codes_from_supported_options(course_rep):

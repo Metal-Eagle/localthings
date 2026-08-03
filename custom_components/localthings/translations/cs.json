@@ -278,9 +278,9 @@
         "name": "Cyklus",
         "state": {
           "80": "Jemné",
-          "83": "Express 60",
+          "83": "Normální",
           "84": "Intenzivní",
-          "86": "Normální",
+          "86": "Express 60",
           "90": "Samočištění",
           "0e": "AI mytí",
           "07": "Předoplach",
@@ -325,7 +325,10 @@
           "1e": "Outdoor",
           "1f": "Smíšená náplň",
           "2b": "Sušení bubnu",
-          "4c": "Osvěžení vzduchem"
+          "4c": "Osvěžení vzduchem",
+          "51": "Eko bavlna",
+          "53": "AI sušení+",
+          "4e": "Automatické sušení"
         }
       },
       "favorite_capacity": {
@@ -621,6 +624,28 @@
       },
       "zone_mode": {
         "name": "Režim zóny"
+      },
+      "watertank_light_color": {
+        "name": "Barva osvětlení nádržky na vodu",
+        "state": {
+          "warmwhite": "Teplá bílá",
+          "naturalwhite": "Přirozená bílá",
+          "coolwhite": "Studená bílá",
+          "green": "Zelená",
+          "purple": "Fialová",
+          "blue": "Modrá",
+          "orange": "Oranžová",
+          "pink": "Růžová"
+        }
+      },
+      "watertank_light_brightness": {
+        "name": "Jas osvětlení nádržky na vodu"
+      },
+      "air_filter_pm1_threshold": {
+        "name": "Práh alarmu PM1 filtru"
+      },
+      "freezer_temperature_setpoint": {
+        "name": "Teplota mrazicí zóny"
       }
     },
     "sensor": {
@@ -969,6 +994,15 @@
       },
       "zone_temperature": {
         "name": "Teplota zóny"
+      },
+      "watertank_full_alarm_status": {
+        "name": "Stav alarmu plné nádržky na vodu"
+      },
+      "air_filter_pm1_usage": {
+        "name": "Využití PM1 filtru"
+      },
+      "air_filter_pm1_usage_hours": {
+        "name": "Hodiny využití PM1 filtru"
       }
     },
     "switch": {
@@ -1136,6 +1170,15 @@
       },
       "away_mode": {
         "name": "Režim nepřítomnosti"
+      },
+      "watertank_light": {
+        "name": "Osvětlení nádržky na vodu"
+      },
+      "uv_led": {
+        "name": "UV LED"
+      },
+      "ventilation_alarm": {
+        "name": "Alarm větrání"
       }
     },
     "time": {

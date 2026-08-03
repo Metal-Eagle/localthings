@@ -329,6 +329,56 @@ class TestDefiniteTemperatureCooler:
         assert rep["x.com.samsung.da.definite.supportedList"] == ["1", "2", "3", "4", "7"]
 
 
+class TestDefiniteTemperatureFreezer:
+    """Discrete freezer setpoint (TP1X_REF_21K, issue #229) -- the same
+    definite-setpoint pattern as DEFINITE_TEMPERATURE_COOLER above, on a
+    fridge/freezer combo that reports it for *both* compartments. Identical
+    field shape, just negative supportedList values."""
+
+    def test_href(self):
+        assert fridge.DEFINITE_TEMPERATURE_FREEZER.href == "/temperature/definite/freezer/vs/0"
+
+    def test_write(self):
+        desc = next(
+            e for e in fridge.DEFINITE_TEMPERATURE_FREEZER.entities if isinstance(e, SelectDesc)
+        )
+        assert desc.write_fn is not None
+        result = desc.write_fn("-19", {})
+        assert result is not None
+        path, body = result
+        assert path == ["temperature", "definite", "freezer", "vs", "0"]
+        assert body == {"x.com.samsung.da.definite.desired": "-19"}
+
+    def test_no_unbound_hrefs_and_discrete_options(self):
+        from custom_components.localthings.registry.adapter import flatten
+        from custom_components.localthings.registry.by_type import refrigerator
+        from custom_components.localthings.registry.discovery import discover
+        from tests.conftest import _load_device
+
+        resources = _load_device("refrigerator_tp1x_ref_21k_definite")
+        unbound = []
+        bound = discover(
+            resources,
+            refrigerator.REGISTRY.capabilities,
+            refrigerator.REGISTRY.pattern_capabilities,
+            log=unbound.append,
+        )
+        assert unbound == []
+
+        state = flatten(bound, resources)
+        assert state["cooler_temperature_setpoint"] == "4"
+        assert state["freezer_temperature_setpoint"] == "-19"
+
+        rep = resources["/temperature/definite/freezer/vs/0"]
+        assert rep["x.com.samsung.da.definite.supportedList"] == [
+            "-23",
+            "-21",
+            "-19",
+            "-17",
+            "-15",
+        ]
+
+
 class TestKimchiZone:
     """Kimchi-refrigerator compartments (TP2X_REF_20K-class, issue #26) --
     top/middle/bottom each report an identically-shaped currentMode/
