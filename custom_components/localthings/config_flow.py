@@ -11,6 +11,8 @@ import selectors
 import socket
 import ssl
 import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
@@ -31,19 +33,26 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CLIENTHELLO_PROBE_RETRIES,
+    CLIENTHELLO_PROBE_TIMEOUT_S,
     CONF_BYPASS_REMOTE_CONTROL,
     CONF_CA_CERT_PEM,
     CONF_CA_KEY_PEM,
+    CONF_DEVICE_TYPE,
     CONF_FINISH_TIME_HYSTERESIS_MINUTES,
     CONF_HOST,
     CONF_LEAF_CERT_PEM,
     CONF_LEAF_KEY_PEM,
+    CONF_MANUFACTURER,
+    CONF_MODEL,
     CONF_PORT,
+    CONF_SERIAL,
     DEFAULT_FINISH_TIME_HYSTERESIS_MINUTES,
     DOMAIN,
     LIVENESS_PROBE_TIMEOUT_S,
     PREFERRED_PROBE_PORTS,
     PROBE_GET_TIMEOUT_S,
+    PROBE_MAX_WORKERS,
     PROBE_PORT_RANGE,
 )
 
@@ -248,38 +257,118 @@ def _find_live_ports(host: str, ports: list[int], timeout: float) -> list[int]:
     return _order_candidates(live + rescued)
 
 
-def _is_placeholder_serial(serial: str) -> bool:
-    """True for a non-empty serialNum that isn't actually a real identity.
+@dataclass(frozen=True)
+class _PortScan:
+    """The result of the port-detection pass: which ports to hand a full DTLS
+    handshake, and whether a DTLS server was actually *proven* to be on one of
+    them (as opposed to merely not ruled out)."""
 
-    The ARTIK051_DONGLE_REF firmware family reports the literal string
-    'Nothing(SVC)' for every unit -- non-empty, so the plain `if not
-    serial` check here (and the equivalent one in coordinator.py's
-    `_run_discovery`) doesn't catch it, and two such units get the same
-    config-entry unique_id / entity unique_ids and collide (issue #83).
+    candidates: list[int]
+    confirmed: bool
 
-    Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
-    reports a flash-unset sentinel instead -- every character the same
-    repeated hex digit (a washer and a dryer, two different physical
-    units, both reported the literal serialNum 'FFFFFFFFFFFFFFF') -- which
-    the 'nothing' check above doesn't catch either, so the second unit's
-    config flow aborted as already configured.
+
+def _clienthello_probe(host: str, port: int):
+    """One stateless DTLS ClientHello against `host:port`.
+
+    Imported lazily so an install whose smartthings-local predates the probe
+    (< 0.1.2) degrades to the UDP sweep at scan time rather than failing to
+    load the config flow at all.
     """
-    s = serial.strip()
-    if s.lower().startswith("nothing"):
-        return True
-    upper = s.upper()
-    return len(upper) >= 8 and len(set(upper)) == 1 and upper[0] in "0123456789ABCDEF"
+    from smartthings_local.protocol.dtls_probe import probe
+
+    return probe(
+        host,
+        port,
+        stateless=True,
+        timeout=CLIENTHELLO_PROBE_TIMEOUT_S,
+        retries=CLIENTHELLO_PROBE_RETRIES,
+    )
 
 
-def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
-    """Fetch UUID, mint leaf cert, probe each port. Returns config entry data dict."""
-    import cbor2
-    from smartthings_local.protocol.dtls_session import DtlsCoapSession
+def _clienthello_scan(host: str, ports: list[int]) -> list[int]:
+    """Ports on `host` that answered a DTLS ClientHello -- i.e. ports a real
+    DTLS server is listening on (issue #211).
 
-    from .registry.batch import parse_device0_batch
-    from .registry.by_type import resolve as resolve_registry
-    from .registry.identity import read_identity
+    smartthings-local's stateless probe sends one ClientHello and stops the
+    moment the server proves itself with a HelloVerifyRequest, which per RFC
+    6347 §4.2.1 the server answers *without* allocating association state. So
+    this identifies the device's real port in ~1 RTT, leaves nothing behind on
+    the appliance, and costs it far less than the alternative of throwing N
+    full certificate handshakes at it to find out.
 
+    The whole range goes out at once. That's safe in a way racing real
+    handshakes is not: each probe is bounded by CLIENTHELLO_PROBE_TIMEOUT_S
+    rather than DtlsCoapSession's 12s handshake timeout, so the pool's
+    shutdown-and-wait on exit costs one probe's budget, not the sum of the
+    range -- no `shutdown(wait=False)` and no losing threads left running
+    behind us.
+    """
+    with ThreadPoolExecutor(max_workers=min(len(ports), PROBE_MAX_WORKERS)) as ex:
+        results = list(ex.map(lambda port: _clienthello_probe(host, port), ports))
+
+    live = []
+    for result in results:
+        if result.is_dtls_server:
+            live.append(result.port)
+            _LOGGER.debug("DTLS server on %s:%d (%s)", host, result.port, result)
+    return _order_candidates(live)
+
+
+def _scan_ports(host: str) -> _PortScan:
+    """Find the device's DTLS port, preferring proof over absence of evidence.
+
+    The ClientHello probe is authoritative when it finds something: a port
+    that answered one is running a DTLS server, so exactly one port gets the
+    expensive certificate handshake instead of every port the old UDP sweep
+    couldn't rule out (each of which cost a full 12s handshake timeout --
+    issue #211's 30-40s adds).
+
+    It stays a *gate*, not a replacement: when it confirms nothing we fall
+    back to the ICMP-based sweep, which is wrong in the opposite direction
+    (it reports everything it can't rule out) and so still surfaces a device
+    the probe couldn't reach -- e.g. a network path that drops our
+    ClientHello outright, or an install still on smartthings-local < 0.1.2.
+    Issue #192's segregated-VLAN device is the reason that fallback keeps its
+    own preferred-port rescue.
+    """
+    try:
+        confirmed = _clienthello_scan(host, PROBE_PORT_RANGE)
+    except Exception as exc:
+        _LOGGER.debug("ClientHello probe unavailable (%s); falling back to UDP sweep", exc)
+        confirmed = []
+    if confirmed:
+        _LOGGER.debug("DTLS port(s) confirmed on %s: %s", host, confirmed)
+        return _PortScan(confirmed, True)
+
+    candidates = _find_live_ports(host, PROBE_PORT_RANGE, LIVENESS_PROBE_TIMEOUT_S)
+    # No early "every port refused" fast-fail here: _find_live_ports always
+    # rescues PREFERRED_PROBE_PORTS (issue #192), so candidates is never
+    # empty as long as that table is non-empty and within PROBE_PORT_RANGE --
+    # both true today, which made this branch permanently unreachable. A
+    # genuinely dead host fails in _handshake_and_read instead, whose error
+    # carries the actual per-port timeout/refusal reason rather than a generic
+    # "no live port found" message.
+    _LOGGER.debug("No DTLS server confirmed on %s; sweep candidates: %s", host, candidates)
+    return _PortScan(candidates, False)
+
+
+class _HandshakeFailed(CannotConnect):
+    """No candidate port completed a handshake.
+
+    `cert_rejected` is True when every attempt failed with a ConnectionError
+    -- the library's error for a handshake the peer actively broke off (a
+    fatal alert), as opposed to the TimeoutError it raises when nothing
+    answered at all. It's the signal for retrying with freshly-minted
+    credentials; see _probe_and_validate.
+    """
+
+    def __init__(self, message: str, cert_rejected: bool) -> None:
+        super().__init__(message)
+        self.cert_rejected = cert_rejected
+
+
+def _mint_credentials(ca_cert_pem: str, ca_key_pem: str) -> tuple[str, str]:
+    """Fetch the current UUID from Samsung's cloud and mint a leaf cert for it."""
     _LOGGER.debug("Fetching Samsung cloud UUID from %s", _SAMSUNG_CLOUD_HOST)
     try:
         uuid = _fetch_samsung_uuid()
@@ -298,66 +387,129 @@ def _probe_and_validate(host: str, ca_cert_pem: str, ca_key_pem: str) -> dict:
         _LOGGER.debug("Leaf cert minting failed: %s", exc, exc_info=True)
         raise CannotConnect(f"Failed to mint leaf cert: {exc}") from exc
     _LOGGER.debug("Leaf cert minted successfully")
+    return fullchain_pem, leaf_key_pem
 
-    candidates = _find_live_ports(host, PROBE_PORT_RANGE, LIVENESS_PROBE_TIMEOUT_S)
-    # No early "every port refused" fast-fail here: _find_live_ports always
-    # rescues PREFERRED_PROBE_PORTS (issue #192), so candidates is never
-    # empty as long as that table is non-empty and within PROBE_PORT_RANGE --
-    # both true today, which made this branch permanently unreachable. A
-    # genuinely dead host now fails via the handshake loop's own error below,
-    # which carries the actual per-port timeout/refusal reason instead of a
-    # generic "no live port found" message.
-    _LOGGER.debug("Live DTLS port candidates on %s: %s", host, candidates)
 
-    last_exc = None
+def _read_device(sess, host: str, port: int) -> dict:
+    """Resolve this device's identity over an already-connected session.
+
+    /oic/d before /device/0, deliberately: the device's own OCF device-type
+    declaration is the primary detection signal when a board populates it
+    (see registry/by_type's resolve()), and read_identity's three small GETs
+    settle it long before the blockwise /device/0 dump lands. read_identity is
+    defensive on every GET it makes, so a device that answers neither /oic/p
+    nor /oic/d just yields an empty device_types tuple and detection falls
+    through to the model-string/resource-signature path.
+
+    Everything the entry needs to name and key the device comes from here --
+    resolved serial, model, manufacturer, device type -- so the coordinator
+    never has to mint a registry key from a placeholder (issue #236).
+    """
+    import cbor2
+
+    from .registry.batch import parse_device0_batch
+    from .registry.by_type import resolve as resolve_registry
+    from .registry.identity import read_identity, resolve_serial
+
+    identity = read_identity(sess, None)
+
+    code, payload = sess.get(["device", "0"], timeout=PROBE_GET_TIMEOUT_S)
+    if code != 0x45 or not payload:
+        raise CannotConnect(f"port {port}: unexpected code {code:#04x}")
+    body = cbor2.loads(payload)
+    resources = parse_device0_batch(body) if isinstance(body, list) else {}
+
+    info = resources.get("/information/vs/0", {})
+    model_num = info.get("x.com.samsung.da.modelNum", "")
+    registry = resolve_registry(resources, device_types=identity.device_types)
+    return {
+        "port": port,
+        "serial": resolve_serial(info.get("x.com.samsung.da.serialNum"), host),
+        # Same derivation _run_discovery uses, so the device the coordinator
+        # registers up front is the one discovery would have produced.
+        "model": model_num.split("|", 1)[0] if model_num else identity.model,
+        "manufacturer": identity.manufacturer or "Samsung",
+        "device_type_name": registry.name if registry is not None else None,
+        "device_type_recognized": registry is not None,
+    }
+
+
+def _handshake_and_read(host: str, candidates: list[int], cert_pem: str, key_pem: str) -> dict:
+    """Handshake each candidate in turn, returning the first device that answers."""
+    from smartthings_local.protocol.dtls_session import DtlsCoapSession
+
+    last_exc: Exception | None = None
+    rejected_only = True
     for port in candidates:
         sess = None
         try:
-            sess = DtlsCoapSession(
-                host,
-                port,
-                cert_pem=fullchain_pem,
-                key_pem=leaf_key_pem,
-            )
+            sess = DtlsCoapSession(host, port, cert_pem=cert_pem, key_pem=key_pem)
             sess.connect()
             sess.start_reader()
-            code, payload = sess.get(["device", "0"], timeout=PROBE_GET_TIMEOUT_S)
-            if code != 0x45 or not payload:
-                raise CannotConnect(f"port {port}: unexpected code {code:#04x}")
-            body = cbor2.loads(payload)
-            resources = parse_device0_batch(body) if isinstance(body, list) else {}
-            serial = resources.get("/information/vs/0", {}).get("x.com.samsung.da.serialNum", "")
-            if not serial or _is_placeholder_serial(serial):
-                serial = f"{host}:{port}"
-            # /oic/d's device type (read_identity) is the primary detection
-            # signal when a board populates it -- see registry/by_type's
-            # resolve(). read_identity is defensive on every GET it makes, so
-            # a device that doesn't answer /oic/p or /oic/d just yields an
-            # empty device_types tuple here, falling through to the model-
-            # string/resource-signature detection resolve() already did.
-            identity = read_identity(sess, None)
-            recognized_registry = resolve_registry(resources, device_types=identity.device_types)
-            return {
-                "port": port,
-                "serial": serial,
-                "leaf_cert_pem": fullchain_pem,
-                "leaf_key_pem": leaf_key_pem,
-                "device_type_recognized": recognized_registry is not None,
-            }
+            return _read_device(sess, host, port)
         except CannotConnect:
+            # The device answered, just not with something we can use --
+            # trying the remaining ports can't improve on that.
             raise
         except Exception as exc:
             last_exc = exc
+            rejected_only = rejected_only and isinstance(exc, ConnectionError)
             _LOGGER.debug("port %d failed: %s", port, exc)
         finally:
             if sess is not None:
                 with contextlib.suppress(Exception):
                     sess.close()
-    raise CannotConnect(f"no port responded on {host}: {last_exc}")
+    raise _HandshakeFailed(
+        f"no port responded on {host}: {last_exc}",
+        cert_rejected=rejected_only and last_exc is not None,
+    )
+
+
+def _probe_and_validate(
+    host: str,
+    ca_cert_pem: str,
+    ca_key_pem: str,
+    existing_leaf: tuple[str, str] | None = None,
+) -> dict:
+    """Find the device's port, authenticate to it, and resolve its identity.
+
+    Port detection runs first and needs no credentials at all, so an
+    unreachable host fails here rather than after a round trip to Samsung's
+    cloud.
+
+    `existing_leaf` is another entry's already-minted leaf (issue #211).
+    Every appliance accepts the same leaf -- CA `AC14K_M` plus the UUID from
+    Samsung's cloud cert -- so adding a second device can skip the fetch and
+    mint entirely, which makes it independent of Samsung-cloud reachability
+    rather than merely faster. If that reused leaf turns out to be stale (the
+    UUID does rotate), a confirmed-live device rejecting it is unambiguous
+    enough to re-mint and try once more, so the reuse stays self-correcting.
+    """
+    scan = _scan_ports(host)
+
+    if existing_leaf is not None:
+        cert_pem, key_pem = existing_leaf
+        _LOGGER.debug("Reusing the leaf certificate from an existing entry")
+    else:
+        cert_pem, key_pem = _mint_credentials(ca_cert_pem, ca_key_pem)
+
+    try:
+        info = _handshake_and_read(host, scan.candidates, cert_pem, key_pem)
+    except _HandshakeFailed as exc:
+        # Only the reused-leaf case is worth a second pass, and only when the
+        # device proved it is there and broke the handshake off itself: a
+        # timeout means nothing answered, which a fresh cert won't change.
+        if existing_leaf is None or not (scan.confirmed and exc.cert_rejected):
+            raise
+        _LOGGER.debug("Reused leaf rejected by %s; re-minting and retrying", host)
+        cert_pem, key_pem = _mint_credentials(ca_cert_pem, ca_key_pem)
+        info = _handshake_and_read(host, scan.candidates, cert_pem, key_pem)
+
+    return {**info, "leaf_cert_pem": cert_pem, "leaf_key_pem": key_pem}
 
 
 class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         self._host: str = ""
@@ -373,8 +525,18 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return LocalThingsOptionsFlow()
 
     def _create_entry(self, info: dict) -> ConfigFlowResult:
+        """Persist everything the probe resolved, identity included.
+
+        The identity fields are not decoration: the coordinator seeds
+        `device_serial` and its DeviceInfo from them at construction time, so
+        entity unique_ids and device identifiers are correct from the very
+        first entity that registers -- even if the first poll is slow, or
+        fails outright (issue #236).
+        """
+        from .registry.identity import device_display_name
+
         return self.async_create_entry(
-            title=f"Samsung Appliance ({self._host})",
+            title=f"{device_display_name(info['device_type_name'], '')} ({self._host})",
             data={
                 CONF_HOST: self._host,
                 CONF_PORT: info["port"],
@@ -382,6 +544,10 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_CA_KEY_PEM: self._ca_key_pem,
                 CONF_LEAF_CERT_PEM: info["leaf_cert_pem"],
                 CONF_LEAF_KEY_PEM: info["leaf_key_pem"],
+                CONF_SERIAL: info["serial"],
+                CONF_MODEL: info["model"],
+                CONF_MANUFACTURER: info["manufacturer"],
+                CONF_DEVICE_TYPE: info["device_type_name"],
             },
         )
 
@@ -393,9 +559,14 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             self._host = user_input[CONF_HOST].strip()
+            existing_leaf = None
             if has_creds:
                 self._ca_cert_pem = existing[0].data[CONF_CA_CERT_PEM]
                 self._ca_key_pem = existing[0].data[CONF_CA_KEY_PEM]
+                leaf_cert = existing[0].data.get(CONF_LEAF_CERT_PEM)
+                leaf_key = existing[0].data.get(CONF_LEAF_KEY_PEM)
+                if leaf_cert and leaf_key:
+                    existing_leaf = (leaf_cert, leaf_key)
             else:
                 self._ca_cert_pem = user_input[CONF_CA_CERT_PEM].strip()
                 self._ca_key_pem = user_input[CONF_CA_KEY_PEM].strip()
@@ -406,6 +577,7 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self._host,
                     self._ca_cert_pem,
                     self._ca_key_pem,
+                    existing_leaf,
                 )
             except InvalidCA:
                 errors["base"] = "invalid_ca"
@@ -451,12 +623,17 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Shown only when the probe already knows the device type is unrecognized."""
+        info = self._pending_info or {}
         if user_input is not None:
             assert self._pending_info is not None
             return self._create_entry(self._pending_info)
         return self.async_show_form(
             step_id="confirm_unknown_type",
             data_schema=vol.Schema({}),
+            # The probe already knows the board string detection failed on;
+            # showing it here means a user filing the device-support issue
+            # this step asks for can quote it without digging through logs.
+            description_placeholders={"model": info.get("model") or "unknown"},
         )
 
 

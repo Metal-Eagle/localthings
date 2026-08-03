@@ -1235,7 +1235,7 @@
       },
       "confirm_unknown_type": {
         "title": "Appliance type not recognized",
-        "description": "This appliance's type couldn't be recognized. It'll still be added, but only with common capabilities (power, alarms, etc. where present) rather than the full set for its family. You can help add full support afterward by downloading diagnostics for this device (Settings > Devices & Services > this device > the menu > Download diagnostics) and filing them in a new issue. Submit to add it anyway."
+        "description": "This appliance reported model \"{model}\", which isn't a type LocalThings recognizes yet. It'll still be added, but only with common capabilities (power, alarms, etc. where present) rather than the full set for its family. You can help add full support afterward by downloading diagnostics for this device (Settings > Devices & Services > this device > the menu > Download diagnostics) and filing them in a new issue. Submit to add it anyway."
       }
     },
     "error": {

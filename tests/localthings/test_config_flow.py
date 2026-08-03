@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import cast
+from typing import ClassVar, cast
 from unittest.mock import patch
 
+import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -15,6 +16,7 @@ from custom_components.localthings.const import (
     CONF_CA_CERT_PEM,
     CONF_CA_KEY_PEM,
     CONF_HOST,
+    CONF_LEAF_CERT_PEM,
     CONF_PORT,
     DOMAIN,
 )
@@ -24,6 +26,8 @@ from .conftest import (
     MOCK_CA_CERT_PEM,
     MOCK_CA_KEY_PEM,
     MOCK_HOST,
+    MOCK_LEAF_CERT_PEM,
+    MOCK_MODEL,
     MOCK_PORT,
     MOCK_SERIAL,
 )
@@ -165,43 +169,58 @@ def test_find_live_ports_rescues_preferred_ports_the_sweep_missed(
     assert set(result) == {preferred_port, live_port}
 
 
-async def test_probe_uses_discovered_low_port(hass: HomeAssistant, monkeypatch) -> None:
-    """A device that only answers on 49153 — outside the historical
-    49154/49155 pair — is found by the liveness sweep and its port is stored
-    on the config entry (issue #13)."""
-    import cbor2
+WASHER_DEVICE0 = [
+    {"rt": ["x.com.samsung.devcol"]},
+    {
+        "href": "/information/vs/0",
+        "rep": {
+            "x.com.samsung.da.modelNum": "DA_WM_TP1_21_COMMON|20375141|20010002001811424AA30217008A0000",  # noqa: E501
+            "x.com.samsung.da.description": "DA_WM_TP1_21_COMMON_WW5000C/DC92-03495A_B048",
+            "x.com.samsung.da.serialNum": "DISHWASHER-49153",
+        },
+    },
+    {"href": "/otninformation/vs/0", "rep": {"otnStatus": "None"}},
+]
 
+
+class FakeSession:
+    """Stand-in for DtlsCoapSession that answers /device/0 for any path.
+
+    `reject_certs` models a device whose DTLS stack breaks the handshake off
+    itself -- the library raises ConnectionError for that, as opposed to the
+    TimeoutError it raises when nothing answers at all.
+    """
+
+    instances: ClassVar[list[FakeSession]] = []
+    reject_certs: ClassVar[set[str]] = set()
+
+    def __init__(self, host, port, cert_pem=None, key_pem=None, **kwargs):
+        self.host, self.port, self.cert_pem = host, port, cert_pem
+        FakeSession.instances.append(self)
+
+    def connect(self):
+        if self.cert_pem in FakeSession.reject_certs:
+            raise ConnectionError("DTLS handshake error: bad_certificate")
+
+    def start_reader(self):
+        pass
+
+    def get(self, path, timeout=15.0):
+        import cbor2
+
+        return 0x45, cbor2.dumps(WASHER_DEVICE0)
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def fake_dtls(monkeypatch):
+    """Wire the probe path up to FakeSession with no real network anywhere."""
     from custom_components.localthings import config_flow
 
-    device0 = [
-        {"rt": ["x.com.samsung.devcol"]},
-        {
-            "href": "/information/vs/0",
-            "rep": {
-                "x.com.samsung.da.modelNum": "DA_WM_TP1_21_COMMON|20375141|20010002001811424AA30217008A0000",  # noqa: E501
-                "x.com.samsung.da.description": "DA_WM_TP1_21_COMMON_WW5000C/DC92-03495A_B048",
-                "x.com.samsung.da.serialNum": "DISHWASHER-49153",
-            },
-        },
-        {"href": "/otninformation/vs/0", "rep": {"otnStatus": "None"}},
-    ]
-
-    class _FakeSession:
-        def __init__(self, host, port, cert_pem=None, key_pem=None):
-            self.host, self.port = host, port
-
-        def connect(self):
-            pass
-
-        def start_reader(self):
-            pass
-
-        def get(self, path, timeout=15.0):
-            return 0x45, cbor2.dumps(device0)
-
-        def close(self):
-            pass
-
+    FakeSession.instances = []
+    FakeSession.reject_certs = set()
     monkeypatch.setattr(config_flow, "_fetch_samsung_uuid", lambda: "test-uuid")
     monkeypatch.setattr(
         config_flow,
@@ -209,13 +228,84 @@ async def test_probe_uses_discovered_low_port(hass: HomeAssistant, monkeypatch) 
         lambda ca_cert, ca_key, uuid: ("FULLCHAIN", "LEAFKEY"),
     )
     monkeypatch.setattr(
+        "smartthings_local.protocol.dtls_session.DtlsCoapSession",
+        FakeSession,
+    )
+    return FakeSession
+
+
+class _FakeProbeResult:
+    def __init__(self, port, live):
+        self.port, self.outcome = port, "live" if live else "dead"
+        self.is_dtls_server = live
+
+    def __repr__(self):
+        return f"<ProbeResult {self.port} {self.outcome}>"
+
+
+def _patch_clienthello(monkeypatch, live_ports):
+    """Patch the library's ClientHello probe to report `live_ports` as DTLS."""
+    from custom_components.localthings import config_flow
+
+    calls: list[int] = []
+
+    def _probe(host, port, **kwargs):
+        calls.append(port)
+        return _FakeProbeResult(port, port in live_ports)
+
+    monkeypatch.setattr(config_flow, "_clienthello_probe", _probe)
+    return calls
+
+
+async def test_clienthello_probe_picks_the_confirmed_port(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """Issue #211: the stateless ClientHello probe identifies the real DTLS
+    port, so exactly one port gets a full certificate handshake -- not every
+    port the UDP sweep couldn't rule out, each costing 12s to time out."""
+    from custom_components.localthings import config_flow
+
+    probed = _patch_clienthello(monkeypatch, {49153})
+
+    def _no_sweep(host, ports, timeout):
+        raise AssertionError("UDP sweep must not run once a port is confirmed")
+
+    monkeypatch.setattr(config_flow, "_find_live_ports", _no_sweep)
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+            CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+        },
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_PORT] == 49153
+    # The whole range is probed (cheaply, in parallel) but only the confirmed
+    # port is handed a handshake.
+    assert set(probed) == set(config_flow.PROBE_PORT_RANGE)
+    assert [s.port for s in FakeSession.instances] == [49153]
+
+
+async def test_probe_uses_discovered_low_port(hass: HomeAssistant, monkeypatch, fake_dtls) -> None:
+    """A device that only answers on 49153 — outside the historical
+    49154/49155 pair — is found by the liveness sweep and its port is stored
+    on the config entry (issue #13).
+
+    The sweep is the fallback now: it runs when the ClientHello probe confirms
+    nothing, which covers both a path that eats our ClientHello and an install
+    still on smartthings-local < 0.1.2.
+    """
+    from custom_components.localthings import config_flow
+
+    _patch_clienthello(monkeypatch, set())
+    monkeypatch.setattr(
         config_flow,
         "_find_live_ports",
         lambda host, ports, timeout: [49153],
-    )
-    monkeypatch.setattr(
-        "smartthings_local.protocol.dtls_session.DtlsCoapSession",
-        _FakeSession,
     )
 
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
@@ -229,6 +319,148 @@ async def test_probe_uses_discovered_low_port(hass: HomeAssistant, monkeypatch) 
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PORT] == 49153
+
+
+async def test_probe_falls_back_when_library_lacks_the_clienthello_probe(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """An install whose smartthings-local predates the probe still adds
+    devices -- port detection degrades to the UDP sweep rather than failing."""
+    from custom_components.localthings import config_flow
+
+    def _missing(host, port, **kwargs):
+        raise ImportError("no module named dtls_probe")
+
+    monkeypatch.setattr(config_flow, "_clienthello_probe", _missing)
+    monkeypatch.setattr(
+        config_flow,
+        "_find_live_ports",
+        lambda host, ports, timeout: [49154],
+    )
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+            CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_PORT] == 49154
+
+
+async def test_entry_stores_resolved_identity(hass: HomeAssistant, monkeypatch, fake_dtls) -> None:
+    """The probe's identity lands on the entry (issue #236), so the
+    coordinator can key its device and entities before the first poll."""
+    from custom_components.localthings import config_flow
+    from custom_components.localthings.const import (
+        CONF_DEVICE_TYPE,
+        CONF_MANUFACTURER,
+        CONF_MODEL,
+        CONF_SERIAL,
+    )
+
+    _patch_clienthello(monkeypatch, {49154})
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+            CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+        },
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_SERIAL] == "DISHWASHER-49153"
+    assert result["data"][CONF_MODEL] == "DA_WM_TP1_21_COMMON"
+    assert result["data"][CONF_MANUFACTURER] == "Samsung"
+    assert result["data"][CONF_DEVICE_TYPE] == "washer"
+    assert result["title"] == f"Samsung Washer ({MOCK_HOST})"
+    assert result["result"].version == config_flow.LocalThingsConfigFlow.VERSION
+
+
+async def test_second_device_reuses_the_existing_leaf(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """Adding a second appliance skips the Samsung-cloud round trip: every
+    device accepts the same leaf, and the existing entry already has one
+    (issue #211). That makes the add independent of cloud reachability, not
+    just faster."""
+    from custom_components.localthings import config_flow
+
+    existing = MockConfigEntry(domain=DOMAIN, data=ENTRY_DATA, unique_id="localthings_other")
+    existing.add_to_hass(hass)
+    _patch_clienthello(monkeypatch, {49154})
+
+    def _no_cloud():
+        raise AssertionError("must not contact Samsung's cloud when a leaf is available")
+
+    monkeypatch.setattr(config_flow, "_fetch_samsung_uuid", _no_cloud)
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_HOST: MOCK_HOST}
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_LEAF_CERT_PEM] == MOCK_LEAF_CERT_PEM
+    assert FakeSession.instances[0].cert_pem == MOCK_LEAF_CERT_PEM
+
+
+async def test_rejected_reused_leaf_is_reminted(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """The UUID behind the shared leaf does rotate. A confirmed-live device
+    rejecting the reused one is unambiguous enough to mint a fresh cert and
+    try again, so credential reuse stays self-correcting."""
+    existing = MockConfigEntry(domain=DOMAIN, data=ENTRY_DATA, unique_id="localthings_other")
+    existing.add_to_hass(hass)
+    _patch_clienthello(monkeypatch, {49154})
+    FakeSession.reject_certs = {MOCK_LEAF_CERT_PEM}
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_HOST: MOCK_HOST}
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    # Freshly minted, and it's the fresh one that got stored.
+    assert result["data"][CONF_LEAF_CERT_PEM] == "FULLCHAIN"
+    assert [s.cert_pem for s in FakeSession.instances] == [MOCK_LEAF_CERT_PEM, "FULLCHAIN"]
+
+
+async def test_unconfirmed_port_failure_is_not_reminted(
+    hass: HomeAssistant, monkeypatch, fake_dtls
+) -> None:
+    """A timeout means nothing answered, which a fresh certificate can't fix
+    -- so the re-mint retry stays scoped to a device that proved it is there
+    and broke the handshake off itself."""
+    from custom_components.localthings import config_flow
+
+    existing = MockConfigEntry(domain=DOMAIN, data=ENTRY_DATA, unique_id="localthings_other")
+    existing.add_to_hass(hass)
+    _patch_clienthello(monkeypatch, set())
+    monkeypatch.setattr(config_flow, "_find_live_ports", lambda host, ports, timeout: [49154])
+
+    def _timeout(self):
+        raise TimeoutError("DTLS handshake timeout")
+
+    monkeypatch.setattr(FakeSession, "connect", _timeout)
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_HOST: MOCK_HOST}
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    errors = result["errors"]
+    assert errors is not None
+    assert errors["base"] == "cannot_connect"
+    assert len(FakeSession.instances) == 1
 
 
 async def test_cannot_connect(hass: HomeAssistant) -> None:
@@ -299,7 +531,19 @@ async def test_unknown_type_step_description_makes_no_version_claim(
     two, differing only in whether they blamed a missing oneUiVersion -- a
     distinction that stopped existing when detection stopped reading it."""
     import json
+    import re
     from pathlib import Path
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: MOCK_CA_CERT_PEM,
+            CONF_CA_KEY_PEM: MOCK_CA_KEY_PEM,
+        },
+    )
+    assert result["step_id"] == "confirm_unknown_type"
 
     steps = json.loads(
         (
@@ -314,7 +558,13 @@ async def test_unknown_type_step_description_makes_no_version_claim(
     assert "confirm_unknown_type_no_version" not in steps
     description = steps["confirm_unknown_type"]["description"]
     assert "oneUiVersion" not in description
-    assert "{" not in description  # no unfilled placeholder
+    # {model} is the only placeholder, and the step must supply it -- an
+    # unfilled one renders as literal braces to the user.
+    placeholders = re.findall(r"{(\w+)}", description)
+    assert placeholders == ["model"]
+    supplied = result["description_placeholders"]
+    assert supplied is not None
+    assert supplied["model"] == MOCK_MODEL
 
 
 async def test_duplicate_device_aborted(hass: HomeAssistant, mock_probe) -> None:
@@ -586,18 +836,18 @@ def test_is_placeholder_serial_catches_nothing_svc():
     """Issue #83: the ARTIK051_DONGLE_REF firmware family reports the
     literal string 'Nothing(SVC)' as serialNum on every unit -- non-empty,
     so it must be caught by name, not by the plain `if not serial` check."""
-    from custom_components.localthings.config_flow import _is_placeholder_serial
+    from custom_components.localthings.registry.identity import is_placeholder_serial
 
-    assert _is_placeholder_serial("Nothing(SVC)") is True
-    assert _is_placeholder_serial("nothing(svc)") is True
-    assert _is_placeholder_serial("  Nothing(SVC)  ") is True
+    assert is_placeholder_serial("Nothing(SVC)") is True
+    assert is_placeholder_serial("nothing(svc)") is True
+    assert is_placeholder_serial("  Nothing(SVC)  ") is True
 
 
 def test_is_placeholder_serial_accepts_real_serials():
-    from custom_components.localthings.config_flow import _is_placeholder_serial
+    from custom_components.localthings.registry.identity import is_placeholder_serial
 
-    assert _is_placeholder_serial("0A1B2C3D4E5F") is False
-    assert _is_placeholder_serial("") is False
+    assert is_placeholder_serial("0A1B2C3D4E5F") is False
+    assert is_placeholder_serial("") is False
 
 
 def test_is_placeholder_serial_catches_all_same_hex_digit():
@@ -606,11 +856,25 @@ def test_is_placeholder_serial_catches_all_same_hex_digit():
     character the same repeated hex digit. A washer and a dryer, two
     different physical units, both reported the literal serialNum
     'FFFFFFFFFFFFFFF', colliding on the config-entry unique_id."""
-    from custom_components.localthings.config_flow import _is_placeholder_serial
+    from custom_components.localthings.registry.identity import is_placeholder_serial
 
-    assert _is_placeholder_serial("FFFFFFFFFFFFFFF") is True
-    assert _is_placeholder_serial("ffffffffffffffff") is True
-    assert _is_placeholder_serial("00000000") is True
+    assert is_placeholder_serial("FFFFFFFFFFFFFFF") is True
+    assert is_placeholder_serial("ffffffffffffffff") is True
+    assert is_placeholder_serial("00000000") is True
     # Too short to be the flash-unset sentinel -- a real serial could
     # plausibly repeat one hex digit seven times by chance.
-    assert _is_placeholder_serial("FFFFFFF") is False
+    assert is_placeholder_serial("FFFFFFF") is False
+
+
+def test_resolve_serial_falls_back_to_host():
+    """Both sides of the identity -- the config flow's probe and the
+    coordinator's first poll -- now resolve a serial through one function, so
+    they cannot disagree about what a device is called. They used to: the
+    flow fell back to `host:port` and the coordinator to `host`."""
+    from custom_components.localthings.registry.identity import resolve_serial
+
+    assert resolve_serial("REAL-SERIAL", "10.0.0.5") == "REAL-SERIAL"
+    assert resolve_serial("  REAL-SERIAL  ", "10.0.0.5") == "REAL-SERIAL"
+    assert resolve_serial("Nothing(SVC)", "10.0.0.5") == "10.0.0.5"
+    assert resolve_serial("", "10.0.0.5") == "10.0.0.5"
+    assert resolve_serial(None, "10.0.0.5") == "10.0.0.5"

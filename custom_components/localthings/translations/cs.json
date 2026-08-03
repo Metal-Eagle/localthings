@@ -1235,7 +1235,7 @@
       },
       "confirm_unknown_type": {
         "title": "Typ spotřebiče nebyl rozpoznán",
-        "description": "Typ tohoto spotřebiče se nepodařilo rozpoznat. Přesto bude přidán, ale pouze se společnými funkcemi (napájení, alarmy atd., pokud jsou k dispozici), nikoli s plnou sadou funkcí pro danou rodinu spotřebičů. Podporu můžete později pomoci rozšířit stažením diagnostiky pro toto zařízení (Nastavení > Zařízení a služby > toto zařízení > nabídka > Stáhnout diagnostiku) a jejím vložením do nového issue. Odesláním zařízení přidáte i tak."
+        "description": "Tento spotřebič hlásí model „{model}“, což je typ, který LocalThings zatím nerozpoznává. Přesto bude přidán, ale pouze se společnými funkcemi (napájení, alarmy atd., pokud jsou k dispozici), nikoli s plnou sadou funkcí pro danou rodinu spotřebičů. Podporu můžete později pomoci rozšířit stažením diagnostiky pro toto zařízení (Nastavení > Zařízení a služby > toto zařízení > nabídka > Stáhnout diagnostiku) a jejím vložením do nového issue. Odesláním zařízení přidáte i tak."
       }
     },
     "error": {

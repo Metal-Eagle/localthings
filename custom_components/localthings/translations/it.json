@@ -1235,7 +1235,7 @@
       },
       "confirm_unknown_type": {
         "title": "Tipo di elettrodomestico non riconosciuto",
-        "description": "Il tipo di questo apparecchio non è stato riconosciuto. Verrà comunque aggiunto, ma solo con le funzionalità di base (alimentazione, allarmi, ... se presenti) anziché con tutte le funzionalità della sua famiglia. Puoi contribuire all'aggiunta del supporto completo in seguito scaricando i dati diagnostici per questo dispositivo (Impostazioni > Dispositivi e servizi > questo dispositivo > il menu > Scarica diagnostica) e inviandoli in una nuova segnalazione. Invia comunque la segnalazione per aggiungerlo."
+        "description": "Questo apparecchio dichiara il modello \"{model}\", un tipo che LocalThings non riconosce ancora. Verrà comunque aggiunto, ma solo con le funzionalità di base (alimentazione, allarmi, ... se presenti) anziché con tutte le funzionalità della sua famiglia. Puoi contribuire all'aggiunta del supporto completo in seguito scaricando i dati diagnostici per questo dispositivo (Impostazioni > Dispositivi e servizi > questo dispositivo > il menu > Scarica diagnostica) e inviandoli in una nuova segnalazione. Invia comunque la segnalazione per aggiungerlo."
       }
     },
     "error": {

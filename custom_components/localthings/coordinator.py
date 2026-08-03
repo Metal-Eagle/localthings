@@ -24,10 +24,14 @@ from smartthings_local.protocol.dtls_session import DtlsCoapSession
 
 from .const import (
     CONF_BYPASS_REMOTE_CONTROL,
+    CONF_DEVICE_TYPE,
     CONF_HOST,
     CONF_LEAF_CERT_PEM,
     CONF_LEAF_KEY_PEM,
+    CONF_MANUFACTURER,
+    CONF_MODEL,
     CONF_PORT,
+    CONF_SERIAL,
     DEVICE_SUPPORT_ISSUE_URL,
     DOMAIN,
     DTLS_LOCAL_PORT_BASE,
@@ -45,7 +49,12 @@ from .registry.capabilities.common import (
     remote_control_required_for_write,
 )
 from .registry.discovery import BoundEntity
-from .registry.identity import DeviceIdentity, read_identity
+from .registry.identity import (
+    DeviceIdentity,
+    device_display_name,
+    read_identity,
+    resolve_serial,
+)
 from .registry.subdevices import (
     Subdevice,
     canonical_view,
@@ -92,36 +101,6 @@ def _local_source_port(host: str) -> int:
     except (ipaddress.AddressValueError, ValueError):
         offset = zlib.crc32(host.encode()) & 0xFF
     return DTLS_LOCAL_PORT_BASE + offset
-
-
-def _is_placeholder_serial(serial: str) -> bool:
-    """True for a non-empty serialNum that isn't actually a real identity.
-
-    The ARTIK051_DONGLE_REF firmware family reports the literal string
-    'Nothing(SVC)' for every unit -- non-empty, so the plain `if not
-    serial` check below doesn't catch it, and `device_serial` feeds both
-    the HA device-registry identifier and every entity's unique_id
-    (entity.py), so two such units on the same install silently collide
-    and the second one's entities get dropped (issue #83).
-
-    Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
-    reports a flash-unset sentinel instead -- every character the same
-    repeated hex digit (a washer and a dryer, two different physical
-    units, both reported the literal serialNum 'FFFFFFFFFFFFFFF') -- which
-    the 'nothing' check above doesn't catch either, so two such units
-    collided on the config-entry unique_id and the second couldn't be
-    added at all.
-
-    Mirrors the identical helper in config_flow.py's `_probe_and_validate`
-    -- kept separate rather than imported to avoid pulling the config-flow
-    module into the runtime coordinator's import graph for a two-line
-    check.
-    """
-    s = serial.strip()
-    if s.lower().startswith("nothing"):
-        return True
-    upper = s.upper()
-    return len(upper) >= 8 and len(set(upper)) == 1 and upper[0] in "0123456789ABCDEF"
 
 
 class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -229,11 +208,28 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._observe = ObserveManager(self._cache, logger=self._log)
         self._push_pending = False
         self._push_pending_lock = threading.Lock()
-        self.device_serial = entry.data[CONF_HOST]  # placeholder until first poll
+        # Identity comes from the config entry, resolved once by the config
+        # flow's probe (issue #236). `device_serial` mints *permanent*
+        # registry keys -- entity unique_ids (entity.py, sensor.py) and device
+        # identifiers (device_info_for) -- so it must be the device's real
+        # identity before the first entity registers, not a placeholder that
+        # gets corrected once the first poll lands. Anything registered
+        # against a placeholder is keyed on it in the registry forever; when
+        # the real identity showed up moments later, HA created a second
+        # device and a second entity and orphaned the first pair.
+        #
+        # The host fallback covers a config entry created before this was
+        # stored and whose migration couldn't recover it. It is also what
+        # resolve_serial itself returns for a board reporting a placeholder
+        # serial (issues #83/#189), so the two agree by construction.
+        self.device_serial = entry.data.get(CONF_SERIAL) or entry.data[CONF_HOST]
         self.device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data[CONF_HOST])},
-            name=f"Samsung Appliance ({entry.data[CONF_HOST]})",
-            manufacturer="Samsung",
+            identifiers={(DOMAIN, self.device_serial)},
+            name=device_display_name(
+                entry.data.get(CONF_DEVICE_TYPE), entry.data.get(CONF_MODEL) or ""
+            ),
+            manufacturer=entry.data.get(CONF_MANUFACTURER) or "Samsung",
+            model=entry.data.get(CONF_MODEL) or None,
         )
         self._session_lock = asyncio.Lock()
         self._subpoll_task: asyncio.Task | None = None
@@ -632,6 +628,38 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._skipped_subdevice_resources = skipped
         return kept
 
+    def _persist_identity(
+        self,
+        serial: str,
+        model: str,
+        manufacturer: str,
+        device_type_name: str | None,
+    ) -> None:
+        """Write this device's resolved identity back onto the config entry.
+
+        For an entry added by the current config flow this is a no-op -- the
+        probe already stored all four. It matters for an entry migrated from
+        before they were stored: the first poll is where its model and device
+        type become known, and persisting them means the *next* restart
+        registers the device fully named before any entity exists, instead of
+        renaming it a second time once the poll lands.
+
+        Runs on the event loop (_run_discovery is called directly from
+        _async_update_data, not in an executor), which async_update_entry
+        requires.
+        """
+        identity = {
+            CONF_SERIAL: serial,
+            CONF_MODEL: model,
+            CONF_MANUFACTURER: manufacturer,
+            CONF_DEVICE_TYPE: device_type_name,
+        }
+        if all(self._entry.data.get(k) == v for k, v in identity.items()):
+            return
+        self.hass.config_entries.async_update_entry(
+            self._entry, data={**self._entry.data, **identity}
+        )
+
     def _run_discovery(self, resources: dict[str, dict]) -> None:
         # Reported for diagnostics only -- it names the firmware generation
         # ('7.0 Air conditioner' is Tizen Lite), which is useful when triaging
@@ -725,17 +753,32 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.bound = bound
         self._unbound_hrefs = unbound
 
-        serial = info.get("x.com.samsung.da.serialNum", "")
-        if not serial or _is_placeholder_serial(serial):
-            serial = self._entry.data[CONF_HOST]
+        # The identity the entry was registered under wins. This poll's own
+        # answer is only adopted when the entry has nothing stored -- a legacy
+        # entry whose migration couldn't recover a serial -- and is then
+        # written back so it stops changing. Re-keying a device that already
+        # has registry entries is what issue #236 is about: the old keys don't
+        # follow, they orphan.
+        polled_serial = resolve_serial(
+            info.get("x.com.samsung.da.serialNum"), self._entry.data[CONF_HOST]
+        )
+        serial = self._entry.data.get(CONF_SERIAL) or polled_serial
+        if serial != polled_serial:
+            # Same IP, different appliance (or a firmware that changed what it
+            # reports). Keeping the stored identity is the safe half of that;
+            # re-adding the device is the user's call.
+            self._log.warning(
+                "device at %s reports serial %r but this entry is registered "
+                "as %r; keeping the registered identity",
+                self._entry.data[CONF_HOST],
+                polled_serial,
+                serial,
+            )
         self.device_serial = serial
 
         ident = self._identity
-        device_type = (
-            device_type_name.replace("_", " ").title() if device_type_name else "Appliance"
-        )
         model = model_num.split("|", 1)[0] if model_num else (ident.model if ident else "")
-        name = f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
+        name = device_display_name(device_type_name, model)
         mfr = (ident.manufacturer if ident else "") or "Samsung"
 
         self.device_info = DeviceInfo(
@@ -744,6 +787,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             manufacturer=mfr,
             model=model,
         )
+        self._persist_identity(serial, model, mfr, device_type_name)
         self._update_coverage_gap_issue(device_type_name is None, unbound, name)
 
         self._hot_hrefs = sorted(hot)
