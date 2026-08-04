@@ -29,6 +29,19 @@ class TestIsStubRep:
 
 
 class TestParseDevice0Batch:
+    def test_keeps_first_resource_when_collection_rep_is_absent(self):
+        """Some firmware starts directly with resource entries instead of a
+        device-level collection representation."""
+        device0 = [
+            {"href": "/connectionconfig/vs/0", "rep": {"autoReconnection": "true"}},
+            {"href": "/power/vs/0", "rep": {"power": "Off"}},
+        ]
+
+        assert parse_device0_batch(device0) == {
+            "/connectionconfig/vs/0": {"autoReconnection": "true"},
+            "/power/vs/0": {"power": "Off"},
+        }
+
     def test_stub_rep_kept_distinct_from_genuine_empty(self):
         device0 = [
             {},

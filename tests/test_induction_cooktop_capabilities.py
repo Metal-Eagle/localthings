@@ -6,8 +6,8 @@ from custom_components.localthings.registry.discovery import discover
 from tests.conftest import _load_device
 
 
-def _cooktop():
-    resources = _load_device("induction_cooktop")
+def _cooktop(name="induction_cooktop"):
+    resources = _load_device(name)
     info = resources["/information/vs/0"]
     reg = for_device_by_model(
         info["x.com.samsung.da.modelNum"],
@@ -16,8 +16,8 @@ def _cooktop():
     return reg, resources
 
 
-def _state():
-    reg, resources = _cooktop()
+def _state(name="induction_cooktop"):
+    reg, resources = _cooktop(name)
     bound = discover(resources, reg.capabilities, reg.pattern_capabilities)
     return flatten(bound, resources)
 
@@ -73,3 +73,24 @@ def test_recipe_status_href_is_ignored_not_unbound():
         cap.href for caps in reg.capabilities.values() for cap in caps if cap.entities == ()
     }
     assert "/cooktop/recipe/status/vs/0" in ignored_hrefs
+
+
+def test_nv9000d_resolves_with_complete_coverage():
+    """NV9000D-/KO2 reuses the standalone induction-cooktop surface but
+    omits the optional Bluetooth probe and paired-hood resources while adding
+    the read-only hot-surface auto-shutoff status."""
+    reg, resources = _cooktop("induction_cooktop_nv9000d")
+    assert reg is induction_cooktop.REGISTRY
+
+    unbound = []
+    discover(
+        resources,
+        reg.capabilities,
+        reg.pattern_capabilities,
+        log=unbound.append,
+    )
+    assert unbound == []
+
+    state = _state("induction_cooktop_nv9000d")
+    assert state["cooktop_safety_shutoff_enabled"] is True
+    assert not any(key.startswith(("probe_", "paired_hood_")) for key in state)

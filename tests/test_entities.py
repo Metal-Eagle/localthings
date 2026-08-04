@@ -1,3 +1,4 @@
+from custom_components.localthings.registry.by_type import _REGISTRY_BY_KEY
 from custom_components.localthings.registry.entities import (
     PLATFORM_OF,
     BinarySensorDesc,
@@ -54,3 +55,30 @@ def test_select_carries_options_and_write_fn():
     )
     assert d.write_fn is not None
     assert d.write_fn("tone", {}) == (["settings", "sound", "mode", "vs", "0"], {"mode": "tone"})
+
+
+def test_read_only_sensor_platforms_do_not_use_config_category():
+    """Home Assistant rejects config-category Sensor/BinarySensor entities.
+
+    Traverse device registries rather than the smaller global capability set
+    so device-specific and pattern capabilities stay covered as the registry
+    grows.
+    """
+    violations = set()
+
+    for registry in _REGISTRY_BY_KEY.values():
+        capabilities = [
+            capability for group in registry.capabilities.values() for capability in group
+        ]
+        capabilities.extend(registry.pattern_capabilities)
+
+        for capability in capabilities:
+            href = capability.href or capability.href_prefix or "<pattern>"
+            for desc in capability.entities:
+                if (
+                    isinstance(desc, (SensorDesc, BinarySensorDesc))
+                    and desc.entity_category == "config"
+                ):
+                    violations.add((registry.name, href, desc.key))
+
+    assert violations == set()
