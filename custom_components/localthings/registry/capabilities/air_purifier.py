@@ -575,13 +575,15 @@ SOUND_VOLUME = Capability(
 def _interval_minutes(seconds):
     """Device stores the interval in seconds; the entity is in minutes.
 
-    `is None` rather than a falsy check so a reported 0 stays 0 instead of
-    reading as unknown. Sub-30s values round to 0, which is why native_min is
-    0 rather than 1 -- matching oven.cook_time and operational's delay hours,
-    both of which convert a device time value and floor at zero.
+    `is None` rather than a falsy check so a reported 0 is distinguishable
+    from a missing one. Anything else nonzero rounds up rather than to
+    nearest, so a sub-minute value can't render as 0 and fall below the
+    entity's own floor.
     """
     secs = int_or_none(seconds)
-    return round(secs / 60) if secs is not None else None
+    if secs is None:
+        return None
+    return -(-secs // 60) if secs > 0 else 0
 
 
 def _interval_write(payload, rep, href=None):
@@ -592,8 +594,24 @@ def _interval_write(payload, rep, href=None):
     # does advertise constraints where it has them -- and it accepts values the
     # app never offers. Writing 60 s, six times finer than the app's smallest
     # choice, drove an observed ~60 s sensing cycle on hardware.
+    #
+    # One minute is the floor because that's the resolution this board reports
+    # results at: lastSensingTime lands on an exact minute on every sample from
+    # the AVT-WW-TP1 and A-VTWW-TP2 boards (both fixtures, and eleven
+    # consecutive live readings), where the TP1X/AC/hood boards report arbitrary
+    # seconds. A sub-minute interval is therefore unobservable here whether or
+    # not the board honours it. Zero is refused for a separate reason: unlike
+    # oven.cook_time or operational's delay hours, where 0 is a real setting
+    # ("no timer", "no delay"), nothing establishes what a 0 interval does to
+    # this board -- so native_min stops the UI offering it, and this guard
+    # covers the service-call path. Silent no-op via a None return, the same
+    # shape range_hood._lamp_level_write uses for a level the device didn't
+    # advertise.
+    minutes = round(float(payload))
+    if minutes < 1:
+        return None
     return ["airlevelcheck", "vs", "0"], {
-        "x.com.samsung.da.periodicSensingInterval": str(round(float(payload) * 60))
+        "x.com.samsung.da.periodicSensingInterval": str(minutes * 60)
     }
 
 
@@ -694,7 +712,7 @@ AIR_LEVEL_CHECK = Capability(
             field="x.com.samsung.da.periodicSensingInterval",
             icon="mdi:timer-cog",
             entity_category="config",
-            native_min=0,
+            native_min=1,
             native_max=60,
             step=1,
             unit="min",

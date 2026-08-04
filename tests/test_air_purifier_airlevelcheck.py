@@ -145,13 +145,25 @@ def test_interval_is_minutes_in_the_ui_and_seconds_on_the_wire():
 
 
 def test_interval_keeps_zero_distinct_from_unknown():
-    """`if secs` would fold a reported 0 into None; sub-30s values round to 0,
-    which is why native_min is 0 rather than 1."""
+    """`if secs` would fold a reported 0 into None. Anything else nonzero
+    rounds up, so a sub-minute reading can't render as 0 and fall below the
+    entity's own floor."""
     desc = _desc("sensing_interval")
     assert desc.value_fn("0") == 0
-    assert desc.value_fn("20") == 0
+    assert desc.value_fn("20") == 1
+    assert desc.value_fn("61") == 2
     assert desc.value_fn(None) is None
-    assert desc.native_min == 0
+
+
+def test_interval_floor_is_one_minute():
+    """lastSensingTime lands on an exact minute on this board family, so a
+    sub-minute interval is unobservable; and 0 has no established meaning
+    here, unlike the zero floors on oven.cook_time / delay_start_hours."""
+    desc = _desc("sensing_interval")
+    assert desc.native_min == 1
+    assert desc.write_fn(0, {}) is None
+    assert desc.write_fn(0.4, {}) is None
+    assert desc.write_fn(1, {})[1] == {"x.com.samsung.da.periodicSensingInterval": "60"}
 
 
 # --- skip window -------------------------------------------------------------
