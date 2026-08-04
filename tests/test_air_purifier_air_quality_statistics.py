@@ -7,6 +7,7 @@ possible -- that is the bug this guards against reappearing.
 """
 
 from custom_components.localthings.registry.capabilities import air_purifier
+from custom_components.localthings.registry.entities import SensorDesc
 
 PARTICULATE = ("dust", "fine_dust", "super_fine_dust")
 GRADED = ("odor", "clean_level")
@@ -39,18 +40,28 @@ def test_no_unit_or_device_class_is_asserted():
         assert desc.device_class is None, key
 
 
-def test_shared_sensor_tuple_keeps_its_three_column_shape():
-    """air_monitor.py imports _AIR_QUALITY_SENSORS and unpacks it as a triple,
-    so widening the tuple here breaks that module's import outright."""
+def test_state_class_comes_from_the_shared_tuples_fourth_column():
+    """The rows carry their own state_class rather than a parallel lookup, so
+    a new sensor can't be added here without deciding the question."""
     for row in air_purifier._AIR_QUALITY_SENSORS:
-        assert len(row) == 3, row
+        assert len(row) == 4, row
+        assert row[3] in ("measurement", None), row
 
 
-def test_air_monitor_still_imports():
-    """Guard the coupling above end to end, not just by row width."""
+def test_air_monitor_keeps_stamping_every_shared_sensor():
+    """air_monitor imports _AIR_QUALITY_SENSORS and discards the fourth column
+    on purpose: that board (issue #210) has stamped all five as `measurement`
+    since it was added, and consuming the column would silently drop long-term
+    statistics for Odor/CleanLevel there. Guards the import end to end and the
+    deliberate divergence together."""
     from custom_components.localthings.registry.capabilities import air_monitor
 
     assert air_monitor.SENSORS.href == "/sensors/vs/0"
+    for key in PARTICULATE + GRADED:
+        desc = next(
+            d for d in air_monitor.SENSORS.entities if d.key == key and isinstance(d, SensorDesc)
+        )
+        assert desc.state_class == "measurement", key
 
 
 def test_every_air_quality_sensor_still_reads_a_plain_int():
