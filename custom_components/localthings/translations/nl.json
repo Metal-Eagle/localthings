@@ -120,6 +120,9 @@
       "auto_clean_stop": {
         "name": "Zelfreiniging stoppen"
       },
+      "filter_time_reset": {
+        "name": "Filterteller op nul zetten"
+      },
       "pause": {
         "name": "Pauzeren"
       },

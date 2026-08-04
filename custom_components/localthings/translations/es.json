@@ -242,6 +242,9 @@
       "auto_clean_stop": {
         "name": "Detener la autolimpieza"
       },
+      "filter_time_reset": {
+        "name": "Restablecer el contador del filtro"
+      },
       "pause": {
         "name": "Pausar"
       },

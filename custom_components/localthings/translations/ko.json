@@ -120,6 +120,9 @@
       "auto_clean_stop": {
         "name": "자동 청소 정지"
       },
+      "filter_time_reset": {
+        "name": "필터 사용 시간 초기화"
+      },
       "pause": {
         "name": "일시정지"
       },
