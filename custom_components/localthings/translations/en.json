@@ -117,6 +117,9 @@
       "diagnosis_start": {
         "name": "Start diagnosis"
       },
+      "auto_clean_stop": {
+        "name": "Stop auto clean"
+      },
       "pause": {
         "name": "Pause"
       },

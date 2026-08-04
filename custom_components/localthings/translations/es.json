@@ -239,6 +239,9 @@
       "diagnosis_start": {
         "name": "Iniciar diagnóstico"
       },
+      "auto_clean_stop": {
+        "name": "Detener la autolimpieza"
+      },
       "pause": {
         "name": "Pausar"
       },
