@@ -525,6 +525,29 @@ SOUND_VOLUME = Capability(
 # rather than behind a match_fn so any board reporting it is covered; the one
 # field that genuinely varies is gated per-entity below.
 #
+# The resource carries two independent knobs and they get one entity each,
+# rather than being folded into a single control:
+#
+#   periodicSensingActivationState  On/Off              -- is AI Purify running
+#   autoExeState                    Off/Airpurify/Alarm -- what it does with a
+#                                                          bad reading
+#
+# The appliance itself presents them that way: its own UI has an on/off for AI
+# Purify separately from the three mode choices. Folding them into one select
+# was tried first and lost two things -- a configured action became invisible
+# while the feature was off, and no option could toggle the feature without
+# also overwriting the action.
+#
+# Note the two 'off's mean opposite things and are not interchangeable. The
+# switch's off stops the unit sampling at all; the select's off is the
+# advertised autoExeState "Off", where the unit keeps sampling and simply
+# doesn't act on what it measures -- the app calls that choice "sensing only".
+#
+# The select reads its options straight off supportedAutoExeState rather than
+# a typed-in tuple, the same shape SOUND_MODE below uses for supportedModes: a
+# board advertising a fourth action gets it accepted on both the options list
+# and the write path.
+#
 # range_hood.AIR_LEVEL_CHECK already models this same href, and its read-only
 # keys (air_sensing_state / last_air_sensing_time / last_air_sensing_level) are
 # reused verbatim so both families share one catalog entry. It is deliberately
@@ -541,85 +564,47 @@ SOUND_VOLUME = Capability(
 # read back. The other two families get the writes on field-shape grounds, the
 # same basis on which they already share MODE, HEPA_FILTER and the air-quality
 # sensors.
+#
+# Deferred: startSensingOnce (On/Off on all three dumps) looks like a one-shot
+# "sense now" trigger and would be a ButtonDesc, but nothing here writes it yet
+# and this board is known to acknowledge writes it discards -- so it stays
+# unbound until someone can confirm the side effect rather than the echo.
 # ---------------------------------------------------------------------------
 
 
 def _interval_minutes(seconds):
-    """Device stores the interval in seconds; the entity is in minutes."""
+    """Device stores the interval in seconds; the entity is in minutes.
+
+    `is None` rather than a falsy check so a reported 0 stays 0 instead of
+    reading as unknown. Sub-30s values round to 0, which is why native_min is
+    0 rather than 1 -- matching oven.cook_time and operational's delay hours,
+    both of which convert a device time value and floor at zero.
+    """
     secs = int_or_none(seconds)
-    return round(secs / 60) if secs else None
+    return round(secs / 60) if secs is not None else None
 
 
 def _interval_write(payload, rep, href=None):
-    # Minutes in the UI -> seconds on the wire (scalar string). Arbitrary
-    # values are honoured: confirmed on hardware, where writing 60 s drove an
-    # observed sensing cycle every ~60 s. The 1-60 min range on the entity is a
-    # UI guard, not a device-advertised limit -- the resource carries no
-    # supported-range field.
+    # Minutes in the UI -> seconds on the wire (scalar string). Modelled as a
+    # free Number rather than the app's three fixed choices (10 min / 30 min /
+    # 1 hour): this resource advertises no supported-values or range field for
+    # the interval -- supportedAutoExeState sits right beside it, so the board
+    # does advertise constraints where it has them -- and it accepts values the
+    # app never offers. Writing 60 s, six times finer than the app's smallest
+    # choice, drove an observed ~60 s sensing cycle on hardware.
     return ["airlevelcheck", "vs", "0"], {
         "x.com.samsung.da.periodicSensingInterval": str(round(float(payload) * 60))
     }
 
 
-def _sensing_mode(rep):
-    """Fold the periodic-sensing toggle and the auto-action into one status.
-
-    The three on-states are the SmartThings app's own options for this
-    feature, not an invented grouping -- the app offers exactly:
-
-      sensing_only  "Sensing only"  -- sample the air, take no action
-      auto_purify   "Auto clean"    -- run purification while the air reads
-                                       bad and stop again once it improves
-      st_alarm      "Get notified"  -- send a SmartThings notification when
-                                       the air reads bad
-
-    (Labels transcribed from the Korean app -- 감지만 하기 / 자동 청정 /
-    알림받기 -- and rendered here in English; the parenthetical behaviour is
-    the app's own description of each. The auto-stop half of 'Auto clean' is
-    not visible in the dump, which reports only the selected autoExeState.)
-    """
-    on = str(rep.get("x.com.samsung.da.periodicSensingActivationState", "")).lower() == "on"
-    if not on:
-        return "off"
-    return {"Airpurify": "auto_purify", "Alarm": "st_alarm"}.get(
-        str(rep.get("x.com.samsung.da.autoExeState", "")), "sensing_only"
-    )
-
-
 def _periodic_sensing_write(payload, rep, href=None):
-    # The master on/off for periodic sensing. Off holds any auto-action
-    # pending; On arms the selected one.
+    # The master on/off for AI Purify. Leaves autoExeState alone, so the
+    # configured action survives the feature being switched off and comes back
+    # with it -- the thing the select cannot do, since every option it writes
+    # sets an action.
     return ["airlevelcheck", "vs", "0"], {
         "x.com.samsung.da.periodicSensingActivationState": ("On" if payload == "On" else "Off")
     }
-
-
-# One-control version of the same two fields: a single PUT sets the sensing
-# toggle and the auto-action together, so 'sensing_only' arms sensing with no
-# action in one step instead of two writes that briefly pass through a state
-# the user didn't ask for. Confirmed to land both fields in both directions --
-# sensing_only -> auto_purify raises autoExeState while activation stays On,
-# and back again lowers it.
-_SENSING_MODE_BODIES = {
-    "off": {"x.com.samsung.da.periodicSensingActivationState": "Off"},
-    "sensing_only": {
-        "x.com.samsung.da.periodicSensingActivationState": "On",
-        "x.com.samsung.da.autoExeState": "Off",
-    },
-    "auto_purify": {
-        "x.com.samsung.da.periodicSensingActivationState": "On",
-        "x.com.samsung.da.autoExeState": "Airpurify",
-    },
-    "st_alarm": {
-        "x.com.samsung.da.periodicSensingActivationState": "On",
-        "x.com.samsung.da.autoExeState": "Alarm",
-    },
-}
-
-
-def _sensing_mode_write(payload, rep, href=None):
-    body = _SENSING_MODE_BODIES.get(payload)
-    return (["airlevelcheck", "vs", "0"], dict(body)) if body else None
 
 
 def _skip_status_write(payload, rep, href=None):
@@ -650,11 +635,23 @@ def _skip_time_read(part):
     return _read
 
 
+def _skip_half(raw, part):
+    """The half this write isn't setting, normalized. Padding alone would carry
+    a malformed value straight back to the device -- writing start over a junk
+    skip time would send '0730' + junk. The read side already refuses a half it
+    can't parse, so an unparseable one becomes '0000' here and the pair
+    round-trips honestly in the same cases."""
+    chunk = (str(raw or "") + "00000000")[:8]
+    other = chunk[4:8] if part == "start" else chunk[0:4]
+    return other if _skip_time_read("end" if part == "start" else "start")(chunk) else "0000"
+
+
 def _skip_time_write(part):
     def _write(value, rep, href=None):
-        cur = (str(rep.get("x.com.samsung.da.periodicSensingSkipTime", "") or "") + "00000000")[:8]
+        raw = rep.get("x.com.samsung.da.periodicSensingSkipTime", "")
         hhmm = f"{value.hour:02d}{value.minute:02d}"
-        new = hhmm + cur[4:8] if part == "start" else cur[0:4] + hhmm
+        other = _skip_half(raw, part)
+        new = hhmm + other if part == "start" else other + hhmm
         return ["airlevelcheck", "vs", "0"], {"x.com.samsung.da.periodicSensingSkipTime": new}
 
     return _write
@@ -664,15 +661,6 @@ AIR_LEVEL_CHECK = Capability(
     href="/airlevelcheck/vs/0",
     poll_tier="warm",
     entities=(
-        SelectDesc(
-            key="sensing_mode",
-            rep_fn=_sensing_mode,
-            options=("off", "sensing_only", "auto_purify", "st_alarm"),
-            translation_key="sensing_mode",
-            icon="mdi:radar",
-            entity_category="config",
-            write_fn=_sensing_mode_write,
-        ),
         SwitchDesc(
             key="periodic_air_sensing",
             field="x.com.samsung.da.periodicSensingActivationState",
@@ -680,6 +668,22 @@ AIR_LEVEL_CHECK = Capability(
             entity_category="config",
             value_fn=lambda v: str(v).lower() == "on",
             write_fn=_periodic_sensing_write,
+        ),
+        # Options come off supportedAutoExeState, not a table here -- the
+        # catalog carries the labels for the three values seen so far, and an
+        # unrecognized fourth still reaches the user (select.py falls back to
+        # the device's own token when the catalog doesn't know it).
+        SelectDesc(
+            key="sensing_mode",
+            field="x.com.samsung.da.autoExeState",
+            options_field="x.com.samsung.da.supportedAutoExeState",
+            translation_key="sensing_mode",
+            icon="mdi:radar",
+            entity_category="config",
+            write_fn=lambda p, rep, href=None: (
+                ["airlevelcheck", "vs", "0"],
+                {"x.com.samsung.da.autoExeState": p},
+            ),
         ),
         # The one field that varies across the three families reporting this
         # resource: the TP1X_DA-AC-AIR dump (#130) omits it while both
@@ -690,7 +694,7 @@ AIR_LEVEL_CHECK = Capability(
             field="x.com.samsung.da.periodicSensingInterval",
             icon="mdi:timer-cog",
             entity_category="config",
-            native_min=1,
+            native_min=0,
             native_max=60,
             step=1,
             unit="min",
@@ -728,7 +732,6 @@ AIR_LEVEL_CHECK = Capability(
             field="x.com.samsung.da.sensingState",
             icon="mdi:radar",
             entity_category="diagnostic",
-            enabled_default=False,
         ),
         SensorDesc(
             key="last_air_sensing_time",
@@ -745,7 +748,6 @@ AIR_LEVEL_CHECK = Capability(
             field="x.com.samsung.da.lastSensingLevel",
             icon="mdi:air-filter",
             entity_category="diagnostic",
-            enabled_default=False,
         ),
     ),
 )

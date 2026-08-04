@@ -498,12 +498,11 @@
         "name": "Počet máchání"
       },
       "sensing_mode": {
-        "name": "AI Purify",
+        "name": "Akce AI Purify",
         "state": {
-          "off": "Vypnuto",
-          "sensing_only": "Pouze měření",
-          "auto_purify": "Automatické čištění",
-          "st_alarm": "Dostat upozornění"
+          "off": "Pouze měření",
+          "airpurify": "Automatické čištění",
+          "alarm": "Dostat upozornění"
         }
       },
       "softener_concentration": {
@@ -1043,7 +1042,7 @@
         "name": "Displej"
       },
       "periodic_air_sensing": {
-        "name": "Měření AI Purify"
+        "name": "AI Purify"
       },
       "periodic_sensing_skip_status": {
         "name": "Přeskočení měření AI Purify"

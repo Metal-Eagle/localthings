@@ -498,12 +498,11 @@
         "name": "Spoelcycli"
       },
       "sensing_mode": {
-        "name": "AI Purify",
+        "name": "AI Purify-actie",
         "state": {
-          "off": "Uit",
-          "sensing_only": "Alleen meten",
-          "auto_purify": "Automatisch reinigen",
-          "st_alarm": "Melding ontvangen"
+          "off": "Alleen meten",
+          "airpurify": "Automatisch reinigen",
+          "alarm": "Melding ontvangen"
         }
       },
       "softener_concentration": {
@@ -1043,7 +1042,7 @@
         "name": "Display"
       },
       "periodic_air_sensing": {
-        "name": "AI Purify-meting"
+        "name": "AI Purify"
       },
       "periodic_sensing_skip_status": {
         "name": "AI Purify meting overslaan"

@@ -498,12 +498,11 @@
         "name": "Risciacquo"
       },
       "sensing_mode": {
-        "name": "AI Purify",
+        "name": "Azione AI Purify",
         "state": {
-          "off": "Spento",
-          "sensing_only": "Solo rilevamento",
-          "auto_purify": "Pulizia automatica",
-          "st_alarm": "Ricevi notifica"
+          "off": "Solo rilevamento",
+          "airpurify": "Pulizia automatica",
+          "alarm": "Ricevi notifica"
         }
       },
       "softener_concentration": {
@@ -1043,7 +1042,7 @@
         "name": "Display"
       },
       "periodic_air_sensing": {
-        "name": "Rilevamento AI Purify"
+        "name": "AI Purify"
       },
       "periodic_sensing_skip_status": {
         "name": "Esclusione rilevamento AI Purify"
