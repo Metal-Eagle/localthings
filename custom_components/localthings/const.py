@@ -20,6 +20,24 @@ CONF_CA_KEY_PEM = "ca_key_pem"
 CONF_LEAF_CERT_PEM = "leaf_cert_pem"
 CONF_LEAF_KEY_PEM = "leaf_key_pem"
 
+# Device identity, resolved once by the config flow's probe and persisted on
+# the entry (issue #236). These are what the coordinator mints registry keys
+# from at __init__ time, before any poll has happened -- see
+# LocalThingsCoordinator.__init__. Without them the coordinator had to seed
+# `device_serial` with the host and rebuild its DeviceInfo after the first
+# successful poll, so anything that registered in between (the connection-mode
+# sensor, which is added unconditionally rather than from `bound`) was written
+# into the entity/device registry keyed on the IP address permanently.
+#
+# CONF_SERIAL is the *resolved* serial -- registry.identity.resolve_serial's
+# output, i.e. the host itself for a board that reports a placeholder serial
+# (issues #83/#189) -- so it matches what _run_discovery computes on the first
+# poll exactly, and the device identity never changes underneath the registry.
+CONF_SERIAL = "serial"
+CONF_MODEL = "model"
+CONF_MANUFACTURER = "manufacturer"
+CONF_DEVICE_TYPE = "device_type"
+
 # Options-flow key (entry.options, not entry.data): lets a user override the
 # device-wide remote-control-off write block for a specific device (issue
 # #54). Some devices report remote control off yet still accept certain
@@ -53,8 +71,24 @@ PREFERRED_PROBE_PORTS = [49154, 49155]
 
 # Per-port timeout for the cheap UDP liveness sweep. Closed ports return an
 # ICMP port-unreachable almost immediately; a live-but-silent port is only
-# detected by this timeout elapsing, so keep it short.
+# detected by this timeout elapsing, so keep it short. Only reached now as the
+# fallback for when the ClientHello probe below confirms nothing.
 LIVENESS_PROBE_TIMEOUT_S = 1.5
+
+# Per-port budget for the DTLS ClientHello probe (smartthings-local >= 0.1.2),
+# the primary port-detection gate. A real DTLS server answers with a
+# HelloVerifyRequest in ~1 RTT, so a live port resolves well inside this; the
+# budget only bounds how long a *silent* port takes to give up, since the
+# probe services OpenSSL's retransmit timer rather than reading one dropped
+# ClientHello as dead. 3s covers two retransmits on a slow LAN.
+CLIENTHELLO_PROBE_TIMEOUT_S = 3.0
+CLIENTHELLO_PROBE_RETRIES = 2
+
+# The whole port range is probed at once: each stateless probe is bounded by
+# CLIENTHELLO_PROBE_TIMEOUT_S (unlike a full handshake's 12s), so the sweep
+# costs one probe's wall clock rather than the sum of the range. Capped so a
+# widened PROBE_PORT_RANGE can't spawn an unbounded thread pool.
+PROBE_MAX_WORKERS = 12
 
 # Deadline for the blockwise /device/0 GET during the config-flow probe. The
 # slowest device observed returns a full dump in ~8s, so 10s leaves headroom

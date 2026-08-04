@@ -63,7 +63,7 @@ Other Tizen RT / DAWIT-family appliances almost certainly speak the same protoco
 nmap -Pn -sU -p 49152-49160 "$APPLIANCE_IP"
 ```
 
-- Any UDP port in `49152-49160` open|filtered with a DTLS handshake responding: newer firmware (Tizen RT 3.x, DAWIT 3.0+). This is what the integration talks to. Most devices answer on `49154`/`49155`, but some builds bind lower (e.g. `49153`). The config flow sweeps the whole range and auto-detects the live port, so you don't need to know which one your device uses.
+- Any UDP port in `49152-49160` open|filtered with a DTLS handshake responding: newer firmware (Tizen RT 3.x, DAWIT 3.0+). This is what the integration talks to. Most devices answer on `49154`/`49155`, but some builds bind lower (e.g. `49153`). The config flow probes the whole range and auto-detects the live port, so you don't need to know which one your device uses.
 - Only `8888/tcp` open (token-based HTTPS): older firmware (roughly 2018-2022). **Not supported here.**
 
 ---
@@ -82,10 +82,10 @@ This repo doesn't include the needed CA bundle. For an example of how to obtain 
 2. Restart HA.
 3. **Settings > Devices & Services > Add Integration > LocalThings.**
 4. First device: paste the appliance's IP, plus the contents of the CA private and public key from Part 2.
-5. The flow fetches the current UUID from Samsung's cloud gateway, mints a leaf cert signed by your CA, sweeps the `49152-49160` range to find the live DTLS port, and confirms the device answers `/device/0`. On success it creates the config entry and detects the device type automatically.
-6. Every subsequent device only asks for the host IP; the stored CA credentials are reused to mint that device's leaf cert.
+5. The flow sends a DTLS `ClientHello` to every port in the `49152-49160` range at once and keeps the one that answers -- a real DTLS server identifies itself in about one round trip, and the probe stops there, so nothing is left behind on the appliance. Only that port is then given a real certificate handshake: it fetches the current UUID from Samsung's cloud gateway, mints a leaf cert signed by your CA, and reads the device's identity and `/device/0`. On success it creates the config entry, already knowing the appliance's serial, model, and type.
+6. Every subsequent device only asks for the host IP. The stored CA credentials are reused, and so is the leaf cert itself -- every appliance accepts the same one -- so adding a second appliance doesn't depend on Samsung's cloud being reachable at all. If a device rejects the reused cert (the UUID behind it does rotate), the flow mints a fresh one and retries by itself.
 
-Entities appear under one HA device per appliance, named `Samsung Appliance (<ip>)` initially. Rename freely: the config entry is keyed on the device's serial, not the name.
+Entities appear under one HA device per appliance, named for the appliance's type and model. Rename freely: the device is keyed on its serial, not its name.
 
 ---
 
@@ -131,7 +131,7 @@ A large suite covering registry composition, discovery, entity descriptors, and 
 custom_components/localthings/
   manifest.json         Requirements (incl. the smartthings-local PyPI dep), version, domain
   __init__.py            async_setup_entry / async_unload_entry
-  config_flow.py          UUID fetch, leaf cert minting, port probing, config entry creation
+  config_flow.py          ClientHello port probe, UUID fetch, leaf cert minting, identity resolution
   coordinator.py          Polling + push update coordination, stale-state fallback, write dispatch
   observe.py              CoAP OBSERVE (push-mode) support layered on the coordinator
   diagnostics.py           Redacted diagnostics download (device state + coverage metadata)

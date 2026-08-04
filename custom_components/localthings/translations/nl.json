@@ -1235,10 +1235,18 @@
       },
       "confirm_unknown_type": {
         "title": "Apparaattype niet herkend",
-        "description": "Het apparaattype van dit apparaat kon niet worden herkend. Het apparaat wordt toch toegevoegd, maar alleen met algemene mogelijkheden (zoals voeding en alarmen, voor zover aanwezig), in plaats van alle mogelijkheden voor deze apparaatfamilie. Je kunt daarna helpen volledige ondersteuning toe te voegen door diagnostische gegevens voor dit apparaat te downloaden (Instellingen > Apparaten & diensten > dit apparaat > het menu > Diagnostische gegevens downloaden) en deze bij een nieuw issue te voegen. Kies Verzenden om het apparaat toch toe te voegen."
+        "description": "Dit apparaat meldt model \"{model}\", een type dat LocalThings nog niet herkent. Het apparaat wordt toch toegevoegd, maar alleen met algemene mogelijkheden (zoals voeding en alarmen, voor zover aanwezig), in plaats van alle mogelijkheden voor deze apparaatfamilie. Je kunt daarna helpen volledige ondersteuning toe te voegen door diagnostische gegevens voor dit apparaat te downloaden (Instellingen > Apparaten & diensten > dit apparaat > het menu > Diagnostische gegevens downloaden) en deze bij een nieuw issue te voegen. Kies Verzenden om het apparaat toch toe te voegen."
       }
     },
     "error": {
+      "no_response": "Geen reactie van dat IP-adres — er kwam niets terug op enige poort in het bereik van de lokale API van het apparaat (UDP 49152-49160). Controleer of het IP-adres klopt, of het apparaat aanstaat en op hetzelfde netwerk zit als Home Assistant, en of geen firewall het UDP-verkeer ernaartoe blokkeert.",
+      "ports_closed": "Dat IP-adres is bereikbaar, maar weigerde actief elke poort in het bereik van de lokale API (UDP 49152-49160). Het is óf geen Samsung-apparaat, óf het draait oudere firmware die alleen via TCP 8888 met de cloud van Samsung praat, wat deze integratie niet kan gebruiken.",
+      "no_dtls_server": "De poorten in het bereik van de lokale API zijn bereikbaar op dat adres, maar niets daar beantwoordde een DTLS-handshake. Controleer of het IP-adres bij het apparaat hoort en niet bij een ander apparaat in je netwerk.",
+      "handshake_timeout": "Het apparaat antwoordde op zijn lokale API-poort, maar voltooide de DTLS-handshake niet. Meestal houdt het de sessie van een eerdere poging nog vast — wacht ongeveer een minuut en probeer het opnieuw.",
+      "cert_rejected": "Het apparaat heeft het certificaat geweigerd. Het CA-certificaat en de sleutel zijn waarschijnlijk niet van de AC14K_M-CA die dit apparaat vertrouwt, of ze horen niet bij elkaar. Het Home Assistant-logboek bevat de precieze alert die het apparaat stuurde.",
+      "handshake_failed": "Het apparaat weigerde de DTLS-handshake om een reden die niets met het certificaat te maken heeft, hoogstwaarschijnlijk een protocol- of cipher-mismatch. Het Home Assistant-logboek bevat de precieze alert die het stuurde.",
+      "cloud_unreachable": "Kon de cloudgateway van Samsung niet bereiken om de UUID op te halen die nodig is om het certificaat van dit apparaat aan te maken. Controleer de internettoegang van Home Assistant en probeer het opnieuw.",
+      "unexpected_response": "Verbinding met het apparaat is gelukt, maar het gaf geen bruikbare apparaatbeschrijving terug. Mogelijk is het geen apparaat dat deze integratie ondersteunt. Het Home Assistant-logboek bevat wat het stuurde.",
       "cannot_connect": "Kan geen verbinding maken met het apparaat. Controleer of het IP-adres bereikbaar is en de CA-inloggegevens juist zijn.",
       "invalid_ca": "Het CA-certificaat of de privésleutel kon niet worden geladen. Controleer of de PEM-inhoud juist is en of de sleutel bij het certificaat hoort.",
       "unknown": "Onverwachte fout. Raadpleeg de Home Assistant-logboeken voor meer informatie."

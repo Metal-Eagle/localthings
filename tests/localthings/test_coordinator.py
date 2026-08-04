@@ -22,7 +22,6 @@ from custom_components.localthings.const import (
 )
 from custom_components.localthings.coordinator import (
     LocalThingsCoordinator,
-    _is_placeholder_serial,
     _local_source_port,
 )
 from custom_components.localthings.observe import MODE_OBSERVE, MODE_POLL, PUSH_HEALTH_WINDOW_S
@@ -31,7 +30,8 @@ from custom_components.localthings.registry.capabilities.common import (
     remote_control_required_for_write,
 )
 
-from .conftest import ENTRY_DATA, MOCK_SERIAL
+from .conftest import ENTRY_DATA, MOCK_MODEL, MOCK_SERIAL
+from .conftest import _load_fridge_resources as _load_fridge
 
 
 async def test_first_refresh_runs_discovery(
@@ -138,7 +138,7 @@ def test_run_discovery_detects_washer_via_model_fallback(hass: HomeAssistant, mo
 
 
 def test_run_discovery_falls_back_to_host_for_placeholder_serial(
-    hass: HomeAssistant, mock_entry
+    hass: HomeAssistant, legacy_entry
 ) -> None:
     """Issue #83: the ARTIK051_DONGLE_REF firmware family reports the
     literal string 'Nothing(SVC)' as serialNum on every unit. Left as-is,
@@ -154,13 +154,13 @@ def test_run_discovery_falls_back_to_host_for_placeholder_serial(
         },
         "/otninformation/vs/0": {},
     }
-    coordinator = LocalThingsCoordinator(hass, mock_entry)
+    coordinator = LocalThingsCoordinator(hass, legacy_entry)
     coordinator._run_discovery(resources)
-    assert coordinator.device_serial == mock_entry.data[CONF_HOST]
+    assert coordinator.device_serial == legacy_entry.data[CONF_HOST]
 
 
 def test_run_discovery_falls_back_to_host_for_all_f_placeholder_serial(
-    hass: HomeAssistant, mock_entry
+    hass: HomeAssistant, legacy_entry
 ) -> None:
     """Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
     reports a flash-unset sentinel instead of 'Nothing(SVC)' -- every
@@ -176,23 +176,76 @@ def test_run_discovery_falls_back_to_host_for_all_f_placeholder_serial(
         },
         "/otninformation/vs/0": {},
     }
+    coordinator = LocalThingsCoordinator(hass, legacy_entry)
+    coordinator._run_discovery(resources)
+    assert coordinator.device_serial == legacy_entry.data[CONF_HOST]
+
+
+# ---------------------------------------------------------------------------
+# Identity is known before the first poll (issue #236)
+# ---------------------------------------------------------------------------
+
+
+def test_identity_is_resolved_before_any_poll(hass: HomeAssistant, mock_entry) -> None:
+    """The coordinator mints registry keys from the entry's stored identity at
+    construction time.
+
+    `device_serial` is what entity unique_ids and device identifiers are built
+    from, and those are permanent. Seeding it with the host meant anything that
+    registered before the first poll returned -- the connection-mode sensor
+    especially, added unconditionally rather than from `bound` -- was written
+    into the registry keyed on the IP address forever, then orphaned when the
+    real identity showed up moments later.
+    """
+    coordinator = LocalThingsCoordinator(hass, mock_entry)
+
+    assert coordinator.device_serial == MOCK_SERIAL
+    assert coordinator.device_info["identifiers"] == {(DOMAIN, MOCK_SERIAL)}
+    assert coordinator.device_info["model"] == MOCK_MODEL
+    assert coordinator.device_info["name"] == f"Samsung Refrigerator ({MOCK_MODEL})"
+    assert mock_entry.data[CONF_HOST] not in str(coordinator.device_info["identifiers"])
+
+
+def test_identity_survives_a_first_poll_that_never_happens(hass: HomeAssistant, mock_entry) -> None:
+    """A device that is slow or unreachable at startup no longer changes what
+    its entities are called -- there is no placeholder left to correct."""
+    coordinator = LocalThingsCoordinator(hass, mock_entry)
+    before = coordinator.device_info["identifiers"]
+
+    coordinator._run_discovery(_load_fridge())
+
+    assert coordinator.device_info["identifiers"] == before
+
+
+def test_discovery_keeps_the_registered_identity(hass: HomeAssistant, mock_entry) -> None:
+    """A different appliance answering on the same IP does not silently re-key
+    the entry's existing devices and entities out from under the registry."""
+    resources = {
+        "/information/vs/0": {
+            "x.com.samsung.da.modelNum": "DA_WM_TP1_21_COMMON|20375141|20010002001811424AA30217008A0000",  # noqa: E501
+            "x.com.samsung.da.description": "DA_WM_TP1_21_COMMON_WW5000C/DC92-03495A_B048",
+            "x.com.samsung.da.serialNum": "SOME-OTHER-APPLIANCE",
+        },
+        "/otninformation/vs/0": {},
+    }
     coordinator = LocalThingsCoordinator(hass, mock_entry)
     coordinator._run_discovery(resources)
-    assert coordinator.device_serial == mock_entry.data[CONF_HOST]
+
+    assert coordinator.device_serial == MOCK_SERIAL
 
 
-def test_is_placeholder_serial_catches_all_same_hex_digit():
-    assert _is_placeholder_serial("FFFFFFFFFFFFFFF") is True
-    assert _is_placeholder_serial("ffffffffffffffff") is True
-    assert _is_placeholder_serial("00000000") is True
+def test_discovery_backfills_a_legacy_entry_identity(hass: HomeAssistant, legacy_entry) -> None:
+    """An entry migrated from before identity was stored learns it on its
+    first poll and keeps it, so the *next* restart registers the device fully
+    named before any entity exists instead of renaming it a second time."""
+    from custom_components.localthings.const import CONF_DEVICE_TYPE, CONF_MODEL, CONF_SERIAL
 
+    coordinator = LocalThingsCoordinator(hass, legacy_entry)
+    coordinator._run_discovery(_load_fridge())
 
-def test_is_placeholder_serial_accepts_real_serials_and_short_runs():
-    assert _is_placeholder_serial("0A1B2C3D4E5F") is False
-    assert _is_placeholder_serial("") is False
-    # Too short to be the flash-unset sentinel -- a real serial could
-    # plausibly repeat one hex digit seven times by chance.
-    assert _is_placeholder_serial("FFFFFFF") is False
+    assert legacy_entry.data[CONF_SERIAL] == MOCK_SERIAL
+    assert legacy_entry.data[CONF_MODEL] == MOCK_MODEL
+    assert legacy_entry.data[CONF_DEVICE_TYPE] == "refrigerator"
 
 
 def test_run_discovery_detects_cooktop_via_resource_signature(
