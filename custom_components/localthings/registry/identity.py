@@ -62,6 +62,24 @@ def resolve_serial(raw_serial: str | None, host: str) -> str:
     return s
 
 
+def resolve_model(model_num: str, identity: DeviceIdentity | None) -> str:
+    """The model string to name and register a device under.
+
+    `model_num` is /information/vs/0's x.com.samsung.da.modelNum, which many
+    boards report as `<model>|<board>` -- only the part before the pipe is the
+    model a user would recognize. A board that reports no modelNum at all
+    falls back to /oic/p's mnmo, which read_identity already parsed.
+
+    Shared with resolve_serial's motivation: the config flow resolves this
+    once and persists it on the entry, and the coordinator recomputes it after
+    the first poll. Two copies of the split rule would let those two disagree,
+    and a device that renames itself on the first poll is the visible symptom.
+    """
+    if model_num:
+        return model_num.split("|", 1)[0]
+    return identity.model if identity else ""
+
+
 def device_display_name(device_type_name: str | None, model: str) -> str:
     """The HA device name for a resolved device type + model.
 

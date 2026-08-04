@@ -53,6 +53,7 @@ from .registry.identity import (
     DeviceIdentity,
     device_display_name,
     read_identity,
+    resolve_model,
     resolve_serial,
 )
 from .registry.subdevices import (
@@ -777,7 +778,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.device_serial = serial
 
         ident = self._identity
-        model = model_num.split("|", 1)[0] if model_num else (ident.model if ident else "")
+        model = resolve_model(model_num, ident)
         name = device_display_name(device_type_name, model)
         mfr = (ident.manufacturer if ident else "") or "Samsung"
 

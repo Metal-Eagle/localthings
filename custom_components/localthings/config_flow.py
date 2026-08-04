@@ -600,7 +600,7 @@ def _read_device(sess, host: str, port: int) -> dict:
 
     from .registry.batch import parse_device0_batch
     from .registry.by_type import resolve as resolve_registry
-    from .registry.identity import read_identity, resolve_serial
+    from .registry.identity import read_identity, resolve_model, resolve_serial
 
     identity = read_identity(sess, None)
 
@@ -617,14 +617,14 @@ def _read_device(sess, host: str, port: int) -> dict:
     resources = parse_device0_batch(body) if isinstance(body, list) else {}
 
     info = resources.get("/information/vs/0", {})
-    model_num = info.get("x.com.samsung.da.modelNum", "")
     registry = resolve_registry(resources, device_types=identity.device_types)
     return {
         "port": port,
+        # Resolved through the same helpers _run_discovery uses, so the device
+        # the coordinator registers up front is the one discovery would have
+        # produced -- no rename, and no re-key, once the first poll lands.
         "serial": resolve_serial(info.get("x.com.samsung.da.serialNum"), host),
-        # Same derivation _run_discovery uses, so the device the coordinator
-        # registers up front is the one discovery would have produced.
-        "model": model_num.split("|", 1)[0] if model_num else identity.model,
+        "model": resolve_model(info.get("x.com.samsung.da.modelNum", ""), identity),
         "manufacturer": identity.manufacturer or "Samsung",
         "device_type_name": registry.name if registry is not None else None,
         "device_type_recognized": registry is not None,

@@ -58,6 +58,93 @@ async def test_migration_collapses_the_host_port_unique_id(
     assert entry.unique_id == f"{DOMAIN}_{MOCK_HOST}"
 
 
+async def test_migration_resolves_a_placeholder_serial_unique_id(
+    hass: HomeAssistant, mock_coordinator_session
+) -> None:
+    """An entry created before the placeholder rules landed was keyed on the
+    placeholder itself (issues #83/#189), while the coordinator has been
+    resolving those boards to the host ever since. The unique_id records what
+    the flow believed then, not what the registry holds -- taking it at face
+    value would re-key working devices back onto a string every unit of the
+    family reports, which is the collision those issues are about."""
+    entry = _legacy_entry(hass, f"{DOMAIN}_Nothing(SVC)")
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, MOCK_HOST)},
+    )
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.data[CONF_SERIAL] == MOCK_HOST
+    assert entry.unique_id == f"{DOMAIN}_{MOCK_HOST}"
+    unchanged = dev_reg.async_get(device.id)
+    assert unchanged is not None
+    assert unchanged.identifiers == {(DOMAIN, MOCK_HOST)}
+
+
+async def test_migration_resolves_an_all_hex_placeholder_unique_id(
+    hass: HomeAssistant, mock_coordinator_session
+) -> None:
+    """The issue #189 flash-unset sentinel, same reasoning."""
+    entry = _legacy_entry(hass, f"{DOMAIN}_FFFFFFFFFFFFFFF")
+
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.data[CONF_SERIAL] == MOCK_HOST
+
+
+async def test_migration_keeps_a_survivor_off_a_removed_duplicate_device(
+    hass: HomeAssistant,
+) -> None:
+    """Removing a device takes its entities with it (entity_registry's
+    async_device_modified), so an entity that came through the pass above
+    re-keyed rather than removed has to move to the surviving device first --
+    otherwise the rewrite that exists to preserve an entity_id, name and area
+    destroys all three a few lines later.
+
+    Migration is called directly here: what the repair leaves behind is the
+    contract, and going through async_setup would let the platform re-adding
+    its entities hide a row that had in fact been deleted."""
+    from custom_components.localthings import async_migrate_entry
+
+    entry = _legacy_entry(hass, f"{DOMAIN}_{MOCK_SERIAL}")
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    real_device = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, MOCK_SERIAL)},
+    )
+    orphan_device = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, MOCK_HOST)},
+    )
+    # The serial-keyed device exists, but this entity's serial-keyed *key* is
+    # free -- e.g. the user deleted the visible duplicate by hand -- so the
+    # entity pass rewrites it instead of removing it.
+    survivor = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_{MOCK_HOST}_connection_mode",
+        config_entry=entry,
+        device_id=orphan_device.id,
+        suggested_object_id="kitchen_fridge_connection",
+    )
+
+    assert await async_migrate_entry(hass, entry) is True
+    await hass.async_block_till_done()
+
+    assert dev_reg.async_get(orphan_device.id) is None
+    kept = ent_reg.async_get(survivor.entity_id)
+    assert kept is not None
+    assert kept.entity_id == "sensor.kitchen_fridge_connection"
+    assert kept.unique_id == f"{DOMAIN}_{MOCK_SERIAL}_connection_mode"
+    assert kept.device_id == real_device.id
+
+
 async def test_migration_rekeys_an_ip_keyed_device_and_entity(
     hass: HomeAssistant, mock_coordinator_session
 ) -> None:

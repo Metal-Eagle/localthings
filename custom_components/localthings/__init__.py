@@ -13,32 +13,45 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_HOST, CONF_PORT, CONF_SERIAL, DOMAIN, PLATFORMS
 from .coordinator import LocalThingsCoordinator
+from .registry.identity import resolve_serial
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _serial_from_unique_id(entry: ConfigEntry) -> str | None:
+def _serial_from_unique_id(entry: ConfigEntry) -> str:
     """The device identity a pre-v2 entry was created with.
 
     The config flow has always keyed the entry's unique_id on the serial the
     probe read (`localthings_<serial>`), so that string is the identity the
     entry's registry entries were minted from -- there is no need to reach the
-    device to recover it.
+    device to recover it. Anything we can't recover one from resolves to the
+    host, which is what the coordinator seeded such an entry with anyway.
 
-    One wrinkle: for a board reporting a placeholder serial (issues #83/#189)
-    the two sides used to disagree. The config flow fell back to `host:port`
-    while the coordinator fell back to `host`, so the entry and its own
-    devices/entities were keyed differently. Collapse that to the
-    coordinator's form, which is the one the registry actually holds.
+    The recovered string goes back through resolve_serial rather than being
+    taken at face value, because the unique_id records what the flow believed
+    at the time it ran, not what the registry holds now. Entries created
+    before the placeholder rules landed (issues #83/#189) were keyed on the
+    placeholder itself -- `localthings_Nothing(SVC)`, `localthings_FFFF...` --
+    while the coordinator has since been resolving those same boards to the
+    host. Re-keying the registry onto the placeholder to match the unique_id
+    would reintroduce the collision those issues are about: two units of that
+    family report the *same* placeholder, so they'd share entity unique_ids
+    again.
+
+    A later wrinkle, same root cause: for a stretch the two sides disagreed on
+    which fallback to use, the flow writing `host:port` while the coordinator
+    wrote `host`. Collapse that to the coordinator's form too -- the registry
+    is what has to keep working.
     """
+    host = entry.data[CONF_HOST]
     prefix = f"{DOMAIN}_"
     unique_id = entry.unique_id or ""
     if not unique_id.startswith(prefix):
-        return None
+        return host
     serial = unique_id[len(prefix) :]
-    if serial == f"{entry.data[CONF_HOST]}:{entry.data.get(CONF_PORT)}":
-        return entry.data[CONF_HOST]
-    return serial or None
+    if serial == f"{host}:{entry.data.get(CONF_PORT)}":
+        return host
+    return resolve_serial(serial, host)
 
 
 @callback
@@ -92,6 +105,16 @@ def _repair_placeholder_keys(hass: HomeAssistant, entry: ConfigEntry, serial: st
         fresh = {(DOMAIN, f"{serial}{ident[1][len(host) :]}") for ident in stale}
         existing = dev_reg.async_get_device(identifiers=fresh)
         if existing is not None and existing.id != device.id:
+            # Removing a device takes its entities with it. Anything still
+            # attached here came through the pass above re-keyed rather than
+            # removed -- i.e. it's the surviving copy, not a duplicate -- so
+            # move it onto the device it now belongs to first. Otherwise the
+            # rewrite that was supposed to preserve an entity_id, name and
+            # area destroys them a few lines later.
+            for entity in er.async_entries_for_device(
+                ent_reg, device.id, include_disabled_entities=True
+            ):
+                ent_reg.async_update_entity(entity.entity_id, device_id=existing.id)
             _LOGGER.debug("removing orphaned device %s", device.id)
             dev_reg.async_remove_device(device.id)
         else:
@@ -113,9 +136,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
 
     if entry.version == 1:
-        serial = (
-            entry.data.get(CONF_SERIAL) or _serial_from_unique_id(entry) or entry.data[CONF_HOST]
-        )
+        serial = entry.data.get(CONF_SERIAL) or _serial_from_unique_id(entry)
         hass.config_entries.async_update_entry(
             entry,
             data={**entry.data, CONF_SERIAL: serial},
