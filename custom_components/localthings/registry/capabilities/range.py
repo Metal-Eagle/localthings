@@ -178,7 +178,7 @@ COOKTOP_SAFETY = Capability(
         BinarySensorDesc(
             key="cooktop_safety_shutoff_enabled",
             field="safetyAlert",
-            entity_category="config",
+            entity_category="diagnostic",
             value_fn=lambda v: (v or {}).get("state") == "on",
         ),
     ),

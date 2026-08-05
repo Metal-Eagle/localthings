@@ -573,6 +573,21 @@ def test_registry_reproduces_golden_state_keys_for_induction_cooktop():
     )
 
 
+def test_registry_reproduces_golden_state_keys_for_induction_cooktop_nv9000d():
+    """NV9000D-/KO2 compatibility fixture: the same three-burner registry,
+    with the safety-shutoff status but without optional probe/hood resources."""
+    from tests.conftest import _load_device
+
+    resources = _load_device("induction_cooktop_nv9000d")
+    golden = json.loads((GOLDEN / "induction_cooktop_nv9000d.json").read_text())
+    state_keys = _new_state_keys("induction_cooktop_nv9000d", resources)
+    assert set(state_keys) == set(golden["state_keys"]), (
+        f"state_keys mismatch:\n"
+        f"  extra:   {sorted(set(state_keys) - set(golden['state_keys']))}\n"
+        f"  missing: {sorted(set(golden['state_keys']) - set(state_keys))}"
+    )
+
+
 def test_registry_reproduces_golden_state_keys_for_range_no_info():
     """NE63B8411SS (issue #74) -- reports no oneUiVersion *and* no
     /information/vs/0 at all, so neither for_device nor
