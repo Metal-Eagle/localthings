@@ -235,6 +235,32 @@ def test_filter_alarm_time_reads_the_threshold_and_writes_one_token():
     )
 
 
+def test_auto_clean_progress_and_stop_come_off_their_own_tokens():
+    """Three tokens describe the drying cycle and the switch only covered the
+    first. AutocleanProgress_ is a percentage -- the app renders it into a
+    `<progress max="100">` beside a "{{value}}%" label -- and StopAutoClean_ is
+    the channel for ending a cycle early, whose presence is what says the
+    appliance accepts that at all (the fixture reports Idle, this unit's
+    resting value)."""
+    assert _state()["auto_clean_progress_legacy"] == 1.0  # the fixture's own value
+
+    desc = _desc(_load_device(FIXTURE), "auto_clean_stop")
+    assert desc is not None
+    assert desc.write_fn(desc.payload, {}) == (
+        ["mode", "vs", "0"],
+        {"x.com.samsung.da.options": ["StopAutoClean_Set"]},
+    )
+
+
+def test_auto_clean_stop_stays_off_boards_without_the_token():
+    """Newer boards run the same cycle off /option/autoclean/vs/0 and say
+    nothing about stopping it, so writing a legacy token there would be a
+    guess."""
+    newer = _load_device("airconditioner_tp1x_rac")
+    assert _desc(newer, "auto_clean_stop") is None
+    assert "auto_clean_progress_legacy" not in _state("airconditioner_tp1x_rac")
+
+
 def test_filter_alarm_time_stays_off_boards_with_a_real_threshold_resource():
     """Newer boards carry air_filter_threshold off supportedFilterDesiredUsage;
     two thresholds on one device would be a coin flip for the user.

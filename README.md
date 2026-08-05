@@ -194,6 +194,8 @@ Samsung's firmware occasionally drops the DTLS session briefly — this is norma
 
 If reconnects become persistent (more than a handful per minute), something's actually wrong. Check the appliance's Wi-Fi link first, then look for a competing DTLS client on the LAN — only one active session per appliance is allowed at a time.
 
+Deregistering a device in SmartThings causes a reset of its network settings as soon as it accesses Samsung's servers, dropping it off Wi-Fi until it's re-onboarded through the SmartThings app. As such, consider keeping devices registered even if egress-blocked, to avoid them resetting upon brief internet access.
+
 ### Multi-subdevice ("2-in-1") air conditioner systems
 
 Some Samsung installs run more than one indoor subdevice off a single outdoor unit, all reachable over the *one* IP/DTLS session your config entry connects to (a floor-standing + wall-mounted 2-in-1 is a common shape). The integration discovers any sibling subdevices automatically, once, right after the first successful poll — there's nothing to configure. Each discovered subdevice gets its own HA device (linked to the main one via "via device") and its own `climate` card, so it lands in its own room in the dashboard instead of being invisible or mixed into the master's state.
