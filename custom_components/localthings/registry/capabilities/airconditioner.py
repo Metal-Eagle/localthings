@@ -318,11 +318,7 @@ def _option_number_write(prefix, factor=1):
     def write(payload, rep, href=None):
         return (
             ["mode", "vs", "0"],
-            {
-                "x.com.samsung.da.options": option_write(
-                    prefix, str(round(float(payload) * factor))
-                )
-            },
+            {"x.com.samsung.da.options": option_write(prefix, str(round(float(payload) * factor)))},
         )
 
     return write
