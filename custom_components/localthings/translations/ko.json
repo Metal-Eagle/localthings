@@ -117,6 +117,9 @@
       "diagnosis_start": {
         "name": "진단 시작"
       },
+      "auto_clean_stop": {
+        "name": "자동 청소 정지"
+      },
       "pause": {
         "name": "일시정지"
       },
@@ -190,6 +193,9 @@
       },
       "oven_setpoint": {
         "name": "설정 온도"
+      },
+      "sensing_interval": {
+        "name": "AI Purify 간격"
       },
       "setpoint": {
         "name": "설정값"
@@ -493,6 +499,14 @@
       },
       "rinse_cycles": {
         "name": "헹굼 횟수"
+      },
+      "sensing_mode": {
+        "name": "AI Purify 동작",
+        "state": {
+          "off": "감지만",
+          "airpurify": "자동 청소",
+          "alarm": "알림 받기"
+        }
       },
       "softener_concentration": {
         "name": "섬유유연제 농축도",
@@ -1030,6 +1044,12 @@
       "display": {
         "name": "디스플레이"
       },
+      "periodic_air_sensing": {
+        "name": "AI Purify"
+      },
+      "periodic_sensing_skip_status": {
+        "name": "AI Purify 감지 건너뛰기"
+      },
       "pet_filter_activation": {
         "name": "펫 필터 작동"
       },
@@ -1199,6 +1219,12 @@
       },
       "night_start": {
         "name": "야간 조명 시작"
+      },
+      "sensing_skip_end": {
+        "name": "AI Purify 감지 건너뛰기 종료"
+      },
+      "sensing_skip_start": {
+        "name": "AI Purify 감지 건너뛰기 시작"
       }
     },
     "water_heater": {
