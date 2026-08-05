@@ -191,6 +191,9 @@
       "oven_setpoint": {
         "name": "Instelpunt"
       },
+      "sensing_interval": {
+        "name": "AI Purify-interval"
+      },
       "setpoint": {
         "name": "Instelpunt"
       },
@@ -493,6 +496,14 @@
       },
       "rinse_cycles": {
         "name": "Spoelcycli"
+      },
+      "sensing_mode": {
+        "name": "AI Purify-actie",
+        "state": {
+          "off": "Alleen meten",
+          "airpurify": "Automatisch reinigen",
+          "alarm": "Melding ontvangen"
+        }
       },
       "softener_concentration": {
         "name": "Concentratie wasverzachter",
@@ -1030,6 +1041,12 @@
       "display": {
         "name": "Display"
       },
+      "periodic_air_sensing": {
+        "name": "AI Purify"
+      },
+      "periodic_sensing_skip_status": {
+        "name": "AI Purify meting overslaan"
+      },
       "pet_filter_activation": {
         "name": "Huisdierfilter actief"
       },
@@ -1199,6 +1216,12 @@
       },
       "night_start": {
         "name": "Start nachtverlichting"
+      },
+      "sensing_skip_end": {
+        "name": "Einde AI Purify meting overslaan"
+      },
+      "sensing_skip_start": {
+        "name": "Start AI Purify meting overslaan"
       }
     },
     "water_heater": {
