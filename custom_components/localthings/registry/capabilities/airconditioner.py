@@ -1,18 +1,12 @@
-"""Capabilities for the Samsung air-conditioner family (ARTIK051_PRAC-class).
+"""Capabilities for the Samsung air-conditioner family (ARTIK051_PRAC-class,
+issue #17 / ARTIK051_PRAC_20K).
 
-Resources verified against the issue #17 diagnostics dump (model
-ARTIK051_PRAC_20K). This is the first family whose core controls surface as a
-single composite HA `climate` entity rather than a scatter of switches/selects:
-power (on/off), HVAC mode, current/target temperature, fan (wind) strength,
-swing (wind direction), and the convenient-mode preset all live on one climate
-card. The climate platform (climate.py) reads those sibling resources from the
-coordinator snapshot; here we bind the primary `/mode/vs/0` resource to the
-`ClimateDesc` and mark the consumed siblings as covered.
-
-None of these caps may go into the global `ALL`/`CAPABILITIES`: `/mode/vs/0`,
-`/temperatures/vs/0`, `/humidity/*` collide with fridge/oven hrefs of a
-different schema (see capabilities/__init__.py). They live only in the AC
-by_type registry.
+Core controls (power, mode, temperature, fan, swing, preset) surface as one
+composite HA `climate` entity; climate.py reads the sibling resources bound
+here off the coordinator snapshot. These caps stay out of the global
+`ALL`/`CAPABILITIES`: several hrefs (`/mode/vs/0`, `/temperatures/vs/0`,
+`/humidity/*`) collide with other families' schemas (see
+capabilities/__init__.py) -- AC-only, by_type registry only.
 """
 
 from dataclasses import replace
@@ -40,14 +34,8 @@ def _int(v):
 
 
 def _beep_on(rep):
-    """Beep on/off from the `Volume_*` option token: Volume_Mute = off,
-    Volume_100 (and any non-Mute) = on. None when no Volume_ slot.
-
-    _option_token (defined further below, alongside the legacy-board token
-    helpers) returns the token's *value* half (e.g. 'Mute', '100'), not the
-    full 'Volume_100' token -- shared with _option_token_num/_option_token_on,
-    which this module's other options[] readers already rely on.
-    """
+    """Beep on/off from the `Volume_*` option token (`Volume_Mute` = off,
+    else on)."""
     tok = _option_token(rep, "Volume")
     if tok is None:
         return None
@@ -55,10 +43,9 @@ def _beep_on(rep):
 
 
 def _beep_write(payload, rep, href=None):
-    """Toggle beep via a single-token /mode/vs/0 options write (option_write's
-    one-token merge -- a full options RMW reverts on ARTIK051_PRAC). 'On'
-    restores the last non-Mute level rather than forcing Volume_100, so a
-    user's intermediate setting (e.g. Volume_50 set via the cloud) survives an
+    """Toggle beep via a single-token options write (a full options RMW
+    reverts on ARTIK051_PRAC). 'On' restores the last non-Mute level rather
+    than forcing Volume_100, so a user's intermediate setting survives an
     off/on cycle; falls back to 100 when no prior level is known."""
     if payload not in ("On", "Off"):
         return None
@@ -73,11 +60,7 @@ def _beep_write(payload, rep, href=None):
 
 
 def _tropical_night_value(rep):
-    """Tropical night mode level (0-16) from the `Sleep_<N>` option token.
-
-    _option_token returns the token's value half already (e.g. '16' for
-    'Sleep_16'), same convention as _beep_on above.
-    """
+    """Tropical night mode level (0-16) from the `Sleep_<N>` option token."""
     tok = _option_token(rep, "Sleep")
     if tok is None:
         return None
@@ -85,8 +68,8 @@ def _tropical_night_value(rep):
 
 
 def _tropical_night_write(value, rep, href=None):
-    """Set tropical night level via a single-token `Sleep_<N>` options write.
-    Samsung cloud counterpart: custom.airConditionerTropicalNightMode (0-16)."""
+    """Set tropical night level via a single-token `Sleep_<N>` write.
+    Cloud counterpart: custom.airConditionerTropicalNightMode."""
     try:
         level = round(float(value))
     except (TypeError, ValueError):
@@ -99,20 +82,16 @@ def _tropical_night_write(value, rep, href=None):
 
 
 def _filter_unit(rep):
-    """Unit of the filter-usage fields, normalised from filterCapacityUnit
-    ('Hour' -> 'h'). Wired through unit_fn so a board advertising a different
-    unit doesn't silently mislabel a duration statistic."""
+    """Filter-usage unit, normalized from filterCapacityUnit ('Hour' -> 'h')."""
     u = rep.get("x.com.samsung.da.filterCapacityUnit")
     return {"Hour": "h", "Minute": "min", "Second": "s"}.get(u, u or "h")
 
 
 def _threshold_write(payload, rep, href=None):
-    """filterDesiredUsage is locally writable: a plain scalar POST of the
-    field to /filter/airdustfilter/vs/0 is 2.04-accepted and persists
-    (confirmed live on ARTIK051_PRAC: POST 700 -> 2.04, read-back 700). The
-    Select only surfaces where the device advertises
-    supportedFilterDesiredUsage, so the valid options are known rather than
-    guessed; boards without that enum leave this writable field unexposed."""
+    """filterDesiredUsage is locally writable via a plain scalar POST
+    (confirmed live on ARTIK051_PRAC). The Select only surfaces where the
+    device advertises supportedFilterDesiredUsage, so options are known
+    rather than guessed."""
     return ["filter", "airdustfilter", "vs", "0"], {
         "x.com.samsung.da.filterDesiredUsage": payload,
     }
@@ -120,14 +99,9 @@ def _threshold_write(payload, rep, href=None):
 
 def _sensor_item_value(items, type_):
     """First value of the /sensors/vs/0 item with the given
-    x.com.samsung.da.type. The resource exposes no unit, so no device_class is
-    set until a populated reading + unit is observed (the 'don't guess' rule).
-
-    Dust/FineDust/SuperFineDust report a 2-element array (['0','0']) while
-    CleanLevel/Odor report a single element -- the second element's meaning is
-    unconfirmed, so v[0] is taken as the reading and v[1] is dropped; left as
-    a string rather than coerced numeric because only CleanLevel has
-    corroborating evidence (a top-level x.com.samsung.da.cleanLevel scalar)."""
+    x.com.samsung.da.type. Dust/FineDust/SuperFineDust report a 2-element
+    array; only v[0] is used, since the second element's meaning is
+    unconfirmed. No device_class is set: the resource exposes no unit."""
     for it in items or []:
         if isinstance(it, dict) and it.get("x.com.samsung.da.type") == type_:
             v = it.get("x.com.samsung.da.value")
@@ -138,24 +112,15 @@ def _sensor_item_value(items, type_):
 
 
 def _has_sensor_type(type_):
-    """True when the /sensors/vs/0 items[] array lists an item of this type.
+    """True when /sensors/vs/0's items[] lists an item of this type.
 
-    This proves the type is *listed*, not that the reading is real: issue
-    #166 (ARxxTXFCAWKNEU, board ARTIK051_PRAC_20K) lists all five item types
-    with permanent zero values on both its units, and the reporter confirmed
-    none of these sensors are physically present. A top-level
-    x.com.samsung.da.cleanLevel scalar (separate from the CleanLevel item)
-    looked like a corroborating "this reading is real" signal at first --
-    present alongside genuinely populated readings on tp1x_da_ac_rac_01011
-    and the tp1x_da_ac_air air purifier fixture, absent on every all-zero
-    ARTIK051_PRAC_20K dump including both #166 units -- but it doesn't hold
-    up as a general rule: air_purifier_device.json (ARTIK051_TVTL_18K),
-    air_purifier_vtww_device.json, and range_hood_device.json all carry
-    genuinely populated, non-AC-family Dust/FineDust/SuperFineDust readings
-    with no such scalar. So this stays item-type presence only -- the
-    entities are disabled by default instead (see AIR_QUALITY below) rather
-    than existence-gated on a signal that would silently drop real readings
-    on hardware this repo hasn't seen yet."""
+    This only proves the type is *listed*, not that the reading is real:
+    issue #166 (ARTIK051_PRAC_20K) lists all five types with permanent-zero
+    values on units the reporter confirmed don't have the hardware. So
+    entities gated on this stay disabled by default (see AIR_QUALITY) rather
+    than existence-gated further, to avoid silently dropping real readings
+    on hardware not yet seen.
+    """
 
     def fn(rep, resources):
         return any(
@@ -166,36 +131,24 @@ def _has_sensor_type(type_):
     return fn
 
 
-# ---------------------------------------------------------------------------
-# Canonical AC resource hrefs. The climate entity (climate.py) binds the
-# primary HREF_MODE via CLIMATE below and reads the CLIMATE_CONSUMED_HREFS
-# siblings off the coordinator snapshot; those siblings are marked covered
-# (no-entity caps) so discover() reports no gap. Declared once here and
-# imported by climate.py, so a new sibling read can't drift out of sync with
-# its coverage entry.
-# ---------------------------------------------------------------------------
-HREF_MODE = "/mode/vs/0"  # primary (bound by CLIMATE)
-HREF_POWER = "/power/0"  # on/off -> HVACMode.OFF / TURN_ON/OFF
+# Canonical AC resource hrefs. climate.py binds HREF_MODE and reads the
+# CLIMATE_CONSUMED_HREFS siblings off the coordinator snapshot; declared once
+# here so climate.py and the coverage list below can't drift out of sync.
+HREF_MODE = "/mode/vs/0"  # primary, bound by CLIMATE
+HREF_POWER = "/power/0"  # OCF on/off
 HREF_POWER_VS = "/power/vs/0"  # vendor fallback for on/off
-HREF_TEMP_CURRENT = "/temperature/current/0"  # current_temperature
-HREF_TEMP_DESIRED = "/temperature/desired/0"  # target_temperature (write target)
+HREF_TEMP_CURRENT = "/temperature/current/0"
+HREF_TEMP_DESIRED = "/temperature/desired/0"
 HREF_TEMP_CONTROL = "/temperature/control/vs/0"  # target_temperature_step
 HREF_WIND_STRENGTH = "/wind/strength/vs/0"  # fan_mode
 HREF_WIND_DIRECTION = "/wind/direction/vs/0"  # swing_mode
-# Newer boards (issue #126, TP1X_DA-AC-RAC-01011 WindFree variant) report no
-# HREF_WIND_DIRECTION at all and instead carry a 2-axis oscillation resource
-# (separate vertical/horizontal Swing|Fix toggles, each with its own angle).
-# climate.py falls back to this when HREF_WIND_DIRECTION is absent, the same
-# duality pattern as the OCF/vendor temperature channel below.
+# WindFree boards (issue #126) have no HREF_WIND_DIRECTION and instead carry a
+# 2-axis oscillation resource; climate.py falls back to this when absent.
 HREF_WIND_OSCILLATION = "/wind/oscillation/vs/0"  # swing_mode fallback
 HREF_CONVENIENT = "/mode/convenient/vs/0"  # preset_mode
 HREF_TEMPS_VS = "/temperatures/vs/0"  # vendor temp fallback (items[] array)
-# Legacy ARTIK051 boards (ARTIK051_KRAC_18K, issue #136) carry no /wind/* resources
-# at all: fan speed and vane direction sit together in this one resource, as
-# x.com.samsung.da.speedLevel (the same 0-4 scale as _DEVICE_TO_FAN) and
-# x.com.samsung.da.direction (the same codes as _DEVICE_TO_SWING). Their
-# convenient-mode preset is a Comode_* token in /mode/vs/0's options instead of a
-# resource of its own -- see climate.py's _legacy_airflow/_legacy_convenient.
+# Legacy ARTIK051 boards (issue #136) have no /wind/* resources: fan speed and
+# vane direction live together here instead. See climate.py's _legacy_airflow.
 HREF_AIRFLOW = "/airflow/vs/0"  # legacy fan_mode + swing_mode
 
 CLIMATE_CONSUMED_HREFS = [
@@ -222,9 +175,9 @@ def _num(v):
 
 def _temps_vs_item(rep):
     """First item of the vendor `/temperatures/vs/0` items[] array -- the
-    Tizen Lite board's only current-temperature source (see climate.py's
-    identical helper; duplicated rather than imported to avoid a
-    capabilities<->platform import cycle)."""
+    Tizen Lite board's only current-temperature source. Duplicated from
+    climate.py's identical helper to avoid a capabilities<->platform import
+    cycle."""
     items = rep.get("x.com.samsung.da.items")
     if isinstance(items, (list, tuple)) and items and isinstance(items[0], dict):
         return items[0]
@@ -240,8 +193,8 @@ def _temps_vs_unit(rep):
 
 
 def _first_mode(rep):
-    """Representative scalar for the climate entity in the flattened state
-    (golden/regression). The real entity computes hvac_mode from power + mode."""
+    """Representative scalar for the flattened golden state; the real
+    climate entity derives hvac_mode from power + mode instead."""
     modes = rep.get("x.com.samsung.da.modes")
     if isinstance(modes, (list, tuple)):
         return modes[0] if modes else None
@@ -254,22 +207,16 @@ def _mode_options(rep):
 
 
 def _has_display_light_option(rep, resources):
-    """True when the panel light state is carried inside /mode/vs/0's options
-    blob (a `Light_On`/`Light_Off` token) rather than a dedicated /light/vs/0
-    switch. The two encodings are mutually exclusive across observed boards:
-    models exposing the /light/vs/0 switch (bound by DISPLAY_LIGHT below)
-    carry no Light_* option, so this entity only materialises on the boards
-    that would otherwise have no display-light entity at all."""
+    """True when the panel light lives in /mode/vs/0's `Light_*` option
+    token rather than a dedicated /light/vs/0 switch -- the two encodings
+    are mutually exclusive across observed boards."""
     return any(isinstance(o, str) and o.startswith("Light_") for o in _mode_options(rep))
 
 
 def _display_light_on(rep):
-    """Panel display light state from /mode/vs/0's options blob. The token is
-    INVERTED relative to its name -- confirmed by a live toggle test: with the
-    panel lit the option reads `Light_Off`, and with it dark it reads
-    `Light_On` (the flag really encodes "night/display-off mode active"). So
-    `Light_Off` -> light on, `Light_On` -> light off. Read-only from here; the
-    write below uses the device's own single-token merge (see option_write)."""
+    """Panel light state from /mode/vs/0's options. The token is INVERTED:
+    a live toggle test showed `Light_Off` while lit and `Light_On` while
+    dark (the flag really means "night/display-off mode active")."""
     for o in _mode_options(rep):
         if isinstance(o, str) and o.startswith("Light_"):
             return o == "Light_Off"
@@ -277,22 +224,17 @@ def _display_light_on(rep):
 
 
 def _display_light_write(payload, rep, href=None):
-    """Toggle the panel light via a single-token /mode/vs/0 options write
-    ('SingleCommand_1' is advertised in this family's /configuration/vs/0
-    airconOptionList; option_write's one-token merge is the same mechanism
-    air_purifier.py uses for its own Light switch). Polarity is inverted (see
-    _display_light_on): switching the lamp ON writes 'Light_Off', OFF writes
+    """Toggle the panel light via a single-token options write. Polarity is
+    inverted (see _display_light_on): ON writes 'Light_Off', OFF writes
     'Light_On'."""
     token = "Off" if payload == "On" else "On"
     return (["mode", "vs", "0"], {"x.com.samsung.da.options": option_write("Light", token)})
 
 
-# ---------------------------------------------------------------------------
-# Legacy ARTIK051 boards keep several settings that newer boards expose as their
-# own resources (/option/*, /electriccurrent/vs/0, ...) as `<Prefix>_<value>`
-# tokens inside /mode/vs/0's options blob instead. Reads pull the token apart;
-# writes reuse option_write's single-token merge, exactly like the display light.
-# ---------------------------------------------------------------------------
+# Legacy ARTIK051 boards keep several settings that newer boards expose as
+# their own resources (/option/*, /electriccurrent/vs/0, ...) as
+# `<Prefix>_<value>` tokens in /mode/vs/0's options instead. Reads pull the
+# token apart; writes reuse the same single-token merge as the display light.
 
 
 def _option_token(rep, prefix):
@@ -304,37 +246,19 @@ def _option_token(rep, prefix):
 
 
 def is_legacy_board(resources):
-    """True for the board generation whose airflow lives in /airflow/vs/0.
-
-    Newer families carry several of the same option tokens (Sleep, OutdoorTemp,
-    Autoclean) *alongside* dedicated resources for those settings, so an
-    ungated token entity would either duplicate an existing one or apply a
-    scale calibrated elsewhere. (Volume used to be in this list too, back when
-    it had its own gated buzzer_volume Number for this board generation --
-    issue #136 replaced that with the unified 'beep' switch, which applies
-    across every generation and isn't gated here at all.) Every AC dump on
-    record has one shape or the other: /airflow/vs/0 with no /wind/* at all,
-    or /wind/strength/vs/0 with no /airflow/vs/0. Same test as climate.py's
-    _legacy_airflow(), so the entities below and the climate entity can never
-    disagree about the generation.
-    """
+    """True for the board generation whose airflow lives in /airflow/vs/0
+    rather than /wind/strength/vs/0 -- every AC dump on record has one shape
+    or the other. Same test as climate.py's _legacy_airflow(), so the
+    entities below and the climate entity can't disagree about generation."""
     return HREF_AIRFLOW in resources and HREF_WIND_STRENGTH not in resources
 
 
-# This legacy ARTIK051 board generation (issue #193, model AR12NXWXCWKNEU /
-# ARTIK051_KRAC_18K) reports /energy/consumption/vs/0's cumulativePower in
-# centiwatt-hours -- raw value 100x the plain Wh every other AC board family
-# (and common.wh_to_kwh's assumed unit) reports. Confirmed against the
-# reporter's own SmartThings-app reading: raw '117430000' vs the app's
-# authoritative 1,174.30 kWh is exactly a /100000 factor (i.e. /100 on top of
-# wh_to_kwh's own /1000), not wh_to_kwh's plain /1000 alone. No other field in
-# ENERGY_METER's entities is present on this board's dump, so only
-# 'energy_kwh' needs a replacement value_fn here; the rest pass through
-# unchanged in case a future legacy dump ever reports them.
+# Legacy ARTIK051 boards (issue #193, ARTIK051_KRAC_18K) report
+# /energy/consumption/vs/0's cumulativePower in centiwatt-hours -- 100x the
+# plain Wh every other board family (and common.wh_to_kwh) assumes. Confirmed
+# against the reporter's own SmartThings-app reading: raw 117430000 vs the
+# app's 1,174.30 kWh is exactly a /100000 factor.
 def _legacy_cumulative_power_kwh(v):
-    # float, not _int -- matches common.wh_to_kwh's own numeric parsing
-    # (float via _num) rather than this module's integer-only _int, so a
-    # decimal-formatted reading doesn't raise and silently go 'unknown'.
     try:
         n = float(v)
     except (TypeError, ValueError):
@@ -351,12 +275,8 @@ ENERGY_METER_LEGACY = replace(
     ),
 )
 
-# The non-legacy counterpart to ENERGY_METER_LEGACY above -- identical to
-# common.ENERGY_METER, just excluding the legacy board generation so the two
-# capabilities can share /energy/consumption/vs/0 in this registry without
-# the 'multiple caps need a discriminator' build check tripping (common.
-# ENERGY_METER itself has no match_fn, since every *other* registry includes
-# it unconditionally and alone).
+# Non-legacy counterpart, needed so both caps can share this href without
+# tripping the "multiple caps need a discriminator" build check.
 ENERGY_METER_GENERIC = replace(
     common.ENERGY_METER,
     match_fn=lambda rep, resources: not is_legacy_board(resources),
@@ -403,14 +323,8 @@ def _option_number_write(prefix):
 
 def _odor_controller_active(rep):
     """Odor-controller self-clean on/off, from the `SmartCoolClean_<On/Off>`
-    /mode/vs/0 option token -- corroborated against the SmartThings cloud
-    custom.airConditionerOdorController capability's airConditionerOdorController
-    State field, same on/off vocabulary and a matching name ("Smart Cool
-    Clean" mirrors "odor controller"). Unconditional across board
-    generations, same as beep above -- no evidence ties this token to the
-    legacy-vs-newer split _has_option_token gates on. Read-only: no command
-    capability is confirmed, so this stays a sensor rather than a guessed
-    write (the 'don't guess' rule)."""
+    option token (matches the SmartThings cloud's airConditionerOdorController
+    State field). Read-only: no confirmed write path."""
     tok = _option_token(rep, "SmartCoolClean")
     if tok is None:
         return None
@@ -418,29 +332,19 @@ def _odor_controller_active(rep):
 
 
 def _odor_controller_progress(rep):
-    """0-100 progress of the odor-controller self-clean cycle, from the
-    `ProgressSmartClean_<N>` option token -- mirrors the cloud
-    airConditionerOdorControllerProgress field."""
+    """0-100 progress of the odor-controller cycle, from the
+    `ProgressSmartClean_<N>` token."""
     return _int(_option_token(rep, "ProgressSmartClean"))
 
 
 def _humidity(rep):
-    """Relative humidity, preferring the 5%-rounded field where it exists.
+    """Relative humidity, preferring the 5%-rounded field where present.
 
-    ARTIK051 boards have no fivepercentHumidity field at all and report the
-    plain x.com.samsung.da.humidity instead -- and only populate it while the
-    Air monitoring option is on: the unit measures for roughly half a minute
-    (51% observed, matching what the same unit's cloud integration reported at
-    that moment), then zeroes the field and switches Air monitoring back off by
-    itself. So 0 reads as "not measuring" and is reported as unknown rather than
-    as 0% humidity, which would poison long-term history.
-
-    That zero-as-"not measuring" carve-out is specific to the ARTIK051
-    fallback field's hardware quirk -- every other board's fivepercentHumidity
-    has never been documented getting stuck at zero, and collapsing a
-    genuine 0% reading there to unknown is a regression, not a safeguard
-    (issue #160). So fivepercentHumidity passes 0 through unchanged; only the
-    humidity fallback applies the zero-collapse.
+    ARTIK051 boards have no fivepercentHumidity and report plain `humidity`
+    instead, which only populates for ~30s while "Air monitoring" is on
+    before zeroing itself -- so 0 there means "not measuring" and is reported
+    as unknown rather than 0%. fivepercentHumidity has no such quirk (issue
+    #160), so its own 0 readings pass through unchanged.
     """
     if "x.com.samsung.da.fivepercentHumidity" in rep:
         return _num(rep["x.com.samsung.da.fivepercentHumidity"])
@@ -451,28 +355,13 @@ def _humidity(rep):
 
 
 def _climate_write(payload, rep, href=None):
-    """Map a (kind, value) command from the climate platform to the
-    (path_segs, body) for that one sub-write. `value` is already the raw device
-    code (the platform maps HA<->device). async_send_command POSTs to path_segs,
-    so a single desc drives writes across the power/mode/temperature/wind
-    resources.
-
-    Power goes to the vendor `/power/vs/0` (the OCF `/power/0` is absent on
-    most boards and a non-authoritative mirror where present -- vendor works
-    on every board). Temperature is board-dependent, so the platform picks the
-    channel and sends `temperature_ocf` (-> OCF `/temperature/desired/0`,
-    boards with the full OCF current+desired pair) or `temperature` (-> vendor
-    `/temperatures/vs/0`, boards without it). Mode/fan/swing/preset are always
-    the vendor `/x/vs/0` resources.
-
-    Each write sends only its own field(s), leaving the resource's other
-    fields (e.g. /mode/vs/0's opaque `options` blob, or the vendor temperature
-    item's current/minimum/maximum/unit) untouched -- the device merges the
-    rest itself, same contract as the options[] array (see
-    common.merge_items_field / merge_options_field, which keep the
-    coordinator's optimistic cache complete for the settle window instead of
-    this write echoing those fields back).
-    """
+    """Maps a (kind, value) command from the climate platform to the
+    (path_segs, body) for that one sub-write; `value` is already the raw
+    device code. Power always goes to vendor `/power/vs/0` (OCF `/power/0`
+    is absent on most boards). Temperature channel (OCF vs vendor) is picked
+    by the platform. Mode/fan/swing/preset are always the vendor `/x/vs/0`
+    resources. Each write sends only its own field(s); the device merges the
+    rest itself (see common.merge_items_field / merge_options_field)."""
     kind, value = payload
     if kind == "power":
         return (["power", "vs", "0"], {"x.com.samsung.da.power": "On" if value else "Off"})
@@ -481,9 +370,7 @@ def _climate_write(payload, rep, href=None):
     if kind == "temperature_ocf":
         return (["temperature", "desired", "0"], {"temperature": round(float(value))})
     if kind == "temperature":
-        # Vendor items[] array; only one item observed on every AC dump, id
-        # '0'. See the docstring above for why this doesn't echo current/
-        # minimum/maximum/unit back at the unit.
+        # Vendor items[] array; only one item observed on every AC dump, id '0'.
         return (
             ["temperatures", "vs", "0"],
             {
@@ -500,10 +387,8 @@ def _climate_write(payload, rep, href=None):
     if kind == "swing":
         return (["wind", "direction", "vs", "0"], {"x.com.samsung.da.modes": value})
     if kind == "oscillation":
-        # value is the HA swing_mode string ('off'/'vertical'/'horizontal'/
-        # 'both'); both axes are independent Swing|Fix toggles on this
-        # resource, so one HA value maps to a pair of fields written
-        # together (see climate.py's oscillation fallback).
+        # value is HA's swing_mode string; both axes are independent Swing|Fix
+        # toggles written together (see climate.py's oscillation fallback).
         return (
             ["wind", "oscillation", "vs", "0"],
             {
@@ -516,7 +401,6 @@ def _climate_write(payload, rep, href=None):
     if kind == "swing_legacy":
         return (["airflow", "vs", "0"], {"x.com.samsung.da.direction": value})
     if kind == "preset_legacy":
-        # Single-token options merge, same mechanism as _display_light_write.
         return (["mode", "vs", "0"], {"x.com.samsung.da.options": option_write("Comode", value)})
     if kind == "preset":
         return (["mode", "convenient", "vs", "0"], {"x.com.samsung.da.modes": value})
@@ -533,15 +417,10 @@ CLIMATE = Capability(
             rep_fn=_first_mode,
             write_fn=_climate_write,
         ),
-        # Display (panel) light switch, only on boards that encode it in
-        # /mode/vs/0's options instead of a /light/vs/0 switch (see
-        # _has_display_light_option). Shares the /mode/vs/0 href with the
-        # climate entity above -- same Capability, so no multi-cap
-        # discriminator is needed. /mode/vs/0 is OBSERVE-subscribed, so state
-        # updates on push; writes go through the single-token merge in
-        # _display_light_write. Shares the switch.display_light translation
-        # with DISPLAY_LIGHT (the /light/vs/0 switch on other boards) --
-        # mutually exclusive per href, so only one ever binds for a given unit.
+        # Panel light switch for boards that encode it in /mode/vs/0's options
+        # instead of a dedicated /light/vs/0 (see _has_display_light_option).
+        # Shares the switch.display_light translation key with DISPLAY_LIGHT
+        # below; mutually exclusive per href.
         SwitchDesc(
             key="display_light",
             rep_fn=_display_light_on,
@@ -550,19 +429,11 @@ CLIMATE = Capability(
             icon="mdi:led-on",
             entity_category="config",
         ),
-        # Beep on/off from the `Volume_*` option token (Volume_Mute/Volume_100).
-        # Single-token option_write; a full options RMW reverts on ARTIK051_PRAC.
-        #
-        # Applies uniformly across board generations, including legacy
-        # ARTIK051 boards -- issue #136: this token was originally modeled as
-        # a 0-100 buzzer_volume Number for legacy boards on the assumption it
-        # was a real graduated volume level, but every unit confirmed on
-        # hardware (three units across two reporters) only ever carries
-        # Volume_100 or Volume_Mute, never an intermediate value, and the
-        # Number's write path (a plain integer string) could never produce
-        # the literal 'Mute' token needed to actually turn it off -- writing
-        # '0' is simply not a token this firmware recognizes. A switch is
-        # both the correct model and the actual fix.
+        # Beep on/off from the Volume_* token. Applies uniformly across board
+        # generations (issue #136: previously modeled as a graduated Number
+        # for legacy boards, but no unit ever reported an intermediate value,
+        # and the Number's write path couldn't produce the literal 'Mute'
+        # token needed to turn it off).
         SwitchDesc(
             key="beep",
             rep_fn=_beep_on,
@@ -571,23 +442,11 @@ CLIMATE = Capability(
             icon="mdi:volume-high",
             entity_category="config",
         ),
-        # Tropical night mode level (0-16) from the `Sleep_<N>` option token.
-        # Single-token option_write. Cloud: custom.airConditionerTropicalNightMode.
-        # Gated off the legacy board for the same reason as beep above -- its
-        # Sleep_ token is already the good_sleep Number below.
-        #
-        # exists_fn only proves the Sleep_ token slot is present, not that
-        # tropical night mode is a real feature of the unit: issue #166
-        # (ARxxTXFCAWKNEU) reports Sleep_0 in every dump -- the exact same
-        # always-there-at-zero shape as the issue #17 dump #164 was verified
-        # against -- yet the reporter confirmed their remote/app has no
-        # tropical night mode control at all. Samsung's OCF options[] blob
-        # carries this scaffolding token regardless of physical capability,
-        # so there's no reliable signal here to gate on (same 'don't guess'
-        # rule as elsewhere in this file, just with no signal to guess from).
-        # Registered but disabled by default, same precedent as
-        # fridge.rack_count / cooktop.paired_hood_* -- units that do have the
-        # feature can enable it themselves.
+        # Tropical night level (Sleep_<N> token), gated off the legacy board
+        # (its Sleep_ token is the good_sleep Number below instead). exists_fn
+        # only proves the token slot is present, not that the feature is real
+        # (issue #166 reports Sleep_0 on a unit confirmed to have no such
+        # mode) -- disabled by default so units that do have it can enable it.
         NumberDesc(
             key="tropical_night_mode",
             rep_fn=_tropical_night_value,
@@ -611,10 +470,8 @@ CLIMATE = Capability(
             icon="mdi:air-purifier",
             entity_category="config",
         ),
-        # Shares AUTO_CLEAN's catalog entry rather than duplicating it: same
-        # feature, different board generation (that one is a /option/autoclean/
-        # vs/0 field, absent here). Distinct key, so nothing collides if some
-        # future board ever reported both.
+        # Shares AUTO_CLEAN's catalog entry (same feature, different board
+        # generation) under a distinct key.
         SwitchDesc(
             key="auto_clean_legacy",
             translation_key="auto_clean",
@@ -671,9 +528,8 @@ CLIMATE = Capability(
             icon="mdi:air-filter",
             entity_category="config",
         ),
-        # "Good Sleep" timer. 0 = off; the upper bound is a guess (the token
-        # carries no range hint and only 0 has been observed on hardware), so a
-        # write above 0 is unverified.
+        # "Good Sleep" timer. 0 = off; the upper bound is a guess (only 0 has
+        # been observed on hardware), so a write above 0 is unverified.
         NumberDesc(
             key="good_sleep",
             rep_fn=_option_token_num("Sleep"),
@@ -686,11 +542,8 @@ CLIMATE = Capability(
             icon="mdi:sleep",
             entity_category="config",
         ),
-        # Outdoor temperature, offset by 55. Two calibration points on one unit:
-        # token 75 while an independent outdoor thermometer in the same install
-        # read 20.3 C, and token 74 against a 19.4 C forecast. Fahrenheit fits far
-        # worse (74 F = 23.3 C); the issue #136 unit's 81 gives 26 C in a warmer
-        # climate, which is also plausible.
+        # Outdoor temperature, offset by 55 -- calibrated against an
+        # independent thermometer (token 75 while it read 20.3°C).
         SensorDesc(
             key="outdoor_temperature",
             rep_fn=_option_token_num("OutdoorTemp", offset=55),
@@ -700,87 +553,11 @@ CLIMATE = Capability(
             unit="°C",
             icon="mdi:home-thermometer-outline",
         ),
-        # Filter time in tenths of an hour: the token read 1710 while the official
-        # Samsung app displayed "171 hours 0 minutes" for the filter on the same
-        # unit, and the .0 matching the app's "0 minutes" pins the scale.
-        #
-        # It counts UP -- running time accumulated since the last filter reset,
-        # not time remaining. An earlier revision of this comment called the
-        # direction unestablished; three independent things now settle it. It was
-        # seen rising while the unit ran (171.0 -> 171.5). FilterAlarmTime_ in the
-        # same options[] blob is the threshold it is measured against (500 on
-        # every unit on record). And across two units on one site, the alarm
-        # tracks the counter in the right direction: at FilterTime_5595 the
-        # /alarms/vs/0 filter entry is live (unsuffixed code 'FilterAlarm', state
-        # 'Created'), while at FilterTime_1915 it is still the
-        # 'FilterAlarm_OFF'/'Deleted' placeholder. That also matches what the app
-        # does at 500 hours -- ask the user to clean the filter and reset it.
-        #
-        # The key stays 'filter_time' rather than becoming something like
-        # filter_time_elapsed: renaming it would change every existing unit's
-        # entity_id and unique_id for a wording improvement.
-        #
-        # (The alarm clearing on its own is the causal proof of the direction
-        # above: the board recomputes it the moment the counter crosses the
-        # threshold, rather than the app clearing counter and alarm separately.)
-        #
-        # ---------------------------------------------------------------------
-        # RESETTING THIS COUNTER: NOT SOLVED YET -- no reset entity here, and
-        # the notes below are so the next attempt starts from the evidence
-        # rather than from scratch. I could not work out how to drive the reset
-        # locally; that is not the same as it being impossible, and none of the
-        # results below rule out a mechanism I simply haven't found.
-        #
-        # What the reset actually is: a *command*, not a value write. Samsung
-        # models it as capability `custom.dustFilter`, command
-        # `resetDustFilter`, no arguments (implemented in several SmartThings HA
-        # forks; not in the core integration). That reframes every failed
-        # attempt below -- nothing changes the counter by writing to it,
-        # because the board zeroes it itself on receiving a command.
-        #
-        # Tried, all against a live unit, all failed:
-        #   * FilterTime_0 via the single-token options merge that works for
-        #     every other setting on this href -- accepted with no error, then
-        #     discarded. Two units, opposite power states, to rule out the
-        #     obvious confound: 5595 -> back to 5595 after 69 s (powered off,
-        #     alarm active) and 1925 -> back to 1925 after 65 s (actively
-        #     cooling).
-        #   * A full options[] read-modify-write with FilterTime_0 substituted,
-        #     instead of the single-token merge -- zero fields changed anywhere.
-        #   * A write to /consumable/vs/0, the board's own filter resource
-        #     (items[{name: FilterProgress, state: N}]) -- discarded. /oic/res
-        #     declares that resource oic.if.s, i.e. read-only, which fits.
-        #   * /actions/vs/0 (x.com.samsung.da.actions, oic.if.a) is the obvious
-        #     local command channel, but publishes no schema: GET returns {} on
-        #     baseline and on oic.if.a, and five POSTs probing the *shape*
-        #     (empty map, empty string, empty array, invalid value, items shape)
-        #     all returned 4.00 with an empty body -- no echo of accepted field
-        #     names, unlike the laundry firmware's "Control fail, <...>". I
-        #     deliberately did not enumerate guessed action names against a live
-        #     appliance: an unknown vocabulary on a channel called "actions" can
-        #     hold a factory reset next to the one we want.
-        #   * /hass/state/vs/0 and /hass/command/vs/0 (advertised in /oic/res,
-        #     and /opt/data/hass.db exists in /file/list) -> 4.04 on every
-        #     interface, so unimplemented scaffolding on this firmware.
-        #   * /file/transfer/vs/0 serves only /mnt/usage.db; selecting another
-        #     path returns 4.05/4.00, so the firmware can't be pulled that way
-        #     to read the action vocabulary out of it.
-        #   * /rm/micomdata/vs/0 (channel toward the MICOM board the physical
-        #     panel talks to) stays empty even after successfully enabling
-        #     remote management.
-        #
-        # What the failures are NOT: a transport, permission or cert problem.
-        # A control write of rmState on /rm/state/vs/0 was accepted (2.04
-        # Changed, value held, restored afterwards), and FilterAlarmTime_ below
-        # is written through the very same options merge and kept. So writes
-        # work; this one value just isn't driven that way.
-        #
-        # Where I'd look next: the action vocabulary for /actions/vs/0 from an
-        # independent source (firmware image, or a capture of what the cloud
-        # sends the device), or the IR path -- the physical remote has a filter
-        # reset (Options -> Filter Reset -> SET), and IRremoteESP8266 decodes
-        # this AC family, though issue #1277's dump doesn't include that button.
-        # ---------------------------------------------------------------------
+        # Filter time in tenths of an hour, counting UP since last filter
+        # reset; scale and direction confirmed against the Samsung app and
+        # the /alarms/vs/0 threshold crossing (500h). No reset entity: no
+        # local write path has been found -- see
+        # docs/investigations/ac-filter-reset.md for what's been tried.
         SensorDesc(
             key="filter_time",
             rep_fn=_option_token_num("FilterTime", divisor=10),
@@ -790,19 +567,10 @@ CLIMATE = Capability(
             state_class="measurement",
             icon="mdi:air-filter",
         ),
-        # The interval FilterTime_ is measured against -- the app offers it as a
-        # four-way radio (180/300/500/700 hours, default 500) next to the filter
-        # reminder. The token value is the hour count verbatim: captured by
-        # watching all 19 resources while the owner stepped through every radio
-        # position, one field changing per step and nothing else moving.
-        #
-        # Static options here, unlike air_filter_threshold on the newer boards
-        # which reads supportedFilterDesiredUsage: options[] tokens carry no
-        # supported-values list anywhere in this board's dump, so there is
-        # nothing to read them from. The four values are the app's own radio
-        # rather than a guess extrapolated from one observed value -- but a
-        # board offering different steps would need this revisited, which is
-        # why the tuple is documented rather than just written down.
+        # FilterTime_'s threshold, exposed as a static 4-way radio
+        # (180/300/500/700h, matching the app) since options[] tokens carry
+        # no supported-values list to read from, unlike air_filter_threshold
+        # on newer boards.
         SelectDesc(
             key="filter_alarm_time",
             rep_fn=lambda rep: _option_token(rep, "FilterAlarmTime"),
@@ -813,9 +581,7 @@ CLIMATE = Capability(
             entity_category="config",
         ),
         # Odor-controller ("Smart Cool Clean") state + progress -- see
-        # _odor_controller_active's docstring for the cloud-capability
-        # correspondence. Present on TP1X_DA-AC-RAC-01001 (issue reporter's
-        # dump); gating is token presence only, not board generation.
+        # _odor_controller_active's docstring.
         BinarySensorDesc(
             key="odor_controller_active",
             rep_fn=_odor_controller_active,
@@ -868,12 +634,8 @@ AUTO_CLEAN = Capability(
                 {"x.com.samsung.da.settingStatus": "On" if p == "On" else "Off"},
             ),
         ),
-        # The cycle, as opposed to the switch above -- `settingStatus` says the
-        # feature is enabled, which it is whether or not the unit is drying right
-        # now. `status` is the run state, and the resource advertises exactly
-        # Start/Stop in `supportedStatus`. Observed on a TP1X_DA-AC-CAC-01001:
-        # 'Start' with progress 98 while a cycle ran, then 'Stop' with progress 0
-        # the moment it finished.
+        # Run state (vs settingStatus's "feature enabled"): status is
+        # Start/Stop per the resource's own supportedStatus.
         BinarySensorDesc(
             key="auto_clean_running",
             field="x.com.samsung.da.status",
@@ -881,8 +643,7 @@ AUTO_CLEAN = Capability(
             entity_category="diagnostic",
             value_fn=lambda v: v == "Start",
         ),
-        # Percent through that cycle, matching the figure the appliance shows on
-        # its own display (checked against 55% mid-run).
+        # Percent through the cycle; matches the appliance's own display.
         SensorDesc(
             key="auto_clean_progress",
             field="x.com.samsung.da.progress",
@@ -907,9 +668,7 @@ AIR_FILTER = Capability(
             icon="mdi:air-filter",
             entity_category="diagnostic",
         ),
-        # filterUsage is a lifetime hour counter that only resets on filter
-        # replacement -- total_increasing so HA's long-term statistics handle
-        # the reset rather than treating it as a bounded measurement.
+        # Lifetime hour counter, resets only on filter replacement.
         SensorDesc(
             key="air_filter_usage_hours",
             field="x.com.samsung.da.filterUsage",
@@ -920,10 +679,8 @@ AIR_FILTER = Capability(
             entity_category="diagnostic",
             value_fn=_int,
         ),
-        # The alarm threshold (filterDesiredUsage) is a locally writable option:
-        # see _threshold_write. Surfaces as a Select only where the device
-        # advertises supportedFilterDesiredUsage; boards without that enum
-        # leave it unexposed rather than guess the valid set.
+        # Locally writable alarm threshold (see _threshold_write); only
+        # surfaces where supportedFilterDesiredUsage is advertised.
         SelectDesc(
             key="air_filter_threshold",
             field="x.com.samsung.da.filterDesiredUsage",
@@ -952,9 +709,8 @@ AIR_FILTER = Capability(
 
 def _pm1_threshold_write(payload, rep, href=None):
     """Same contract as _threshold_write, against this filter's own href --
-    not yet confirmed live (no dump seen advertises
-    supportedFilterDesiredUsage for this href), so the Select this backs
-    stays gated behind that field's presence, same as AIR_FILTER's."""
+    not yet confirmed live, so the Select this backs stays gated behind
+    supportedFilterDesiredUsage's presence, same as AIR_FILTER's."""
     return ["filter", "airdustPM1filter", "vs", "0"], {
         "x.com.samsung.da.filterDesiredUsage": payload,
     }
@@ -964,15 +720,10 @@ def _has_filter_field(field):
     return lambda rep, resources: rep.get(field) is not None
 
 
-# Second, PM1-rated dust filter some TP1X_FAC-class boards report alongside
-# AIR_FILTER's /filter/airdustfilter/vs/0. TP1X_FAC_TIME_23K (issue #270)
-# reports only filterCapacity/filterCapacityUnit/filterResetType
-# ('notresetable') on this href, with no live filterUsage/filterStatus at
-# all -- but the TP1X_DA-AC-CAC-01001_0000 cassette AC (issue #191) reports
-# the identical href with full live fields. So this stays a real capability
-# rather than a blanket ignore, with every entity individually gated on its
-# own field's presence per the 'don't guess' rule: no entity on a board that
-# has nothing behind it, real readings on one that does.
+# Second, PM1-rated filter some TP1X_FAC boards report alongside AIR_FILTER's
+# href (issue #270). Some units report only the capacity/unit fields with no
+# live data at all, so every entity here is individually gated on its own
+# field's presence.
 AIR_FILTER_PM1 = Capability(
     href="/filter/airdustPM1filter/vs/0",
     poll_tier="cold",
@@ -1041,9 +792,7 @@ DISPLAY_LIGHT = Capability(
     ),
 )
 
-# UV-C sterilization LED (issue #270, TP1X_FAC_TIME_23K). Same On/Off
-# convention as everything else on this board, and (unlike VENTILATION_ALARM
-# below) a real supportedModes list confirms the value set.
+# UV-C sterilization LED (issue #270, TP1X_FAC_TIME_23K).
 UV_LED = Capability(
     href="/uvled/vs/0",
     poll_tier="cold",
@@ -1062,12 +811,9 @@ UV_LED = Capability(
     ),
 )
 
-# Ventilation-reminder alarm toggle (issue #270). Only a bare `alarm` field
-# is present -- no supportedModes list to confirm the value set against,
-# unlike UV_LED above. Modeled as a switch on the strength of the same
-# On/Off convention used everywhere else in this API; a rejected write is
-# the worst case for a wrong guess (see the adding-device-support skill),
-# but this hasn't been round-trip confirmed on real hardware.
+# Ventilation-reminder alarm toggle (issue #270). No supportedModes list to
+# confirm the value set against, unlike UV_LED above -- not round-trip
+# confirmed on real hardware.
 VENTILATION_ALARM = Capability(
     href="/ventilation/setting/vs/0",
     poll_tier="cold",
@@ -1086,9 +832,7 @@ VENTILATION_ALARM = Capability(
     ),
 )
 
-# Confirmed against issue #38's dump (TP1X_DA-AC-RAC-01001_0000): a single
-# boolean field, no vendor prefix, mirroring the On/Off convention used
-# throughout the rest of this API.
+# Confirmed against issue #38's dump (TP1X_DA-AC-RAC-01001_0000).
 MUTE_ONCE = Capability(
     href="/option/muteonce/vs/0",
     poll_tier="warm",
@@ -1107,12 +851,9 @@ MUTE_ONCE = Capability(
     ),
 )
 
-# Circuit-breaker current-limit setting (issue #38, TP1X board): `operation`
-# toggles the limiter and `modes` picks a level out of `supportedModes`
-# (seen as '3'..'9'). No vendor field-name prefix and no unit/label in the
-# dump to confirm what the levels mean (amps vs. an abstract tier) --
-# exposed read-only per the 'don't guess' rule rather than risking an
-# unverified write to live HVAC hardware.
+# Circuit-breaker current-limit setting (issue #38, TP1X board). No unit/label
+# in the dump to confirm what the levels mean -- exposed read-only per the
+# 'don't guess' rule rather than risking an unverified write to live hardware.
 CURRENT_LIMIT = Capability(
     href="/electriccurrent/vs/0",
     poll_tier="cold",
@@ -1133,14 +874,9 @@ CURRENT_LIMIT = Capability(
     ),
 )
 
-# Overload-response setting (issue #126, TP1X_DA-AC-RAC-01011 WindFree
-# variant): `operation` toggles the feature and `mode` picks 'Alarm' vs
-# 'PowerSaving' out of `supportedModes`, with a `savingTime` duration
-# ('20'/'40'/'60' minutes) alongside. Plausible shape (compressor-overload
-# alarm vs. automatic power throttling), but nothing in the dump confirms
-# the exact behavioral difference between the two modes or whether writing
-# 'operation' is safe on live HVAC hardware -- exposed read-only per the
-# 'don't guess' rule, same precedent as CURRENT_LIMIT above.
+# Overload-response setting (issue #126, TP1X_DA-AC-RAC-01011 WindFree). No
+# confirmation of the behavioral difference between modes -- read-only, same
+# precedent as CURRENT_LIMIT above.
 ANOMALY_LOAD = Capability(
     href="/anomalyload/vs/0",
     poll_tier="cold",
@@ -1165,20 +901,11 @@ ANOMALY_LOAD = Capability(
     ),
 )
 
-# Absence-detection power-saving (issue #173, TP1X_LNX-AC-RAC-01001 --
-# Lennox-branded heat pump on the RAC board family): `status` is a bare
-# On/Off boolean with no vendor prefix, the same shape already shipped
-# writable elsewhere in this file (MUTE_ONCE, AUTO_CLEAN, AIR_PURIFY,
-# DISPLAY_LIGHT) despite none of those having a live-confirmed write either
-# -- worst case a wrong token no-ops, same risk profile as that family, so
-# it's a switch rather than a sensor. `switchPowerSaveMode` picks the save
-# intensity out of its own supportedSwitchPowerSaveMode list, but *what*
-# writing it actually does to a running compressor isn't knowable from the
-# dump -- same 'don't guess' read-only treatment as CURRENT_LIMIT/
-# ANOMALY_LOAD's mode fields. A third field, `motionState`, also carries a
-# supportedMotionState list but its role (a live sensor readout vs. a
-# sensitivity setting) isn't distinguishable from the dump, so it's left
-# unmodeled entirely.
+# Absence-detection power-saving (issue #173, TP1X_LNX-AC-RAC-01001). `status`
+# is a bare On/Off with the same shape already shipped writable elsewhere in
+# this file, so it's a switch despite no live-confirmed write. `mode` stays
+# read-only: no dump evidence for what writing it does to a running
+# compressor.
 ABSENCE_POWER_SAVING = Capability(
     href="/mds/absencepowersaving/vs/0",
     poll_tier="cold",
@@ -1207,11 +934,8 @@ ABSENCE_POWER_SAVING = Capability(
     ),
 )
 
-# Avoid-direct-wind-on-motion, a sibling AI feature to ABSENCE_POWER_SAVING
-# above on the same dump: `status` is the same bare On/Off shape, promoted to
-# a switch for the same reason. `modes` (Direct/Indirect airflow out of
-# `supportedModes`) stays read-only -- same reasoning as
-# absence_power_saving_mode above.
+# Avoid-direct-wind-on-motion, a sibling AI feature to ABSENCE_POWER_SAVING on
+# the same dump; same shape and reasoning.
 MOTION_DETECT_WIND = Capability(
     href="/option/motiondetectwind/stateful/vs/0",
     poll_tier="cold",
@@ -1240,12 +964,9 @@ MOTION_DETECT_WIND = Capability(
     ),
 )
 
-# The climate entity already surfaces current_temperature as a card
-# attribute, but that's not enough for history graphs/automations/
-# statistics -- issue #75 asked for a standalone sensor. Same OCF-standard-
-# with-vendor-fallback shape as common.py's POWER_GENERIC/POWER_VS_FALLBACK
-# pair: both share key='current_temperature_c' so only one ever binds
-# (match_fn gates the vendor one off when the OCF resource is present).
+# Standalone temperature sensor for history/automations (issue #75); the
+# climate card only exposes current_temperature as an attribute. Shares key
+# 'current_temperature_c' with the _VS variant below so only one ever binds.
 CURRENT_TEMPERATURE = Capability(
     href=HREF_TEMP_CURRENT,
     poll_tier="warm",
@@ -1275,20 +996,10 @@ CURRENT_TEMPERATURE_VS = Capability(
     ),
 )
 
-# Only the vendor resource's `fivepercentHumidity` (current reading, rounded
-# to the nearest 5%) has live data on the issue #75 dump -- its `humidity`
-# field, and the OCF-standard /humidity/0 resource entirely, both read a
-# stuck "0" there, so /humidity/0 stays ignored per the 'don't guess' rule
-# (see _AC_IGNORED below).
-#
-# ARTIK051 boards (issue #136) have no fivepercentHumidity field at all, and
-# there the plain `humidity` field is not stuck: it carries a real reading
-# (51%, matching the same unit's cloud integration at that moment) for as long
-# as the Air monitoring option is on, which the unit itself switches back off
-# after roughly a minute -- so most dumps catch it at 0. Hence _humidity's
-# fallback, and hence 0 reading as "not measuring" rather than 0%: on both
-# board generations a zero here means no measurement, never dry air.
-# /humidity/0 stayed 0 throughout that same observation too.
+# fivepercentHumidity is the only live reading on most dumps; the OCF
+# /humidity/0 resource and this vendor resource's own `humidity` field both
+# read a stuck 0 where fivepercentHumidity is absent. See _humidity's
+# docstring for the ARTIK051 fallback and its zero-as-"not measuring" quirk.
 HUMIDITY = Capability(
     href="/humidity/vs/0",
     poll_tier="warm",
@@ -1303,26 +1014,11 @@ HUMIDITY = Capability(
     ),
 )
 
-# /sensors/vs/0 items[] carry live air-quality readings. Removed from
-# _AC_IGNORED below so AIR_QUALITY is the sole cap on the href. CleanLevel is
-# corroborated as numeric by a top-level x.com.samsung.da.cleanLevel scalar
-# (tp1x_da_ac_rac_01011 reports both as '1'), so it's a measurement; the others
-# are 1- or 2-element arrays with no corroborating scalar, so they stay string
-# diagnostics (see _sensor_item_value for the 2-element ambiguity and why only
-# v[0] is taken). No unit is advertised on the resource, so no device_class.
-#
-# exists_fn (_has_sensor_type) only proves the item *type* is listed, not
-# that the unit actually carries that sensor: issue #166 (ARxxTXFCAWKNEU,
-# board ARTIK051_PRAC_20K) reports all five item types on both its units,
-# values permanently '0'/['0','0'] -- yet the reporter confirmed none apply
-# to their model. A tighter existence gate was tried (requiring the
-# corroborating cleanLevel scalar above) but doesn't hold up as a general
-# rule -- see _has_sensor_type's docstring -- and risks silently dropping
-# real readings on hardware that reports them without that scalar. So these
-# stay bound whenever the type is listed, same as before #166, and disabled
-# by default instead (same precedent as fridge.rack_count /
-# cooktop.paired_hood_model / this file's own tropical_night_mode): units
-# that do have the sensor can enable it themselves.
+# /sensors/vs/0 items[] carry live air-quality readings. CleanLevel is
+# corroborated as numeric by a top-level x.com.samsung.da.cleanLevel scalar,
+# so it's a measurement; the others stay string diagnostics (see
+# _sensor_item_value). All disabled by default: _has_sensor_type only proves
+# the item type is listed, not that the sensor is real (see its docstring).
 AIR_QUALITY = Capability(
     href="/sensors/vs/0",
     poll_tier="cold",
@@ -1358,95 +1054,54 @@ AIR_QUALITY = Capability(
 )
 
 
-# ---------------------------------------------------------------------------
-# AC-scoped coverage: the CLIMATE_CONSUMED_HREFS above (read by the climate
-# entity) plus vendor duplicates / all-zero-ambiguous / plumbing resources.
-# These are NOT in the global ignored.IGNORED because several of them
-# (/mode/vs/0 handled above, /temperatures/vs/0, /humidity/*) collide with
-# other families' schemas. A no-entity Capability still marks the href as
-# bound so discover() reports no coverage gap.
-#
-# CLIMATE_CONSUMED_HREFS carry the climate card's actual displayed state
-# (power, current/target temp, fan, swing, preset) -- the coordinator only
-# OBSERVE-subscribes and sub-polls 'hot'/'warm' hrefs (see coordinator.py),
-# so leaving these at the Capability default of 'cold' meant every state
-# change was invisible until the next full /device/0 summary sweep
-# (~30s -- issue #17: instant device response, 20-30s HA lag). Pin them to
-# 'warm' -- same tier as CLIMATE's own primary href -- so they get push
-# notifications (or, in poll-only mode, the warm sub-poll cadence) instead
-# of waiting on the summary sweep.
-# ---------------------------------------------------------------------------
+# AC-scoped coverage: CLIMATE_CONSUMED_HREFS (read by the climate entity)
+# plus vendor-duplicate / ambiguous / plumbing resources. These stay out of
+# the global ignored.IGNORED because several collide with other families'
+# schemas. A no-entity Capability still marks the href bound so discover()
+# reports no gap. CLIMATE_CONSUMED_HREFS are pinned to 'warm' (rather than the
+# Capability default of 'cold') so their state changes push instead of
+# waiting on the ~30s full-summary sweep (issue #17).
 _AC_IGNORED = [
-    # Stuck at "0" on every dump seen -- HUMIDITY above reads the vendor
-    # resource's usable fivepercentHumidity field instead; this OCF-standard
-    # one has no corresponding live value confirmed yet.
-    "/humidity/0",
-    # Presence-personalization plumbing (empty item list here).
-    "/personality/presence/vs/0",
-    # OCF-standard mirror of /airflow/vs/0 ({speed, direction} vs
-    # {speedLevel, direction}, identical values). The climate entity reads and
-    # writes the vendor form, which is the one confirmed on hardware here --
-    # note that air_purifier.py found the opposite ordering on its family, so
-    # neither form is reliable sight-unseen and this one stays unmodeled.
-    "/airflow/0",
-    # --- TP1X/TP2X-class housekeeping / opaque blobs. These carry no
-    # user-actionable state or no documented write contract, so per the
-    # 'don't guess' rule they are ignored rather than modeled.
-    # /option/muteonce/vs/0 and /selfcheck/vs/0 are deliberately NOT here --
-    # see MUTE_ONCE above and common.SELF_CHECK (via common.UNIVERSAL) in
-    # the by_type registry, both of which have a confirmed, cleanly
-    # modelable contract.
+    "/humidity/0",  # OCF mirror, stuck at 0 on every dump seen
+    "/personality/presence/vs/0",  # presence-personalization plumbing (empty)
+    "/airflow/0",  # OCF mirror of /airflow/vs/0; vendor form is the one used
+    # TP1X/TP2X-class housekeeping / opaque blobs with no user-actionable
+    # state or documented write contract. /option/muteonce/vs/0 and
+    # /selfcheck/vs/0 are deliberately NOT here -- see MUTE_ONCE above and
+    # common.SELF_CHECK, both of which have a confirmed, modelable contract.
     "/airlevelcheck/vs/0",  # periodic air-quality sensing scheduler plumbing
     "/aisleep/vs/0",  # AI-sleep feedback state (no actionable control)
     "/availablecontrolsets/vs/0",  # opaque hex-encoded control-set bitmap
     "/da/softreset/vs/0",  # soft-reset trigger plumbing
     "/keepnormalstate/vs/0",  # internal keep-normal flag
-    "/mds/absencemonitoring/vs/0",  # motion-detection sensor plumbing (empty here)
+    "/mds/absencemonitoring/vs/0",  # motion-detection sensor plumbing (empty)
     "/mds/absencestate/vs/0",  # motion-detection state (empty here)
     "/remotedatacontrol/vs/0",  # remote data-control session status
-    "/remotedeviceinfo/vs/0",  # remote paired-device id list (empty didList here)
-    "/remotetemperature/vs/0",  # external temp-sensor feed (unset on this unit)
-    # Manual airflow-step position (supportedModes Off/80/60/40/Power).
-    # Overlaps the /wind/direction swing control already on the climate card,
-    # and the meaning of the numeric steps vs. 'Power' isn't documented in the
-    # dump -- ignored per the 'don't guess' rule rather than modeled as a
-    # select whose write could confuse live HVAC hardware.
+    "/remotedeviceinfo/vs/0",  # remote paired-device id list (empty here)
+    "/remotetemperature/vs/0",  # external temp-sensor feed (unset here)
+    # Manual airflow-step position; overlaps the swing control already on the
+    # climate card, and the numeric-step meaning isn't documented.
     "/stepcontrol/vs/0",
     "/reserverulesets/vs/0",  # opaque hex-encoded schedule reservation blob
     "/welcome/temperature/vs/0",  # welcome-cooling plumbing
-    # System-AC-only (multi-indoor-subdevice commercial installs, e.g.
-    # A-CAWW-TP2-20-COMMON, issue #52): opaque hex-encoded installation
-    # topology -- indoor/outdoor unit pairing, per-subdevice serials, MCU
-    # info. Commissioning-time plumbing, not user-actionable appliance state.
+    # System-AC-only (multi-indoor-subdevice commercial installs, issue #52):
+    # opaque hex-encoded installation topology, not user-actionable state.
     "/sac/installationinfo/vs/0",
-    # Wind-Free 2-in-1 systems (one outdoor unit driving a floor-standing
-    # *and* a wall-mounted indoor subdevice over one shared local IP, e.g.
-    # TP2X_FAC_BORA_21K, issues #150/#153): an opaque paired-subdevice id
-    # list, same "remote device ids, not user-actionable locally" role as
-    # /remotedeviceinfo/vs/0 above -- true whenever this field is redacted
-    # (the shipped airconditioner_fac_bora fixture) or absent. When it does
-    # carry a real id (issue #177's airconditioner_fac_bora_2in1 fixture),
-    # registry/subdevices.py's enumerate_subdevices reads this same
-    # subdeviceIdList to reach the second indoor subdevice over this same
-    # connection instead -- see that module's Pattern B.
+    # Wind-Free 2-in-1 systems (issues #150/#153): paired-subdevice id list.
+    # registry/subdevices.py reads this same field to reach the second
+    # indoor subdevice when it's populated -- see that module's Pattern B.
     "/subdevices/vs/0",
-    # Undocumented single int (runningMode: 0 on every dump seen), no
-    # supported-values list to interpret it against -- 'don't guess'.
-    "/runn/vs/0",
-    # 2-in-1/multi-indoor-subdevice systems (issue #177, the reporter's
-    # ARTIK051_DONGLE_FAC_18K): x.com.samsung.da.numofsubdevice, a plain
-    # corroborating count of indoor subdevices on this connection. Confirmed
-    # read-only (a write attempt returned CoAP 4.00). Absent from
-    # /device/0's batch entirely -- registry.subdevices.enumerate_subdevices
-    # fetches it with its own RETRIEVE and folds it into the resources dict
-    # for diagnostics, which is why it needs an entry here rather than
-    # surfacing as an unbound-href gap on every board that has it.
+    "/runn/vs/0",  # undocumented single int (runningMode: always 0 seen)
+    # 2-in-1/multi-indoor-subdevice systems (issue #177): confirmed read-only
+    # subdevice count. Fetched separately by
+    # registry.subdevices.enumerate_subdevices, hence the entry here rather
+    # than a coverage gap.
     "/multidevice/vs/0",
 ]
 
 # Built as bare no-entity caps; folded into the AC registry (not global).
-# HREF_TEMP_CURRENT and HREF_TEMPS_VS are excluded here -- CURRENT_TEMPERATURE
-# / CURRENT_TEMPERATURE_VS above already cover those two with real entities.
+# HREF_TEMP_CURRENT and HREF_TEMPS_VS are excluded -- CURRENT_TEMPERATURE /
+# CURRENT_TEMPERATURE_VS above already cover those with real entities.
 COVERAGE = [
     Capability(href=h, poll_tier="warm")
     for h in CLIMATE_CONSUMED_HREFS

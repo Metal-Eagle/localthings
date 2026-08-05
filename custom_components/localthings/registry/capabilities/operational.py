@@ -98,11 +98,9 @@ def _finish_time(rep):
     if not total_s:
         return None
     # Round to whole minutes -- remainingTime itself only has minute
-    # resolution, but datetime.now() always carries fresh seconds/
-    # microseconds, so an unrounded result changes on nearly every poll
-    # even when the device-reported remaining time hasn't. That floods
-    # the recorder history/logbook with values that look identical once
-    # the UI rounds them down for display.
+    # resolution, but datetime.now()'s fresh seconds/microseconds would
+    # otherwise change the result on nearly every poll, flooding the
+    # recorder with values that look identical once the UI rounds them.
     finish = datetime.now(UTC) + timedelta(seconds=total_s)
     return finish.replace(second=0, microsecond=0)
 
@@ -147,15 +145,11 @@ OPERATIONAL_STATE = Capability(
             translation_key="machine_state",
             value_fn=_to_ocf,
         ),
-        # cycle_active is a bool derived from machine_state; used by the
-        # adapter to gate oven writes (cycle_active_field='cycle_active').
-        # Harmless for non-oven appliances — just an extra bool in state.
-        # Samsung firmware keeps state='Run' after progress reaches 'Finish',
-        # so we also gate on progress to avoid a stuck 'Running' indication.
-        # Named 'Running' in the catalog rather than 'Cycle active' -- this href (and the
-        # start/pause/stop buttons below) is shared across the dryer/
-        # dishwasher/oven/washer families, and 'cycle' is laundry-specific
-        # vocabulary that doesn't fit an oven's bake/roast/etc.
+        # cycle_active is a bool derived from machine_state, gated on
+        # progress too since firmware keeps state='Run' after progress
+        # reaches 'Finish' (a stuck 'Running' indication otherwise). Named
+        # 'Running' in the catalog, not 'Cycle active' -- this href is
+        # shared with oven, and 'cycle' is laundry-specific vocabulary.
         BinarySensorDesc(
             key="cycle_active",
             device_class="running",
@@ -183,9 +177,8 @@ OPERATIONAL_STATE = Capability(
                 else _int(rep.get("x.com.samsung.da.progressPercentage"))
             ),
         ),
-        # Only show finish time when machine is actively running. Samsung
-        # firmware leaves a stale remainingTime after a cycle ends, and
-        # freezes it at '00:01:00' when progress reaches 'Finish'.
+        # Only show finish time while actively running -- firmware leaves a
+        # stale remainingTime after a cycle ends, frozen at '00:01:00'.
         SensorDesc(
             key="finish_time", device_class="timestamp", hysteresis=True, rep_fn=_finish_time
         ),

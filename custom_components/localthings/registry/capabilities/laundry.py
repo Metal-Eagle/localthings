@@ -178,33 +178,24 @@ BUZZER_SOUND = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
 # Cycle selection over /course/vs/0.
 #
 # The selected course and every other user-tunable option ride in the
-# x.com.samsung.da.options array on /course/vs/0 as `<Prefix>_<value>` tokens.
-# Confirmed on real hardware (issue #54): a write only needs to carry the one
-# changed token -- `{'x.com.samsung.da.options': ['SoftenerLevelCtrl_2']}` --
-# the device matches by prefix, evicts the stale token, and merges the result
-# into the array itself. No read-modify-write of the whole array needed (see
-# option_write). The set of *selectable* courses is not hardcoded -- it's read
-# live from
-# x.com.samsung.da.editCourseList on /wm/editcourse/vs/0 (cycle_options), so we
-# never show a course a given model doesn't have or hide one it does. Course
-# codes are uppercase hex; display names live in translations under
-# entity.select.<translation_key>.state.<id lowercased> so they can be
-# localized -- every device-enum select in this integration works this way.
-# washer.py's course comment has the byte-level evidence for why the options[]
-# MostUsed_* entry is *not* a trustworthy second source.
+# x.com.samsung.da.options array as `<Prefix>_<value>` tokens. Confirmed on
+# real hardware (issue #54): a write only needs to carry the one changed
+# token -- the device matches by prefix, evicts the stale token, and merges
+# the result itself (see option_write). The set of selectable courses is
+# read live from editCourseList on /wm/editcourse/vs/0 (cycle_options), not
+# hardcoded. Course codes are uppercase hex; display names live in
+# translations under entity.select.<translation_key>.state.<id lowercased>.
 #
 # Some boards populate /wm/editcourse/vs/0 without ever filling in
-# editCourseList itself (issue #1) -- cycle_options() falls back to deriving
-# the same list from /course/vs/0's own supportedOptions in that case; see
-# _course_codes_from_supported_options for the byte-level evidence.
+# editCourseList itself (issue #1) -- cycle_options() falls back to
+# deriving the list from /course/vs/0's own supportedOptions in that case;
+# see _course_codes_from_supported_options.
 #
-# Shared verbatim by washer, dishwasher, and dryer -- all DA_WM_-family boards
-# expose the same /course/vs/0 options contract.
-# ---------------------------------------------------------------------------
+# Shared verbatim by washer, dishwasher, and dryer -- all DA_WM_-family
+# boards expose the same /course/vs/0 options contract.
 
 
 def hex_pairs(codes):
@@ -237,13 +228,11 @@ def option_value(options, prefix):
 
 # Drum Clean+ maintenance tracking, from the same options[] array as the
 # selected course -- shared by washer.py (issue #9) and dryer.py (issue
-# #258); both families use identical DrumCleanProposal_/WashingTimes_/
-# DrumCleanLog_ tokens. DrumCleanProposal_<N> is the wash/dry-cycle interval
-# between recommended cleans; WashingTimes_<N> is the count since the last
-# one -- their difference is exactly the "N cycles until due" figure the
-# Samsung app shows (verified on a washer: DrumCleanProposal_40 -
-# WashingTimes_3 == 37, matching a live app screenshot's "Potreba cistenia
-# po 37 cykloch").
+# #258), identical DrumCleanProposal_/WashingTimes_/DrumCleanLog_ tokens.
+# DrumCleanProposal_<N> is the cycle interval between recommended cleans;
+# WashingTimes_<N> is the count since the last one -- their difference is
+# the "N cycles until due" figure the app shows (verified: 40 - 3 == 37,
+# matching a live app screenshot).
 def drum_clean_cycles_remaining(rep):
     opts = rep.get("x.com.samsung.da.options") or []
     proposal = option_value(opts, "DrumCleanProposal")
@@ -257,14 +246,10 @@ def drum_clean_cycles_remaining(rep):
 
 
 # DrumCleanLog_ is the clean-history field: a washer reports one bare ISO
-# datetime (the last clean, verified against the same app screenshot's "10
-# days ago"); a dryer (issue #258's Dillton-reported dump) instead reports a
-# '|'-joined history of every past clean, ten deep on that dump, in
-# strictly increasing order. Splitting on '|' and taking the last element
-# handles both shapes identically -- a no-'|' value is unaffected. No
-# explicit timezone field accompanies either shape, so it's treated as UTC,
-# matching this integration's convention for other bare ISO datetime fields
-# (see fridge.py's night-light schedule comment).
+# datetime (the last clean); a dryer (issue #258) instead reports a
+# '|'-joined history of every past clean in increasing order. Splitting on
+# '|' and taking the last element handles both shapes identically. No
+# timezone accompanies either shape, so it's treated as UTC.
 def drum_clean_last_cleaned(rep):
     raw = option_value(rep.get("x.com.samsung.da.options"), "DrumCleanLog")
     if not raw:
@@ -278,41 +263,27 @@ def drum_clean_last_cleaned(rep):
 
 def _course_codes_from_supported_options(course_rep):
     """Fallback for an empty/missing editCourseList: derive the selectable
-    course list from /course/vs/0's own x.com.samsung.da.supportedOptions
-    instead (issue #1: some DA_WM_TP1/TP2-class boards populate the
-    /wm/editcourse/vs/0 href but never fill in editCourseList itself).
+    course list from /course/vs/0's own supportedOptions instead (issue #1:
+    some boards populate /wm/editcourse/vs/0 but never fill in
+    editCourseList itself).
 
     supportedOptions is a 1-hex-nibble header followed by one fixed-width
     record per selectable course, self-indexed rather than positional --
-    the first byte of every record is that course's own hex code, just in
-    the firmware's own internal order, not editCourseList's. Confirmed
-    against six independent real-world washer/dryer/dishwasher dumps: every
-    one divides evenly into `header + N * K bytes` with fully unique first
-    bytes across all N records, at the record's true byte width. (What the
-    rest of each record encodes is still unconfirmed -- this only uses the
-    course-code byte.)
+    the first byte of every record is that course's own hex code.
+    Confirmed against six independent real-world dumps: every one divides
+    evenly into `header + N * K bytes` with fully unique first bytes across
+    all N records, at the record's true byte width.
 
-    Two guards, deliberately conservative rather than guessing further: the
-    derived codes must (a) all be distinct -- a real course table, not
-    noise -- and (b) include whatever course is currently selected
-    (x.com.samsung.da.options' Course_<code> token), which must always be a
-    member of its own device's valid list. If no split satisfies both, this
-    returns [] rather than guess.
+    Two conservative guards rather than guessing further: the derived codes
+    must all be distinct, and must include whatever course is currently
+    selected. If no split satisfies both, this returns [].
 
-    Among splits that satisfy both, the *smallest* passing K wins, rather
-    than requiring a single unambiguous one -- more than one K reliably
-    does pass on real data (e.g. the shipped dishwasher fixture: true
-    K=7 passes, but so do 10, 14, and 35, none of which are multiples of
-    7 -- position 0 always lands on the same real course code regardless
-    of K, which is enough on its own to satisfy the current-course guard
-    for several unrelated splits). Smallest-K-wins is a heuristic, not a
-    proof: it matches the confirmed answer on every one of six independent
-    real-world dumps this was checked against, but a coincidentally
-    unique, current-course-inclusive *smaller* K is not mathematically
-    impossible on some future device, and would be picked silently. Not
-    guarded against further here, since course tables are typically large
-    enough (double digits) that colliding by chance on both checks is
-    unlikely, and no device seen so far actually needs it.
+    Among splits that satisfy both, the smallest passing K wins -- more
+    than one K reliably passes on real data, and smallest-K-wins matches
+    the confirmed answer on all six dumps checked, though it's a heuristic
+    rather than a proof. Not guarded further: course tables are typically
+    large enough that colliding by chance on both checks is unlikely, and
+    no device seen so far needs it.
     """
     raw = course_rep.get("x.com.samsung.da.supportedOptions")
     hexstr = raw[0] if isinstance(raw, list) and raw else raw
@@ -340,7 +311,7 @@ def _course_codes_from_supported_options(course_rep):
 
 def option_write(prefix, new_value):
     """A one-token x.com.samsung.da.options write -- see the module comment
-    above cycle_options for why this doesn't read/rewrite the whole array."""
+    above for why this doesn't read/rewrite the whole array."""
     return [f"{prefix}_{new_value}"]
 
 
@@ -360,35 +331,24 @@ def _table_id(resources, table_href):
 def cycle_select(*, translation_key, icon, table_href=None):
     """A 'Cycle' select over /course/vs/0, labelled from `translation_key`.
 
-    The option list, current value, and write path are all shared across
-    washer/dryer/dishwasher; only the translation is family- (and, for
-    washer/dryer, board-) specific.
+    The option list, current value, and write path are shared across
+    washer/dryer/dishwasher; only the translation is family/board-specific.
 
-    table_href (washer/dryer only -- see washer.py/dryer.py's call sites)
-    suffixes translation_key with the device's own course-table id, read
-    from /st/washercourse/vs/0 or /st/dryercourse/vs/0's
-    x.com.samsung.da.st.courseTable (e.g. 'washer_cycle' + 'Table_02' ->
-    'washer_cycle_table_02'). An absent or unrecognized table id gets the
-    name-only ``cycle`` translation key while the raw course code remains
-    visible and writable.
-
-    This matters because course codes are NOT guaranteed consistent across
-    board generations sharing the same /course/vs/0 contract: every code in
-    washer_cycle_table_02 was confirmed against Table_02-reporting devices
-    (DA_WM_TP1/TP2 boards); FlexWash's older DA_WM_A51 board reports
-    Table_00 instead, so the same hex code could mean a different course
-    there for all we've verified. So a table-specific key is used only when
-    the shipped catalog actually has one; any other table (Table_00 today,
-    whatever ships next) falls back to the name-only ``cycle`` key, which
-    shows the raw course code rather than a label borrowed from another
-    board generation. Translating a new table is therefore a
-    translations-only change -- add the ``<family>_cycle_<table>`` entry and
-    this resolver picks it up.
+    table_href (washer/dryer only) suffixes translation_key with the
+    device's own course-table id, read from /st/washercourse/vs/0 or
+    /st/dryercourse/vs/0's courseTable (e.g. 'washer_cycle' + 'Table_02' ->
+    'washer_cycle_table_02'). This matters because course codes are NOT
+    guaranteed consistent across board generations sharing the same
+    /course/vs/0 contract: washer_cycle_table_02 was confirmed against
+    Table_02 devices, but FlexWash's older board reports Table_00, where
+    the same hex code could mean a different course. An absent or
+    unrecognized table id falls back to the name-only ``cycle`` key
+    instead of borrowing a label from another board generation --
+    translating a new table is a translations-only change.
 
     Left at its default for dishwasher, which has no equivalent table-id
-    resource in any dump seen and no evidence its course codes vary by
-    table the way washer/dryer's do -- there's nothing to build a
-    table-specific key from.
+    resource and no evidence its codes vary by table the way washer/
+    dryer's do.
     """
     key = translation_key
     if table_href is not None:
@@ -411,14 +371,11 @@ def cycle_select(*, translation_key, icon, table_href=None):
     )
 
 
-# ---------------------------------------------------------------------------
 # Plain boolean toggles over /course/vs/0's options[] array: a
-# '<prefix>_On'/'<prefix>_Off' token, read-modify-written the same way as
-# the 'Course' token above. Shared by washer (bubble soak, pre-wash,
-# intensive -- issue #22) and dishwasher (storm wash, auto release dry) --
-# both families ride this exact contract, just with different prefixes and
-# different presence/validation needs on top.
-# ---------------------------------------------------------------------------
+# '<prefix>_On'/'<prefix>_Off' token, merged the same way as the 'Course'
+# token above. Shared by washer (bubble soak, pre-wash, intensive -- issue
+# #22) and dishwasher (storm wash, auto release dry), just with different
+# prefixes and presence/validation needs on top.
 
 
 def bool_option_write(prefix):
@@ -450,12 +407,11 @@ def bool_option_switch(
     """A SwitchDesc over a '<prefix>_On'/'<prefix>_Off' options[] token.
 
     gate_on_presence self-gates the entity off on models that never report
-    the token at all (washer's bubble soak/pre-wash/intensive); leave False
-    for a toggle every device in the family reports (dishwasher's storm
-    wash). validate_fn is passed straight through to SwitchDesc for callers
-    that need to reject a write against live device state (e.g. washer's
-    per-course availability check) -- this factory has no opinion on it and
-    building one, if needed, is the caller's job.
+    the token (washer's bubble soak/pre-wash/intensive); leave False for a
+    toggle every device in the family reports (dishwasher's storm wash).
+    validate_fn passes straight through to SwitchDesc for callers that need
+    to reject a write against live state -- this factory has no opinion on
+    it.
     """
     return SwitchDesc(
         key=key,
@@ -468,14 +424,11 @@ def bool_option_switch(
     )
 
 
-# ---------------------------------------------------------------------------
 # /wm/jobbeginingstatus/vs/0 -- the "why did the cycle not start" reason
-# (e.g. door open, no water). The vendor field is x.com.samsung.da.currentStatus
-# on every laundry dump that populates it (washer + DA_WM_TP1 dryer). An
-# earlier dryer descriptor read x.com.samsung.da.jobBeginingStatus, but no dump
-# ever carried that field, so the dryer sensor was always blank -- fixed by
-# sharing this one reader.
-# ---------------------------------------------------------------------------
+# (e.g. door open, no water), x.com.samsung.da.currentStatus on every dump
+# that populates it. An earlier dryer descriptor read
+# x.com.samsung.da.jobBeginingStatus instead, which no dump ever carried,
+# so the dryer sensor was always blank -- fixed by sharing this one reader.
 
 JOB_BEGINNING_STATUS = Capability(
     href="/wm/jobbeginingstatus/vs/0",

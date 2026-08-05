@@ -1,61 +1,25 @@
 """Capabilities for the Samsung ARTIK051_TVTL-class air purifier family
 (model AX60R5080WD/SE, issue #56).
 
-Power, kids-lock, remote-control, alarms, and the energy meter are the shared
-common.py capabilities (this family exposes the standard /power/0+/power/vs/0
-pair and /alarms/vs/0, /energy/consumption/vs/0). /diagnosis/vs/0 reuses
-dishwasher.DIAGNOSIS -- identical field/write contract
-(x.com.samsung.da.diagnosisStart, 'Ready' on both dumps).
+Power, kids-lock, remote-control, alarms, and the energy meter are the
+shared common.py capabilities; /diagnosis/vs/0 reuses dishwasher.DIAGNOSIS
+(identical field/write contract).
 
-/mode/vs/0's x.com.samsung.da.options array packs multiple independent
-'<Prefix>_<value>' flags into one list -- the same packed-list contract
-laundry.py's option_value/option_write already model for /course/vs/0's
-options[] (reused directly below, just against this family's own href). Per
-issue #56's follow-up (five diagnostics dumps captured with the physical unit
-set to Auto/Sleep/Low/Medium/High):
-  Light_On / Light_Off  -- a plain on/off flag; MODE below models it as a
-                            real switch, RMW-replacing just that one entry.
-                            NOT the same polarity as the AC family's own
-                            Light_On/Light_Off token on its own /mode/vs/0
-                            (airconditioner._display_light_on) -- that one is
-                            confirmed inverted (Light_Off means the panel is
-                            lit) on live hardware. Same token name, same
-                            resource name, different device type and
-                            opposite meaning -- don't unify them.
-  Comode_Off            -- read 'Off' on *every* one of the five dumps,
-                            including High/Low/Medium/Auto -- confirms this
-                            is NOT the fan-speed selector (ruling out the
-                            original guess); exposed read-only since its
-                            actual purpose is still unconfirmed.
-  OptionCode_60282       -- confirmed opaque/not user-facing in the
-                            SmartThings app; not modeled (same treatment as
-                            range_hood's OptionCode_* token on the same
-                            href).
-  Blooming_*             -- confirmed to have no corresponding SmartThings
-                            app setting; dropped entirely rather than kept
-                            as an unexplained diagnostic (it did track 1:1
-                            with Sleep mode across the five dumps -- 0 in
-                            Sleep, 6 otherwise -- so it's plausibly an
-                            automatic side effect of sleep mode, e.g. a
-                            display-dimming level, but that's still a guess).
+/mode/vs/0's options[] packs several '<Prefix>_<value>' flags, the same
+packed-list contract as laundry.py's option_value/option_write. Light_On/
+Light_Off is a real on/off switch here -- NOT the same polarity as the AC
+family's own Light_On/Light_Off token on its own /mode/vs/0, which is
+inverted (airconditioner._display_light_on). Comode_Off reads 'Off' on
+every setting (Auto/Sleep/Low/Medium/High), ruling out the original
+"fan speed selector" guess; exposed read-only. OptionCode_* and Blooming_*
+are unmodeled: confirmed opaque / not app-facing.
 
-/airflow/0's `speed` is now a real fan-speed control (issue #56 follow-up).
-The first round of five dumps above wasn't conclusive -- it read 0 for both
-Auto *and* High, and 3 for Low/Medium *and* Sleep, likely because all five
-were captured within about a minute of each other, faster than this
-integration's own ~30s poll cycle could settle each change. A second round,
-captured 60-90s apart per setting on two independent units, confirmed a
-clean monotonic mapping instead: Auto=0, Sleep=1, Low=2, Medium=3, High=4.
-AIRFLOW_GENERIC below builds an ordered-speed fan off that confirmed 0-4
-range -- same SET_SPEED shape as range_hood.py's fan, mapping HA's
-percentage steps straight onto the raw code, no named-preset table needed
-(unlike the TP1X family's FAN, which exposes real named modes because its
-board actually reports a supportedModes list to hang names off of).
-
-/airflow/vs/0's vendor `speedLevel` is NOT used for the same purpose -- it
-was unreliable on both units in that second round (Low/Medium collided on
-one unit, stuck at 0 throughout on the other), so AIRFLOW_VS_FALLBACK below
-stays a plain read-only diagnostic even after this change.
+/airflow/0's `speed` is a real fan-speed control: two independent units,
+sampled 60-90s apart per setting, confirmed a clean monotonic 0-4 mapping
+across Auto/Sleep/Low/Medium/High. AIRFLOW_GENERIC below builds an
+ordered-speed fan off that range. /airflow/vs/0's vendor `speedLevel` is
+NOT used for the same purpose -- unreliable on both units in the same
+round (collided Low/Medium on one, stuck at 0 on the other).
 """
 
 import datetime
@@ -73,14 +37,11 @@ from ..entities import (
 from .common import epoch_to_utc, filter_usage_percent, int_or_none, sensor_item_value
 from .laundry import bool_option_exists, bool_option_value, option_value, option_write
 
-# Newer TP1X_DA-AC-AIR-class boards (e.g. TP1X_DA-AC-AIR-01031_0000, issue
-# #130) report fan modes directly on /mode/vs/0's top-level `modes`/
-# `supportedModes` fields (Smart/Max/Mid/WindFree/Sleep) instead of packing
-# everything into the options[] array the way the older ARTIK051_TVTL
-# family above does -- that older family's /mode/vs/0 has no top-level
-# supportedModes at all (see the module docstring's Comode_Off finding).
-# Both board generations share the /mode/vs/0 href, so FAN and MODE below
-# are mutually exclusive via this presence check rather than colliding.
+# Newer TP1X_DA-AC-AIR-class boards (issue #130) report fan modes directly
+# on /mode/vs/0's top-level modes/supportedModes instead of packing
+# everything into options[] like the older ARTIK051_TVTL family. Both
+# generations share this href; FAN and MODE below are mutually exclusive
+# via presence of supportedModes.
 HREF_MODE = "/mode/vs/0"
 HREF_AIRFLOW = "/airflow/0"
 HREF_WIND_STRENGTH = "/wind/strength/vs/0"
@@ -122,12 +83,9 @@ def _consumable_state(items, name):
     return None
 
 
-# FilterProgress is a 0-100 percentage counting up as the filter wears --
-# confirmed via issue #56: the SmartThings app shows "Filter needs changing"
-# once this reaches 100, so 100 means fully used, not "brand new." Named
-# after the raw field (matching the AC/range_hood filterUsage convention,
-# which counts the same direction) rather than "filter life," which would
-# imply the opposite direction.
+# FilterProgress counts UP as the filter wears (100 = "needs changing",
+# confirmed via the SmartThings app) -- named after the raw field rather
+# than "filter life," which would imply the opposite direction.
 FILTER = Capability(
     href="/consumable/vs/0",
     poll_tier="cold",
@@ -160,11 +118,9 @@ DEVICE_ACTIVE = Capability(
 
 
 def _power_write(power_href, value):
-    """Shared 'power' payload handling for this family's three FanDesc write
-    functions -- targets whichever power href fan.py's _power_payload picked
-    (the board may only report /power/0); a hardcoded vendor href here would
-    silently no-op on such a board even though the entity's own is_on
-    already falls back to reading it correctly."""
+    """Shared 'power' payload handling for this family's FanDescs -- targets
+    whichever power href fan.py picked (the board may only report
+    /power/0)."""
     if power_href == "/power/0":
         return ["power", "0"], {"value": bool(value)}
     return (["power", "vs", "0"], {"x.com.samsung.da.power": "On" if value else "Off"})
@@ -179,24 +135,14 @@ def _airflow_fan_write(payload, rep, href=None):
     return None
 
 
-# Confirmed via issue #56's second, properly-spaced round of diagnostics
-# (two independent units, 60-90s apart per setting): /airflow/0's `speed` is
-# a clean, monotonic 0-4 code across Auto/Sleep/Low/Medium/High, so it now
-# backs a real ordered-speed fan (fan.py's LocalThingsAirflowFan, same
-# SET_SPEED shape as the range hood's) instead of a read-only sensor --
-# no named-preset table needed, since HA's percentage steps map onto the
-# raw 0-4 code directly, the same way the range hood's numeric levels do.
-# `direction` stays a plain diagnostic: every dump seen (both rounds, both
-# units) reads 'Off' for it regardless of fan setting, so there's nothing
-# confirmed to control there yet.
+# Confirmed monotonic 0-4 speed code (see module docstring) backs a real
+# ordered-speed fan, same SET_SPEED shape as the range hood's. `direction`
+# stays a diagnostic: every dump reads 'Off' regardless of fan setting.
 #
-# Keyed 'airflow_fan', not 'fan' -- FAN below (bound to the shared
-# /mode/vs/0 href) also uses 'fan', and BoundEntity's unique_id is built
-# from key alone (entity.py's _key), not href. FAN and AIRFLOW_GENERIC are
-# only *empirically* mutually exclusive (every dump seen has one board
-# generation's shape or the other, never both), not architecturally
-# enforced the way same-href caps are by _build()'s match_fn check -- a
-# same key would collide if a future board ever reported both.
+# Keyed 'airflow_fan', not 'fan' -- FAN below shares this registry and also
+# uses key 'fan'; unique_id is built from key alone, so a shared key would
+# collide if a board ever reported both (empirically mutually exclusive,
+# not architecturally enforced the way same-href caps are).
 AIRFLOW_GENERIC = Capability(
     href=HREF_AIRFLOW,
     poll_tier="warm",
@@ -211,10 +157,8 @@ AIRFLOW_GENERIC = Capability(
     ),
 )
 
-# Left exactly as a read-only fallback -- speedLevel is NOT the same
-# confirmed-reliable field as /airflow/0's speed above (see module
-# docstring): it collided Low/Medium on one unit and stuck at 0 throughout
-# on the other in the same properly-spaced round.
+# Read-only fallback: speedLevel is unreliable (see module docstring),
+# unlike /airflow/0's speed.
 AIRFLOW_VS_FALLBACK = Capability(
     href="/airflow/vs/0",
     match_fn=lambda rep, resources: "/airflow/0" not in resources,
@@ -239,12 +183,9 @@ AIRFLOW_VS_FALLBACK = Capability(
 
 
 def _light_write(payload, rep, href=None):
-    # option_write's single-token write is confirmed on a washer's
-    # /course/vs/0 (issue #54), NOT independently on this family's
-    # /mode/vs/0 -- extrapolated on the assumption the same vendor field
-    # merges the same way everywhere. If some unit replaces the field
-    # outright instead, this would drop Comode/OptionCode alongside it on
-    # the next light toggle; revisit if a real device report surfaces that.
+    # option_write's single-token merge is confirmed on a washer's
+    # /course/vs/0 (issue #54); extrapolated here on the assumption the
+    # same vendor field merges the same way on this family's /mode/vs/0.
     return ["mode", "vs", "0"], {
         "x.com.samsung.da.options": option_write("Light", payload),
     }
@@ -286,9 +227,8 @@ def _fan_write(payload, rep, href=None):
 
 
 def _first_fan_mode(rep):
-    """Representative scalar for the fan entity in the flattened state
-    (golden/regression), mirroring airconditioner.py's own _first_mode --
-    the real entity computes its state from live coordinator reads."""
+    """Representative scalar for the flattened golden state; the real
+    entity reads live coordinator state instead."""
     modes = rep.get("x.com.samsung.da.modes")
     if isinstance(modes, (list, tuple)):
         return modes[0] if modes else None
@@ -296,10 +236,8 @@ def _first_fan_mode(rep):
 
 
 # Named preset modes (Smart/Max/Mid/WindFree/Sleep), not an ordered
-# percentage -- WindFree/Smart/Sleep are named behaviors, not
-# "faster/slower" positions relative to Max/Mid, so fan.py's entity for
-# this only exposes PRESET_MODE, matching how the AC family's own named
-# convenient modes are modeled as a preset rather than a speed number.
+# percentage -- these are named behaviors, not "faster/slower" positions,
+# so fan.py only exposes PRESET_MODE here.
 FAN = Capability(
     href=HREF_MODE,
     poll_tier="warm",
@@ -324,19 +262,14 @@ def _wind_strength_fan_write(payload, rep, href=None):
     return None
 
 
-# A-VTWW-TP2-21-COMMON (issue #151): named preset modes like FAN above, but
-# on a distinct href with numeric codes ("87"/"89"/"90"/"91") instead of
+# A-VTWW-TP2-21-COMMON (issue #151): named presets like FAN above, but on a
+# distinct href with numeric codes ("87"/"89"/"90"/"91") instead of
 # self-describing supportedModes -- x.com.samsung.da.modesName gives the
-# actual names (SMART/MAX/WINDFREE/Sleep), read live by fan.py's
-# LocalThingsAirPurifierFan._label_for_code rather than a hardcoded
-# per-model map. modes here is a bare string ('87'), not a single-element
-# list like HREF_MODE's -- _wind_strength_fan_write writes it back as-is.
+# real names, read live by fan.py rather than a hardcoded map. `modes` is a
+# bare string here, not a single-element list like HREF_MODE's.
 #
-# key is 'wind_strength_fan', NOT 'fan' -- FAN above shares this registry
-# and also uses a FanDesc; BoundEntity's unique_id is built from key alone
-# (entity.py's _key), not href, so two same-key FanDescs in one registry
-# would collide if a board ever bound both (see AIRFLOW_GENERIC's own
-# comment on this exact hazard -- missed here in the initial cut).
+# key is 'wind_strength_fan', not 'fan' -- same unique_id collision hazard
+# as AIRFLOW_GENERIC above.
 WIND_STRENGTH_FAN = Capability(
     href=HREF_WIND_STRENGTH,
     poll_tier="warm",
@@ -350,15 +283,12 @@ WIND_STRENGTH_FAN = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# TP1X_DA-AC-AIR-class additions (issue #130). This board reports several
-# resources the older ARTIK051_TVTL family never did.
-# ---------------------------------------------------------------------------
+# TP1X_DA-AC-AIR-class additions (issue #130): resources the older
+# ARTIK051_TVTL family never reported.
 
-# Screen/indicator-panel on/off -- distinct from LIGHT below (ambient mood
-# light): both report the same {mode, supportedModes: [On, Off]} shape on
-# separate hrefs on this dump, so they're two independent physical controls,
-# not a duplicate encoding of one.
+# Screen/indicator panel on/off, distinct from the display_light switch
+# above (ambient mood light) -- two independent controls on separate hrefs
+# with the same {mode, supportedModes: [On, Off]} shape.
 DISPLAY = Capability(
     href="/display/vs/0",
     poll_tier="cold",
@@ -377,10 +307,8 @@ DISPLAY = Capability(
     ),
 )
 
-# Same filterUsage/filterCapacity/filterStatus shape as the AC family's own
-# AIR_FILTER (airconditioner.py) -- confirmed normal/wash/replace values not
-# seen on this one dump, so the option list there is reused as-is rather
-# than re-deriving it from a single sample.
+# Same filterUsage/filterCapacity/filterStatus shape as the AC family's
+# AIR_FILTER; the normal/wash/replace option list is reused as-is.
 HEPA_FILTER = Capability(
     href="/filter/hepafilter/vs/0",
     poll_tier="cold",
@@ -406,10 +334,9 @@ HEPA_FILTER = Capability(
     ),
 )
 
-# Physical panel/cover status -- meaning of the one value seen ('Close') is
-# plausible (the HEPA-filter access cover) but unconfirmed, and no
-# supportedStatus list is present to check against -- exposed as a plain
-# diagnostic sensor rather than an asserted binary_sensor polarity.
+# Physical panel/cover status ('Close' seen, plausibly the HEPA-filter
+# cover) -- unconfirmed, and no supportedStatus list to check against, so a
+# plain diagnostic rather than an asserted binary_sensor.
 PANEL_STATUS = Capability(
     href="/panel/vs/0",
     poll_tier="cold",
@@ -443,22 +370,18 @@ PET_FILTER_ACTIVATION = Capability(
     ),
 )
 
-# Sound mode/volume shapes look like laundry.py's SOUND_MODE/SOUND_VOLUME at
-# a glance, but this board's actual values differ (supportedModes here is
-# ['mute', 'buzzer'], not laundry's hardcoded voice/tone/mute; volume range
-# is 0-3, not laundry's fixed 0-15) -- reusing those would either reject a
-# valid write ('buzzer') or expose the wrong number range, so these are
-# separate descriptors reading the live supported values instead of a
-# hardcoded table.
+# Sound mode/volume look like laundry.py's SOUND_MODE/SOUND_VOLUME but this
+# board's actual values differ (supportedModes here is ['mute', 'buzzer'],
+# not laundry's voice/tone/mute; volume is 0-3, not laundry's fixed 0-15) --
+# separate descriptors reading live supported values instead of reusing
+# laundry's hardcoded table.
 SOUND_MODE = Capability(
     href="/settings/sound/mode/vs/0",
     poll_tier="cold",
     entities=(
         # Distinct translation_key from laundry.SOUND_MODE's shared
-        # 'sound_mode' catalog entry -- that one's state table is
-        # {voice, tone, mute}, but this board's supportedModes is
-        # {mute, buzzer}. Sharing the key would leave 'buzzer' unlabelled
-        # (falls through to the raw code) since the catalogs don't overlap.
+        # 'sound_mode' catalog ({voice, tone, mute}) -- this board's
+        # {mute, buzzer} doesn't overlap it.
         SelectDesc(
             key="sound_mode",
             translation_key="air_purifier_sound_mode",
@@ -510,76 +433,41 @@ SOUND_VOLUME = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# AI Purify -- /airlevelcheck/vs/0 (issues #84 and #190)
+# AI Purify -- /airlevelcheck/vs/0 (issues #84, #190). Not scheduler
+# plumbing: it drives the SmartThings app's "AI Purify" feature (the unit
+# wakes on a timer, samples air, optionally acts). Reported with the same
+# field names by three of this registry's four board families (TP1X_DA-AC-AIR
+# #130, A-VTWW-TP2 #151, AVT-WW-TP1 #84/#190); ARTIK051_TVTL has no such
+# href. Bound unconditionally since it's safe to no-op where absent.
 #
-# Covered as "periodic air-quality sensing scheduler plumbing" until two dumps
-# of the AVT-WW-TP1-23 board showed it is not plumbing: it drives the feature
-# the SmartThings app calls AI Purify, where the unit wakes on a timer, samples
-# the air, and optionally acts on the result. Every field is named, none are
-# opaque, and two of them are already user-set on the reported units.
+# Two independent knobs, one entity each rather than folded into one
+# select: periodicSensingActivationState (is it running) and autoExeState
+# (what it does with a bad reading, Off/Airpurify/Alarm) -- mirrors the
+# appliance's own UI. Folding them lost information: a configured action
+# became invisible while off, and no option could toggle the feature
+# without also overwriting the action. The two "off"s are NOT
+# interchangeable: the switch's off stops sampling entirely; the select's
+# "Off" keeps sampling but doesn't act on it (the app calls that
+# "sensing only").
 #
-# Three of this registry's four board families report the resource with the
-# same field names -- TP1X_DA-AC-AIR (#130), A-VTWW-TP2 (#151) and AVT-WW-TP1
-# (#84, #190); only ARTIK051_TVTL (#56) has no such href. Bound unconditionally
-# rather than behind a match_fn so any board reporting it is covered; the one
-# field that genuinely varies is gated per-entity below.
+# range_hood.AIR_LEVEL_CHECK models the same href's read-only fields
+# (reused verbatim below) but is deliberately not imported: it exposes
+# periodic_air_sensing as a read-only BinarySensorDesc where this board
+# needs it writable, and reusing it would migrate every hood user's entity
+# to a different platform.
 #
-# The resource carries two independent knobs and they get one entity each,
-# rather than being folded into a single control:
+# Every write below was exercised on AVT-WW-TP1-23-AXX500 hardware and
+# verified by surviving a reconnect (this board 2.04s writes it silently
+# discards, so an echo proves nothing). The other two families get the same
+# writes on field-shape grounds only.
 #
-#   periodicSensingActivationState  On/Off              -- is AI Purify running
-#   autoExeState                    Off/Airpurify/Alarm -- what it does with a
-#                                                          bad reading
-#
-# The appliance itself presents them that way: its own UI has an on/off for AI
-# Purify separately from the three mode choices. Folding them into one select
-# was tried first and lost two things -- a configured action became invisible
-# while the feature was off, and no option could toggle the feature without
-# also overwriting the action.
-#
-# Note the two 'off's mean opposite things and are not interchangeable. The
-# switch's off stops the unit sampling at all; the select's off is the
-# advertised autoExeState "Off", where the unit keeps sampling and simply
-# doesn't act on what it measures -- the app calls that choice "sensing only".
-#
-# The select reads its options straight off supportedAutoExeState rather than
-# a typed-in tuple, the same shape SOUND_MODE below uses for supportedModes: a
-# board advertising a fourth action gets it accepted on both the options list
-# and the write path.
-#
-# range_hood.AIR_LEVEL_CHECK already models this same href, and its read-only
-# keys (air_sensing_state / last_air_sensing_time / last_air_sensing_level) are
-# reused verbatim so both families share one catalog entry. It is deliberately
-# NOT imported: the hood exposes periodic_air_sensing as a read-only
-# BinarySensorDesc and this board needs a writable SwitchDesc on that same key,
-# so reusing the hood's capability would migrate every hood user's entity to a
-# different platform.
-#
-# Verification: every write below was exercised on AVT-WW-TP1-23-AXX500
-# hardware. This board returns 2.04 for writes it silently discards (see
-# HEPA_FILTER's filter-reset note), so an echo proves nothing -- each was
-# judged by the value surviving a reconnect, which forces a new DTLS session,
-# fresh discovery and a fresh observe of this href, leaving no cached state to
-# read back. The other two families get the writes on field-shape grounds, the
-# same basis on which they already share MODE, HEPA_FILTER and the air-quality
-# sensors.
-#
-# Deferred: startSensingOnce (On/Off on all three dumps) looks like a one-shot
-# "sense now" trigger and would be a ButtonDesc, but nothing here writes it yet
-# and this board is known to acknowledge writes it discards -- so it stays
-# unbound until someone can confirm the side effect rather than the echo.
-# ---------------------------------------------------------------------------
+# Deferred: startSensingOnce looks like a one-shot "sense now" trigger but
+# stays unbound until its side effect (not just the echo) is confirmed.
 
 
 def _interval_minutes(seconds):
     """Device stores the interval in seconds; the entity is in minutes.
-
-    `is None` rather than a falsy check so a reported 0 is distinguishable
-    from a missing one. Anything else nonzero rounds up rather than to
-    nearest, so a sub-minute value can't render as 0 and fall below the
-    entity's own floor.
-    """
+    Rounds up (not to nearest) so a sub-minute value can't floor to 0."""
     secs = int_or_none(seconds)
     if secs is None:
         return None
@@ -587,26 +475,15 @@ def _interval_minutes(seconds):
 
 
 def _interval_write(payload, rep, href=None):
-    # Minutes in the UI -> seconds on the wire (scalar string). Modelled as a
-    # free Number rather than the app's three fixed choices (10 min / 30 min /
-    # 1 hour): this resource advertises no supported-values or range field for
-    # the interval -- supportedAutoExeState sits right beside it, so the board
-    # does advertise constraints where it has them -- and it accepts values the
-    # app never offers. Writing 60 s, six times finer than the app's smallest
-    # choice, drove an observed ~60 s sensing cycle on hardware.
-    #
-    # One minute is the floor because that's the resolution this board reports
-    # results at: lastSensingTime lands on an exact minute on every sample from
-    # the AVT-WW-TP1 and A-VTWW-TP2 boards (both fixtures, and eleven
-    # consecutive live readings), where the TP1X/AC/hood boards report arbitrary
-    # seconds. A sub-minute interval is therefore unobservable here whether or
-    # not the board honours it. Zero is refused for a separate reason: unlike
-    # oven.cook_time or operational's delay hours, where 0 is a real setting
-    # ("no timer", "no delay"), nothing establishes what a 0 interval does to
-    # this board -- so native_min stops the UI offering it, and this guard
-    # covers the service-call path. Silent no-op via a None return, the same
-    # shape range_hood._lamp_level_write uses for a level the device didn't
-    # advertise.
+    # Minutes in the UI -> seconds on the wire. Modeled as a free Number,
+    # not the app's three fixed choices, since the resource advertises no
+    # constraint for this field (unlike supportedAutoExeState beside it)
+    # and accepts finer values than the app offers (60s drove an observed
+    # ~60s sensing cycle on hardware). One-minute floor matches this
+    # board's own reporting resolution (lastSensingTime lands on exact
+    # minutes). Zero is refused: unlike a real "no timer" 0 elsewhere in
+    # this repo, nothing establishes what 0 does here. Silent no-op via
+    # None, same shape as range_hood._lamp_level_write.
     minutes = round(float(payload))
     if minutes < 1:
         return None
@@ -616,10 +493,9 @@ def _interval_write(payload, rep, href=None):
 
 
 def _periodic_sensing_write(payload, rep, href=None):
-    # The master on/off for AI Purify. Leaves autoExeState alone, so the
-    # configured action survives the feature being switched off and comes back
-    # with it -- the thing the select cannot do, since every option it writes
-    # sets an action.
+    # Master on/off; leaves autoExeState alone so the configured action
+    # survives the feature being toggled off -- the select can't do that,
+    # since every option write sets an action too.
     return ["airlevelcheck", "vs", "0"], {
         "x.com.samsung.da.periodicSensingActivationState": ("On" if payload == "On" else "Off")
     }
@@ -631,14 +507,11 @@ def _skip_status_write(payload, rep, href=None):
     }
 
 
-# The daily window during which periodic sensing is skipped, stored as one
-# HHMMHHMM string (start+end) on periodicSensingSkipTime. The read side is
-# cross-confirmed on two units: issue #84's sits at the inert '00000000', while
-# issue #190's carries a real user-set '03002300' -> 03:00-23:00. Split into
-# two HA time entities; each write reads the other half back out of the live
-# rep so the pair round-trips. Confirmed in both directions on hardware: from
-# 13:00-23:00, writing start=07:30 then end=22:00 left the device holding
-# '07302200' -- each write kept the half it wasn't given.
+# Daily skip window, stored as one HHMMHHMM string
+# (periodicSensingSkipTime). Cross-confirmed on two units (inert
+# '00000000' vs a real '03002300'). Split into two HA time entities; each
+# write reads the other half back out of the live rep so the pair
+# round-trips -- confirmed in both directions on hardware.
 def _skip_time_read(part):
     def _read(value):
         raw = str(value or "")
@@ -654,11 +527,9 @@ def _skip_time_read(part):
 
 
 def _skip_half(raw, part):
-    """The half this write isn't setting, normalized. Padding alone would carry
-    a malformed value straight back to the device -- writing start over a junk
-    skip time would send '0730' + junk. The read side already refuses a half it
-    can't parse, so an unparseable one becomes '0000' here and the pair
-    round-trips honestly in the same cases."""
+    """The half this write isn't setting, normalized. An unparseable half
+    becomes '0000' rather than carrying a malformed value back to the
+    device."""
     chunk = (str(raw or "") + "00000000")[:8]
     other = chunk[4:8] if part == "start" else chunk[0:4]
     return other if _skip_time_read("end" if part == "start" else "start")(chunk) else "0000"
@@ -687,10 +558,8 @@ AIR_LEVEL_CHECK = Capability(
             value_fn=lambda v: str(v).lower() == "on",
             write_fn=_periodic_sensing_write,
         ),
-        # Options come off supportedAutoExeState, not a table here -- the
-        # catalog carries the labels for the three values seen so far, and an
-        # unrecognized fourth still reaches the user (select.py falls back to
-        # the device's own token when the catalog doesn't know it).
+        # Options come off supportedAutoExeState rather than a typed table,
+        # so an unrecognized fourth value still reaches the user.
         SelectDesc(
             key="sensing_mode",
             field="x.com.samsung.da.autoExeState",
@@ -703,10 +572,9 @@ AIR_LEVEL_CHECK = Capability(
                 {"x.com.samsung.da.autoExeState": p},
             ),
         ),
-        # The one field that varies across the three families reporting this
-        # resource: the TP1X_DA-AC-AIR dump (#130) omits it while both
-        # AVT-WW-TP1 dumps and the A-VTWW-TP2 dump carry it, so that board runs
-        # the sensing engine on a fixed interval it doesn't expose.
+        # The one field that varies across families: TP1X_DA-AC-AIR (#130)
+        # omits it, so that board runs sensing on a fixed, unexposed
+        # interval.
         NumberDesc(
             key="sensing_interval",
             field="x.com.samsung.da.periodicSensingInterval",
@@ -758,9 +626,8 @@ AIR_LEVEL_CHECK = Capability(
             entity_category="diagnostic",
             value_fn=epoch_to_utc,
         ),
-        # 'Kr1' on both dumps -- a national air-quality grade whose scale is
-        # region-prefixed and undocumented here, so it stays a raw diagnostic
-        # rather than being mapped to an asserted enum.
+        # 'Kr1' on both dumps -- a region-prefixed, undocumented grade;
+        # stays a raw diagnostic rather than an asserted enum.
         SensorDesc(
             key="last_air_sensing_level",
             field="x.com.samsung.da.lastSensingLevel",
@@ -770,18 +637,12 @@ AIR_LEVEL_CHECK = Capability(
     ),
 )
 
-# /humidity/0 and /humidity/vs/0 are empty {} on both dumps this family has
-# been verified against -- covered here (not globally, per ignored.py's
-# module docstring) since those hrefs collide with fridge/AC schemas
-# elsewhere. Same two hrefs and reasoning as airconditioner.py's _AC_IGNORED.
-#
-# The next six hrefs (issue #130, TP1X_DA-AC-AIR board) are the exact same
-# resources, same shapes, same reasoning as airconditioner.py's
-# _AC_IGNORED on the shared DA-AC- board family -- duplicated here rather
-# than promoted to the global ignored.py list, since that would require
-# also removing them from _AC_IGNORED in the same change (a global entry
-# colliding with a family-local bare Capability on the same href raises in
-# _build()); left as a possible follow-up DRY cleanup.
+# /humidity/0 and /humidity/vs/0 are empty on both dumps -- covered here
+# (not globally) since they collide with fridge/AC schemas elsewhere, same
+# reasoning as airconditioner.py's _AC_IGNORED. The next six hrefs (issue
+# #130) are the exact same DA-AC- board resources as _AC_IGNORED,
+# duplicated here rather than promoted to the global list (a possible
+# follow-up DRY cleanup).
 COVERAGE = [
     Capability(href="/humidity/0"),
     Capability(href="/humidity/vs/0"),
@@ -790,14 +651,11 @@ COVERAGE = [
     Capability(href="/keepnormalstate/vs/0"),  # internal keep-normal flag
     Capability(href="/personality/presence/vs/0"),  # presence-personalization plumbing (empty here)
     Capability(href="/reserverulesets/vs/0"),  # opaque hex-encoded schedule reservation blob
-    # Do-not-disturb/auto-sleep schedule (visible/startTime/endTime/
-    # useTimeSetting/functionState) -- every field reads its inert default
-    # on the only dump seen (times both '00:00:00', useTimeSetting/
-    # functionState both 'false'). Same "needs a multi-field schedule
-    # editor" treatment as fridge.py's /defrost/reservation/vs/0.
+    # Do-not-disturb/auto-sleep schedule -- every field reads its inert
+    # default on the only dump seen. Needs a multi-field schedule editor,
+    # same as fridge.py's /defrost/reservation/vs/0.
     Capability(href="/dnd/autosleep/vs/0"),
-    # Empty ({}) on the A-VTWW-TP2-21 dump (issue #151) -- this board's
-    # convenient-mode-equivalent behavior lives entirely in WIND_STRENGTH_FAN
-    # above instead.
+    # Empty on the A-VTWW-TP2-21 dump (issue #151) -- this board's
+    # convenient-mode equivalent lives in WIND_STRENGTH_FAN instead.
     Capability(href="/mode/convenient/vs/0"),
 ]

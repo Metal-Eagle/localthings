@@ -182,18 +182,13 @@ HOOD_FILTER = Capability(
 )
 
 
-# After Run (issue #147): the hood keeps the fan running at low speed for a
-# while after it's switched off, to clear residual cooking smoke -- a
-# feature a user actively watches and cancels, not passive diagnostics, so
-# none of the three entities below carry entity_category. No
-# supported-values list is advertised for activationState, so it's modeled
-# read-only (monitoring, not an invented "enable" write) per the 'don't
-# guess' rule; runningCancel's only observed value is the command name
-# itself ('Cancel'), the same self-describing command-field shape as
-# operational.STOP_BUTTON. runningProgress's own name states its domain
-# (a percentage of the cycle completed), so it's modeled as one rather than
-# left an opaque passthrough -- unlike activationState/runningCancel, there's
-# no ambiguous field name or missing-write-contract question here to hedge on.
+# After Run (issue #147): the hood keeps the fan running at low speed after
+# it's switched off, to clear residual cooking smoke -- a feature a user
+# actively watches and cancels, so none of the three entities below carry
+# entity_category. No supported-values list is advertised for
+# activationState, so it's read-only monitoring rather than an invented
+# "enable" write; runningCancel's only observed value is the command name
+# itself ('Cancel'), the same shape as operational.STOP_BUTTON.
 AFTER_RUN = Capability(
     href="/afterrun/vs/0",
     poll_tier="warm",

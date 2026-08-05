@@ -31,10 +31,9 @@ class BoundEntity:
     key_override: str | None = None
     instance_name: str | None = None
     # Which logical indoor subdevice (issue #177) this entity belongs to.
-    # `href` above is always the *actual*, on-the-wire href for that
-    # subdevice -- MAIN's
-    # to_actual is the identity transform, so every device with no subdevices
-    # behaves exactly as before this field existed.
+    # `href` above is always the actual, on-the-wire href for that
+    # subdevice -- MAIN's to_actual is the identity transform, so a device
+    # with no subdevices is unaffected.
     subdevice: Subdevice = MAIN
 
 
@@ -101,24 +100,19 @@ def discover(
     tier_log: Callable[[str, str], None] | None = None,
     subdevice: Subdevice = MAIN,
 ) -> list[BoundEntity]:
-    """`tier_log(href, poll_tier)` fires for every href a capability actually
-    matches, even a no-entity "coverage-only" capability (see COVERAGE lists
-    in capabilities/*.py) that `_bind()` turns into zero `BoundEntity` rows.
-    Callers that need a href's poll cadence (the coordinator's hot/warm
-    sub-poll and OBSERVE-attempt lists) must use this, not `bound` -- a
-    coverage-only capability's `poll_tier` would otherwise be silently
-    dropped since it never appears in `bound`.
+    """`tier_log(href, poll_tier)` fires for every href a capability
+    actually matches, even a no-entity "coverage-only" capability that
+    `_bind()` turns into zero `BoundEntity` rows. Callers that need a
+    href's poll cadence must use this, not `bound` -- a coverage-only
+    capability's `poll_tier` would otherwise never appear in `bound`.
 
-    `resources` is always keyed by *canonical* hrefs -- for a subdevice
-    (issue #177) that means its own canonical view (see
-    subdevices.canonical_view), the same shape as a plain single-subdevice
-    device's resources dict, so registry lookups/rt_filter/match_fn/
-    instance_suffix all behave identically regardless of which subdevice is
-    being discovered.
-    `subdevice` only affects the *href* stamped onto each BoundEntity (via
-    `_bind`, see above) and the href `log`/`tier_log` report -- both the
-    real, subscribable/pollable path, not the canonical one the registry is
-    keyed on.
+    `resources` is always keyed by canonical hrefs -- for a subdevice
+    (issue #177), its own canonical view (see subdevices.canonical_view),
+    the same shape as a single-subdevice device's resources dict, so
+    registry lookups behave identically regardless of which subdevice is
+    being discovered. `subdevice` only affects the href stamped onto each
+    BoundEntity and the href `log`/`tier_log` report -- the real,
+    subscribable/pollable path, not the canonical one.
     """
     out: list[BoundEntity] = []
 

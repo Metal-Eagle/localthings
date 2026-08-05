@@ -52,34 +52,26 @@ def _translation_state(value: str, known: frozenset[str]) -> str | None:
 def _display(value, translation_key: str | None):
     """Turn a raw device option/state value into what's shown in the UI.
 
-    `translation_key` is the entity's already-resolved key (SelectDesc.
-    translation_key can itself be a callable -- see entities.py -- so
-    callers pass the resolved value, e.g. self.translation_key, not
-    the raw descriptor field).
+    `translation_key` is the entity's already-resolved key (it can itself
+    be a callable -- see entities.py -- so callers pass the resolved
+    value, not the raw descriptor field).
 
     An entity with a translation_key looks its state up in the shipped
-    translation catalog, whose state keys are lowercase -- so those values
-    must be lowercased exactly to match, and the device still expects
-    that same raw casing back on write (callers map the displayed value
-    back to raw via _raw_options()).
-
-    Everything else has no catalog lookup, so there's no reason to
-    destroy the device's own casing. Only two cosmetic fixups apply: a
-    fully lowercase device-native token (e.g. "voice") is title-cased,
-    and a PascalCase token (e.g. "ExtraHigh") gets a space inserted at
-    the case boundary ("Extra High"). A value that's already
-    human-friendly (e.g. "AI Wash") matches neither pattern and passes
-    through unchanged.
+    translation catalog, whose state keys are lowercase, and the device
+    still expects that same raw casing back on write (mapped back via
+    _raw_options()). Everything else has no catalog lookup, so there's no
+    reason to destroy the device's own casing: only two cosmetic fixups
+    apply, title-casing a fully lowercase token ("voice") and spacing a
+    PascalCase one ("ExtraHigh" -> "Extra High"); an already-friendly value
+    ("AI Wash") matches neither and passes through unchanged.
     """
     if not isinstance(value, str):
         return value
     if translation_key:
         known = translated_states("select", translation_key)
         if not known:
-            # No state table for this key: either the entity isn't translated
-            # at all, or its name is translated but its options deliberately
-            # aren't (an unrecognized course table, say). Either way the
-            # opaque device value is the best thing to show.
+            # No state table for this key: either untranslated, or its
+            # options deliberately aren't (an unrecognized course table).
             return value
         if translated := _translation_state(value, known):
             return translated
@@ -99,12 +91,11 @@ class LocalThingsSelect(LocalThingsEntity, SelectEntity):
         desc = cast(SelectDesc, self._bound.desc)
         if callable(desc.options):
             # Per-device option list computed from the full resource
-            # snapshot (not just this entity's own href) -- e.g. a course
-            # list decoded from a sibling resource. There is no static
-            # fallback: when that resource isn't populated the callable
-            # returns [] and the entity's exists_fn suppresses it entirely.
-            # This entity's own subdevice's canonical view (issue #177), not
-            # the raw actual-href snapshot -- see LocalThingsEntity._resources.
+            # snapshot -- e.g. a course list decoded from a sibling
+            # resource. No static fallback: when unpopulated, the callable
+            # returns [] and exists_fn suppresses the entity entirely. Uses
+            # this subdevice's canonical view (issue #177), not the raw
+            # snapshot -- see LocalThingsEntity._resources.
             return list(desc.options(self._resources) or [])
         if desc.options_field:
             rep = self.coordinator.last_resources.get(self._bound.href) or {}

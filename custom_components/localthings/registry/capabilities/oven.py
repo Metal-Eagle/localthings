@@ -1,26 +1,19 @@
 """Capabilities for the oven family (Samsung NV7000BS-class).
 
-Resources verified against the live device via DTLS-CoAP.
-See `local-tools/comparisons/oven-tree.md` for the full field reference.
+Resources verified against the live device via DTLS-CoAP. See
+`local-tools/comparisons/oven-tree.md` for the full field reference.
 
-Write surfaces this module exposes:
+Proven write: lamp, via /mode/vs/0 options RMW, works even with Remote
+Control off. Unproven (first HA use is also the test): sound/fastPreheat/
+naturalSteam (same RMW pattern), setpoint via /temperatures/vs/0 items RMW,
+cook time via /operational/state/vs/0's operationTime/remainingTime, mode
+select via /mode/vs/0.modes (mid-cook acceptance unknown), stop via
+state='Ready'.
 
-  proven:
-    * Lamp via /mode/vs/0 options RMW (probe_oven_lamp_toggle.py)
-      — works even with Remote Control off.
-
-  unproven (first HA use is also the test):
-    * Sound, FastPreheat, NaturalSteam — same RMW pattern as lamp.
-    * Setpoint via /temperatures/vs/0 items RMW.
-    * Cook time via /operational/state/vs/0 operationTime/remainingTime.
-    * Mode select via /mode/vs/0 .modes — mid-cook acceptance unknown.
-    * Stop via /operational/state/vs/0 state='Ready'.
-
-Note: Cycle start is not implemented. Reverse-engineering shows local-OCF
-cycle start is not reproducible on this firmware (see project_oven_remote
-_start_open.md). Mode writes are also unreliable — the oven rolls them back
-once a cycle is active. OVEN_MODE is provided as a SelectDesc for fidelity
-but is effectively read-only in practice.
+Cycle start is not implemented: local-OCF cycle start isn't reproducible on
+this firmware. Mode writes are also unreliable -- the oven rolls them back
+once a cycle is active, so OVEN_MODE's SelectDesc is effectively read-only
+in practice.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -45,26 +38,18 @@ SETPOINT_MIN_C = 30
 SETPOINT_MAX_C = 270
 SETPOINT_STEP_C = 5
 
-# Verified against issue #44's range dump (NSI6DG9100SRAA, unit reported as
-# "Fahrenheit" on /temperatures/vs/0): Bake mode's modeSpec on /mode/vs/0
-# reports tempMinF/tempMaxF/tempIntervalF = 175/550/5. Kept as a separate
-# constant set rather than converted from the Celsius bounds above, which
-# are themselves unverified (no live dump; see module docstring).
+# Verified against issue #44's range dump: Bake mode's modeSpec reports
+# tempMinF/tempMaxF/tempIntervalF = 175/550/5. Kept separate rather than
+# converted from the Celsius bounds above, which are themselves unverified.
 SETPOINT_MIN_F = 175
 SETPOINT_MAX_F = 550
 SETPOINT_STEP_F = 5
 
-# Mode options seen on NV7000BS-class. No dump exists so this list is inferred
-# from Samsung documentation and firmware observations. The firmware will
-# reject unknown modes; missing entries here are a coverage gap, not a bug.
-#
-# This is a fallback only, used when a device's own /mode/vs/0 doesn't report
-# x.com.samsung.da.supportedModes at all -- see _oven_mode_options/
-# _oven_mode_write below. issue #138's range dump (NE63A6511SS/AA) reports
-# ConvectionRoast/KeepWarm/BreadProof/AirFryer/Dehydrate/SelfClean/SteamClean
-# in its own supportedModes; those are read live rather than added here, per
-# the adding-device-support skill's preference for device-reported option
-# lists over hardcoded ones.
+# Mode options seen on NV7000BS-class. No dump exists so this list is
+# inferred from Samsung documentation and firmware observations; the
+# firmware rejects unknown modes, so a missing entry is a coverage gap, not
+# a bug. Fallback only, used when a device's own /mode/vs/0 doesn't report
+# supportedModes at all -- see _oven_mode_options/_oven_mode_write below.
 _OVEN_MODES = (
     "NoOperation",
     "Bake",
@@ -138,22 +123,18 @@ def _option_value(options, prefix):
 
 
 def _has_option(prefix):
-    """exists_fn for an options-array switch: bind only when the device's own
-    options[] actually carries a `<prefix>_<value>` token.
+    """exists_fn for an options-array switch: bind only when the device's
+    own options[] actually carries a `<prefix>_<value>` token.
 
-    fast_preheat/natural_steam were shipped unconditionally (no exists_fn) as
-    an unverified guess (see module docstring) -- issue #183's dump (model
-    NE6516A) reports neither `fastpreheat_*` nor `NaturalSteam_*` in its
-    options[] at all, so both switches were phantom controls: always read as
-    off, and toggling them wrote a token the firmware never recognized in
-    the first place, hence "does not appear to do anything."
+    fast_preheat/natural_steam were shipped unconditionally (no exists_fn)
+    as an unverified guess -- issue #183's dump reports neither token in
+    its options[] at all, so both switches were phantom controls that
+    "don't appear to do anything."
 
     `is_stub_rep(rep) or` keeps the same stub carve-out as cooktop.py's
-    identical per-token exists_fn on its own options[]-array href: a stub
-    /device/0 seed rep (not yet sub-polled) has no options[] at all, and
-    without this an entity whose token is genuinely present would never get
-    a first chance to bind, since exists_fn runs before that first real
-    fetch lands.
+    identical exists_fn: a stub /device/0 seed rep has no options[] at all,
+    and without this a genuinely-present token would never get a first
+    chance to bind.
     """
     return lambda rep, resources: (
         is_stub_rep(rep) or _option_value(rep.get("x.com.samsung.da.options"), prefix) is not None
@@ -163,13 +144,10 @@ def _has_option(prefix):
 def _option_write(prefix, new_value):
     """A one-token x.com.samsung.da.options write, mirroring
     laundry.option_write. NOT independently confirmed on an oven -- issue
-    #54 only confirmed prefix-merge-on-write for a washer's /course/vs/0.
-    This extrapolates that same vendor field/contract to the oven's
-    /mode/vs/0, on the assumption the firmware handles the array the same
-    way there. If that assumption is wrong for some oven, a device that
-    replaces the field outright instead of merging would drop every other
-    option in it (Sound/fastpreheat/etc.) on the next write -- revisit if a
-    real device report surfaces that."""
+    #54 only confirmed prefix-merge-on-write for a washer's /course/vs/0;
+    this extrapolates the same contract here. If some oven replaces the
+    field outright instead of merging, this would drop every other option
+    on the next write -- revisit if a real device report surfaces that."""
     return [f"{prefix}_{new_value}"]
 
 
@@ -318,13 +296,11 @@ OVEN_CAVITY = Capability(
 
 
 def _oven_temp_unit(rep):
-    """Same shape/risk as fridge.py's TEMPERATURES_FALLBACK: this is the
-    same aggregate `/temperatures/vs/0` items[] resource type, which on
-    fridge hardware carries a per-item `x.com.samsung.da.unit` field
-    ('Celsius'/'Fahrenheit') that was previously hardcoded away (issue #7).
-    Keeps the verified '°C' default when the field is absent (the original
-    NV7000BS-class dump this module was written against), but reads it live
-    -- issue #44's range dump is the first to report 'Fahrenheit' here."""
+    """Same shape/risk as fridge.py's TEMPERATURES_FALLBACK: this aggregate
+    `/temperatures/vs/0` items[] resource carries a per-item `unit` field
+    that was previously hardcoded away (issue #7). Keeps the verified '°C'
+    default when the field is absent, but reads it live -- issue #44's
+    range dump is the first to report 'Fahrenheit' here."""
     items = rep.get("x.com.samsung.da.items") or []
     unit = items[0].get("x.com.samsung.da.unit") if items else None
     return normalize_temp_unit(unit, default="°C")
@@ -404,17 +380,12 @@ OVEN_CONNECTED = Capability(
     ),
 )
 
-# Static cavity capability metadata (count/type/supported features) -- no
-# per-cavity data varies at runtime on any dump seen so far (issue #44's
-# range: single cavity, no supportedFeatureList entries). Bound with no
-# entities purely for coverage; revisit if a multi-cavity dump surfaces
-# fields worth exposing.
+# Static cavity capability metadata -- no per-cavity data varies at runtime
+# on any dump seen so far. Bound with no entities purely for coverage.
 OVEN_SPEC = Capability(href="/oven/spec/vs/0")
 
-# Quick-recipe display blob (combi microwave, issue #121) -- a JSON-encoded
-# string (language/menu/servingSize/option) with every field blank on the
-# only dump seen, and no documented write contract. No entity to bind per
-# the 'don't guess' rule; a bare Capability still marks the href covered.
+# Quick-recipe display blob (combi microwave, issue #121) -- every field
+# blank on the only dump seen, no documented write contract.
 OVEN_RECIPE_COOK = Capability(href="/recipe/cook/vs/0")
 
 OVEN_MODE = Capability(
@@ -462,9 +433,8 @@ OVEN_MODE = Capability(
             write_fn=_option_switch_write("NaturalSteam"),
         ),
         # 120-hour energy-saving standby (issue #183): confirmed present in
-        # this unit's options[] (EnergySaving_On) and directly requested --
-        # unlike fast_preheat/natural_steam above, this token is real on this
-        # hardware, just previously unbound entirely.
+        # this unit's options[] -- unlike fast_preheat/natural_steam above,
+        # this token is real on this hardware, just previously unbound.
         SwitchDesc(
             key="energy_saving",
             field="x.com.samsung.da.options",

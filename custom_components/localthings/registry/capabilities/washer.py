@@ -29,62 +29,33 @@ from .laundry import (
     option_write,
 )
 
-# ---------------------------------------------------------------------------
-# Course_XX hex codes. 23 of the codes named in translations/en.json
-# under entity.select.washer_cycle_table_02.state.<id, lowercased> were captured
-# from a live WW90DG6U25LEU4's x.com.samsung.da.editCourseList
-# (EditCourseList_1C1D211B1E29243328262722202325322F2E30662D8F96), matched
-# positionally against a Slovak-UI user's screenshots of their app's course
-# list (same order, same count -- see issue #2) and cross-checked against
-# the printed user manual's course table (confirming e.g. '8F' as 'Intense
-# Cold', not the position-adjacent-looking but distinct 'Mixed Load', a
-# cycle the manual marks "applicable models only" and that does not appear
-# in this device's editCourseList -- nor does 'AI Wash', also "applicable
-# models only"). FixedCourseList_1C29 (the two courses always pinned in the
-# app) maps to '1C'/'29' = Eco 40-60 and Drum Clean+, which matches what
-# you'd expect to be pinned (default cycle + maintenance cycle),
-# corroborating the positional match.
+# Course_XX hex code labels (translations/en.json,
+# washer_cycle_table_02.state.<id>) come from several devices, cross-checked
+# rather than guessed: 23 codes from a live WW90DG6U25LEU4's editCourseList,
+# matched positionally against a user's app screenshots and the printed
+# manual (issue #2); 5 more (Wash+Dry, Air Wash, Cotton Dry, Synthetics Dry,
+# a second distinct '1F' Intense Cold) from a WD90T654DBN/S1 combo's own
+# editCourseList and screenshots (issue #22, a combo's own course set, not
+# implying anything about a plain washer's '1F'); 3 more (Eco Cold, Towels,
+# Self Clean+) verified directly on a WF50A8600AV/US by reading back the raw
+# code after selecting each cycle on the appliance (issue #80). Two code
+# pairs ('21'/'65' Colors, '27'/'5E' Rinse+Spin, and '24'/'54' Towels)
+# legitimately share a label across different course tables -- not typos.
 #
-# A further 5 codes -- '36' Wash+Dry, '37' Air Wash, '38' Cotton Dry,
-# '39' Synthetics Dry, and a second, distinct '1F' Intense Cold (not the
-# same code as '8F' above) -- came from a WD90T654DBN/S1 washer/dryer
-# combo's editCourseList and were named from that user's app screenshot
-# (issue #22). Combo units carry their own course set, so these codes
-# don't imply anything about '1F' on a plain washer.
-#
-# Three more -- '52' Eco Cold, '54' Towels, '60' Self Clean+ -- came from a
-# WF50A8600AV/US, verified directly rather than by inference: the reporter
-# selected each cycle on the physical appliance and read back the resulting
-# raw code from the cycle_select entity's state (issue #80). '54' shares a
-# display name with the existing '24' Towels -- a different code on a
-# different course table legitimately landing on the same label, not a typo
-# (same pattern as '21'/'65' Colors and '27'/'5E' Rinse+Spin above).
-#
-# No static fallback list of those codes is kept here, deliberately: other
-# washer models have a different actual course set (a second dump's active
-# course, '65', isn't even in the list above; models with 'AI Wash'/'Mixed
-# Load' -- both "applicable models only" per the manual -- would have yet
-# another set), so hardcoding one device's list would show/hide the wrong
-# options on a different model. laundry.cycle_options() reads only the live
-# x.com.samsung.da.editCourseList; if a device doesn't populate that
-# resource, the cycle select isn't created at all (see cycle_select's
-# exists_fn). x.com.samsung.da.options' MostUsed_* entry was considered as a
-# fallback source (its first byte reliably equals the currently-selected
-# Course_XX on both dumps we have), but the bytes after that don't
-# correspond to any confirmed course code on either device -- e.g. dump 1's
-# MostUsed_1C8410923FA67F00000000000000 decodes to
-# ['1C','84','10','92','3F','A6','7F',...] and only '1C' is a real code --
-# so it isn't trustworthy as a list of selectable courses and isn't used.
-# ---------------------------------------------------------------------------
+# No static fallback list is kept here: other models have different actual
+# course sets, so hardcoding one device's list would show/hide the wrong
+# options elsewhere. laundry.cycle_options() reads only the live
+# x.com.samsung.da.editCourseList; a device that doesn't populate it gets no
+# cycle select at all (see cycle_select's exists_fn). x.com.samsung.da.
+# options' MostUsed_* entry was considered as a fallback source (its first
+# byte matches the selected Course_XX on both dumps), but the remaining
+# bytes don't decode to any confirmed course code, so it isn't used.
 
-# ---------------------------------------------------------------------------
-# /washer/vs/0 -- wash temperature, spin speed, rinse cycle count
-#
+# /washer/vs/0 -- wash temperature, spin speed, rinse cycle count.
 # Despite the shared href, this is unrelated to dryer.DRYER_SETTINGS (also
 # bound to '/washer/vs/0') -- an artifact of Samsung reusing the same OCF
 # path for different device families. Only one of the two ever binds for a
 # given device, since dryer and washer are separate by_type registries.
-# ---------------------------------------------------------------------------
 
 WASHER_SETTINGS = Capability(
     href="/washer/vs/0",
@@ -123,9 +94,8 @@ WASHER_SETTINGS = Capability(
             ),
         ),
         # Washer/dryer combo units carry a dryLevel field on the wash
-        # resource itself (no separate dryer device/course) -- see issue
-        # #22. Self-gates off on plain washers, which never report
-        # supportedDryLevel.
+        # resource itself (issue #22). Self-gates off on plain washers,
+        # which never report supportedDryLevel.
         SelectDesc(
             key="dry_level",
             field="x.com.samsung.da.dryLevel",
@@ -142,12 +112,9 @@ WASHER_SETTINGS = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
 # /course/vs/0 -- the cycle select is the shared laundry.cycle_select; the
-# drum-clean and dispenser-dosing entities below are washer-specific reads off
-# the same options array.
-# ---------------------------------------------------------------------------
-
+# drum-clean and dispenser-dosing entities below are washer-specific reads
+# off the same options array.
 
 # Drum Clean+ maintenance tracking (issue #9): drum_clean_cycles_remaining/
 # drum_clean_last_cleaned live in laundry.py, shared with dryer.py (issue
@@ -157,30 +124,17 @@ WASHER_SETTINGS = Capability(
 
 # Detergent/softener auto-dispense dosing, from the same options[] array
 # (issue #9). '<Prefix>LevelCtrl_<code>' is the selected dose quantity;
-# '<Prefix>Level2Ctrl_<code>' is a second dial -- water hardness for
-# detergent, concentration for softener -- matching the SmartThings app's
-# two-field dispenser screens ("Distributeur de lessive": Quantité + Dureté
-# de l'eau; "Distributeur d'adoucissant": Quantité + Concentration, per
-# issue #9's screenshots). 'Supported<Prefix>Ctrl_<hexpairs>' lists the
-# valid raw codes for its field, same hex-pair shape as EditCourseList.
-# '<Prefix>Alarm_<On/Off>' is a low-reservoir warning flag.
+# '<Prefix>Level2Ctrl_<code>' is a second dial (water hardness for
+# detergent, concentration for softener), matching the app's two-field
+# dispenser screens. 'Supported<Prefix>Ctrl_<hexpairs>' lists the valid raw
+# codes, same hex-pair shape as EditCourseList. '<Prefix>Alarm_<On/Off>' is
+# a low-reservoir warning flag.
 #
-# Label mapping (entity.select.{detergent,softener}_quantity /
-# detergent_water_hardness / softener_concentration in translations/en.json) is an
-# assumed, not cross-device-verified, reading of the single issue #9 dump +
-# screenshots: LevelCtrl's 4 codes as None/Low/Medium/High (00 has no
-# on-screen equivalent -- the app's Quantité picker only offers
-# Faible/Moyen/Élevé, i.e. codes 01-03; 00 is assumed to be what
-# "Activation" off collapses to) matches DetergentLevelCtrl_3/
-# SoftenerLevelCtrl_3 = "Élevé" on both dispensers. Level2Ctrl's 3 codes as
-# Soft/Medium/Hard for detergent (Dureté de l'eau: Douce/Moyenne/Dure)
-# matches DetergentLevel2Ctrl_2 = "Moyenne". The same 3-code shape as
-# 1x/2x/3x for softener concentration does *not* cleanly match
-# SoftenerLevel2Ctrl_2 against the screenshot's "3x" -- assumed to be a
-# setting the user changed in the app between the dump (issue body) and the
-# screenshots (a later comment), not a different code scheme, since it's
-# otherwise identical in shape to the detergent side. Revisit if a second
-# device's dump contradicts this.
+# Label mapping (translations/en.json's {detergent,softener}_quantity /
+# detergent_water_hardness / softener_concentration) is an assumed reading
+# of the single issue #9 dump + screenshots, cross-checked against the
+# selected value on both dispensers, not independently verified per code --
+# revisit if a second device's dump contradicts it.
 def _supported_level_options(resources, prefix):
     rep = resources.get("/course/vs/0") or {}
     raw = option_value(rep.get("x.com.samsung.da.options"), f"Supported{prefix}")
@@ -192,15 +146,13 @@ def _level_options(prefix):
 
 
 def _dosing_level(prefix):
-    """Current dose code, normalized to the `Supported<prefix>` code format.
-
-    The device reports the selected level as `<prefix>_<code>` with the code
-    un-padded (e.g. '3'), but the valid codes -- which are also this select's
-    options and its translation keys -- come from `Supported<prefix>_<hexpairs>`
-    as zero-padded hex pairs (e.g. '03'). Left as '3', the current value sits
-    outside the select's own option list, so HA renders it 'unknown' (issue #9).
-    Resolve it to the supported code with the same integer value so
-    current_option matches an option (and its translation)."""
+    """Current dose code, normalized to the `Supported<prefix>` code
+    format. The device reports the selected level as `<prefix>_<code>`
+    un-padded (e.g. '3'), but the select's own options come from
+    `Supported<prefix>_<hexpairs>` as zero-padded hex pairs (e.g. '03').
+    Left as '3', the value sits outside the select's own option list and
+    HA renders it 'unknown' (issue #9) -- resolve it to the matching
+    zero-padded code instead."""
 
     def fn(rep):
         opts = rep.get("x.com.samsung.da.options")
@@ -227,9 +179,8 @@ def _level_write(prefix):
     def write(p, rep, href=None):
         if not rep.get("x.com.samsung.da.options"):
             return None
-        # `p` is the zero-padded supported code the UI selected (e.g. '03');
-        # the device stores the level un-padded (e.g. '3'), matching how it
-        # reports it, so write it back in that native shape.
+        # `p` is the zero-padded supported code (e.g. '03'); the device
+        # stores it un-padded (e.g. '3'), matching how it's reported.
         try:
             native = format(int(p, 16), "X")
         except (TypeError, ValueError):
@@ -248,37 +199,28 @@ def _dosing_low(prefix):
 
 
 # Bubble soak / pre-wash / intensive-wash toggles, from the same options[]
-# array (issue #22 follow-up on a WD90T654DBN/S1 combo). Each rides as a
-# plain '<Prefix>_On'/'<Prefix>_Off' token, confirmed by a dump taken with
-# Bubble Soak switched on in the app (BubbleSoak_On) -- the same On/Off shape
-# already used by AiOption and KidsLockBypass in this same array, so
-# PreWashSetting/IntensiveSetting are assumed to follow suit.
+# array (issue #22 follow-up). Each rides as a plain '<Prefix>_On'/'_Off'
+# token, confirmed against a dump taken with Bubble Soak switched on in the
+# app -- the same shape as AiOption/KidsLockBypass in this array.
 #
-# Each also has a differently-named hex-pair availability field that lines up
-# positionally with editCourseList: BubbleSoakSet, PreWashAvailableSet,
-# IntensiveAvailableSet. On the reporter's dump (course '30' at position 1 of
-# 24), all three read 'F0' at that position and the toggle was writable --
-# and the same dump's earlier state (course '1C' at position 0, 'BubbleSoak
-# Off') decodes to '00' for that course, matching the app graying the
-# control out there. 'F0'/'00' is treated as available/unavailable on that
-# evidence. exists_fn (device-level presence) still only runs once, against
-# the setup-time snapshot, so it isn't a fit for this per-course check --
-# validate_fn runs on every write attempt instead (dispatched from
-# coordinator.async_send_command, ahead of write_fn), rejecting an on-write
-# for a course whose byte isn't 'F0' with a user-facing error rather than
-# silently no-opping against the device. The read/write/presence machinery
-# itself is laundry.bool_option_switch, shared with dishwasher's storm-wash/
-# auto-release-dry toggles -- only this per-course gating is washer-only, so
-# it stays here rather than in laundry.py (see laundry.bool_option_switch's
-# docstring: it takes a prebuilt validate_fn and has no opinion on it).
+# Each also has a hex-pair availability field positional with
+# editCourseList (BubbleSoakSet, PreWashAvailableSet,
+# IntensiveAvailableSet): on the reporter's dump 'F0' at a course's
+# position matched the app enabling the control there, '00' matched it
+# grayed out. exists_fn only runs once at setup, so it can't do this
+# per-course check -- validate_fn runs on every write attempt instead,
+# rejecting an on-write for a course whose byte isn't 'F0' with a
+# user-facing error rather than silently no-opping. The read/write/
+# presence machinery is laundry.bool_option_switch, shared with
+# dishwasher's storm-wash/auto-release-dry toggles; only this per-course
+# gating is washer-only.
 def _bool_option_switch(key, icon, prefix, availability_field):
     def validate(p, rep, resources):
         """Reject turning on when the selected course's byte in
-        `availability_field` isn't 'F0'. Turning off is never blocked. Falls
-        back to allowing the write whenever the availability data can't be
-        resolved (unrecognized course, missing/mismatched-length bitmap)
-        rather than guessing -- a false rejection is worse than an
-        occasional no-op write."""
+        `availability_field` isn't 'F0'. Turning off is never blocked.
+        Falls back to allowing the write whenever the availability data
+        can't be resolved (unrecognized course, missing/mismatched-length
+        bitmap) -- a false rejection is worse than an occasional no-op."""
         if p != "On":
             return None
         opts = rep.get("x.com.samsung.da.options") or []

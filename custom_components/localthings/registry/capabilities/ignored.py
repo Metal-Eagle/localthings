@@ -19,9 +19,9 @@ here would silently do nothing on that path. Enumerate each known href
 instead; it's a short, stable list.
 
 This list is maintainer-curated only; there is no per-installation
-override. Grow it as real /device/0 dumps surface more universal noise —
-do not add a href here on a guess. If a href's relevance is unclear, leave
-it unbound so it surfaces as a gap for a human to look at.
+override. Grow it as real /device/0 dumps surface more universal noise --
+never on a guess. If a href's relevance is unclear, leave it unbound so it
+surfaces as a gap for a human to look at.
 """
 
 from ..capability import Capability
@@ -61,12 +61,9 @@ IGNORED: list[Capability] = [
     # Redundant with capabilities already declared elsewhere.
     # /speakersound/vs/0 duplicates /settings/sound/volume/vs/0 (laundry.SOUND_VOLUME).
     Capability(href="/speakersound/vs/0"),
-    # /wm/editcourse/vs/0 has no entities of its own -- x.com.samsung.da.
-    # editCourseList is read directly out of the resource snapshot by
-    # dishwasher.CYCLE_OPTIONS's and washer.WASHER_COURSE's cycle select
-    # (options=_cycle_options) to build that device's actual supported
-    # course list, rather than exposing this href's raw byte string
-    # through its own entity.
+    # No entities of its own -- editCourseList is read directly out of the
+    # resource snapshot by dishwasher.CYCLE_OPTIONS/washer.WASHER_COURSE's
+    # cycle selects to build the device's supported course list.
     Capability(href="/wm/editcourse/vs/0"),
     # Bixby audio feedback (chime + volume played when Bixby starts/stops
     # listening) — only meaningful with Bixby enabled, which this
@@ -96,17 +93,13 @@ IGNORED: list[Capability] = [
     # Temperature-unit display preference, redundant with HA's own units.
     Capability(href="/wm/submode/vs/0"),
     # Read-only re-encoding of the course already exposed by
-    # washer.WASHER_COURSE at /course/vs/0 (x.com.samsung.da.st.washerMode
-    # is literally "Table_02_Course_<same hex code>").
+    # washer.WASHER_COURSE at /course/vs/0 (same hex code, just prefixed
+    # "Table_02_Course_").
     Capability(href="/st/washercourse/vs/0"),
-    # Dryer counterpart of the above: re-encoding of the course already
-    # exposed by dryer.DRYER_COURSE at /course/vs/0
-    # (x.com.samsung.da.st.dryerMode is "Table_03_Course_<same hex code>").
+    # Dryer counterpart: re-encodes dryer.DRYER_COURSE's /course/vs/0.
     Capability(href="/st/dryercourse/vs/0"),
-    # AirDresser counterpart of the above (issue #157): read only for its
-    # courseTable id (air_dresser.AIR_DRESSER_COURSE's table_href), no
-    # entity of its own -- same "no entity, just the table id" role as
-    # /st/washercourse/vs/0 and /st/dryercourse/vs/0.
+    # AirDresser counterpart (issue #157): read only for its courseTable id
+    # (air_dresser.AIR_DRESSER_COURSE's table_href), no entity of its own.
     Capability(href="/st/airdressercourse/vs/0"),
     # Empty on every washer dump seen so far.
     Capability(href="/wm/welcomemsg/vs/0"),
@@ -114,29 +107,21 @@ IGNORED: list[Capability] = [
     # state without a multi-slot editor; revisit if that becomes valuable.
     Capability(href="/wm/personalcourse/vs/0"),
     # OCF-native energy resource is empty ({}) on washer hardware seen so
-    # far, unlike /power/0, /kidslock/0, /remotectrl/0 which do carry real
-    # data -- common.ENERGY_METER on /energy/consumption/vs/0 is the only
-    # real source for this control.
+    # far -- common.ENERGY_METER on /energy/consumption/vs/0 is the only
+    # real source.
     Capability(href="/energy/consumption/0"),
     # Empty ({}) on every washer dump seen so far -- nothing to expose.
     Capability(href="/cycleinterface/vs/0"),
     # OCF-native duplicate of /drlc/vs/0 above -- same utility-program
     # dependency this integration doesn't support locally.
     Capability(href="/drlc/0"),
-    # OCF-native duplicate of /operational/state/vs/0, which is already
-    # modeled by operational.OPERATIONAL_STATE (a richer, write-capable
-    # capability with start/pause/stop buttons and a delay-start control)
-    # used by washer, dishwasher, dryer, and oven. This generic href only
-    # carries read-only overlapping data (current job state, remaining
-    # time, progress percentage) with no write path -- not worth building a
-    # parallel write-capable capability around an unverified generic OCF
-    # write contract.
+    # OCF-native duplicate of /operational/state/vs/0, already modeled by
+    # operational.OPERATIONAL_STATE (richer, write-capable, used by washer,
+    # dishwasher, dryer, oven). This generic href is read-only overlapping
+    # data with no verified write contract worth building around.
     Capability(href="/operational/state/0"),
-    # Cooktop guided-cooking/recipe status (issue #86, TP1X_DA-KS-COOKTOP
-    # family): sequenceNumber, operationBurnerNumber, a stageInfo block, and
-    # a textData.menu string -- every field empty/zero on the only dump
-    # seen so far (device idle, no guided-cooking program active). Same
-    # "don't guess" treatment as the microwave family's /recipe/cook/vs/0.
-    # Revisit if a dump with an active recipe surfaces.
+    # Cooktop guided-cooking/recipe status (issue #86): every field
+    # empty/zero on the only dump seen (device idle). Same "don't guess"
+    # treatment as the microwave family's /recipe/cook/vs/0.
     Capability(href="/cooktop/recipe/status/vs/0"),
 ]

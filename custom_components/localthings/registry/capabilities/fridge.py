@@ -3,17 +3,15 @@
 Resources verified against the dump at local-tools/dumps/10.0.0.254.json.
 
 Temperature unit is read live from each resource, not assumed: the RF9000B
-dump reports Fahrenheit ("units": "F" / "x.com.samsung.da.unit": "Fahrenheit"),
-but a TP1X_REF_21K dump (issue #7) reports the same fields in Celsius for the
-exact same resources — the device tells you which one it is, it's just never
-been read before. See `_temp_unit`/`_temp_item_unit` below. Setpoints are
-NumberDesc with direct-write write_fn — generic caps derive the CoAP PUT path
-from href at write time.
+dump reports Fahrenheit, but a TP1X_REF_21K dump (issue #7) reports the same
+fields in Celsius for the exact same resources -- the device tells you which
+one it is. See `_temp_unit`/`_temp_item_unit` below.
 
-Multi-instance note: the two door resources (/door/cooler/0 and
-/door/freezer/0) and the two ice-maker resources (/icemaker/one/vs/0 and
-/icemaker/two/vs/0) use named path segments, so they are modelled via
-pattern capabilities that auto-derive distinct entity keys from href segments.
+Multi-instance note: the two door resources (/door/cooler/0,
+/door/freezer/0) and the two ice-maker resources (/icemaker/one/vs/0,
+/icemaker/two/vs/0) use named path segments, so they are modeled via
+pattern capabilities that auto-derive distinct entity keys from href
+segments.
 """
 
 import datetime
@@ -30,10 +28,8 @@ from ..entities import (
 from .common import normalize_temp_unit
 
 # Display names for the beverage zone, flex zone, ice type, and
-# ice-making-status enums below live in translations/en.json,
-# keyed by the lowercased raw device value — select.py and SensorDesc.options
-# normalize to lowercase for HA's translation lookup and map back to this
-# original casing before writing to the device.
+# ice-making-status enums below live in translations/en.json, keyed by the
+# lowercased raw device value.
 
 
 def _int(v):
@@ -44,14 +40,13 @@ def _int(v):
 
 
 def _temp_unit(rep):
-    """'units': 'C'/'F' (or 'Celsius'/'Fahrenheit') -> '°C'/'°F'. Defaults to
-    °F (this module's original assumption) if the device omits the field."""
+    """'units': 'C'/'F' (or 'Celsius'/'Fahrenheit') -> '°C'/'°F'. Defaults
+    to °F if the device omits the field."""
     return normalize_temp_unit(rep.get("units"))
 
 
-# ---------------------------------------------------------------------------
-# Temperature (generic — covers /temperature/current/* and /temperature/desired/*)
-# ---------------------------------------------------------------------------
+# Temperature (generic -- covers /temperature/current/* and
+# /temperature/desired/*)
 
 TEMP_CURRENT_GENERIC = Capability(
     href=None,
@@ -74,14 +69,10 @@ TEMP_CURRENT_GENERIC = Capability(
 
 
 def _temp_setpoint_write(p, rep, href=None, resources=None):
-    """Write temperature — prefer vendor /temperatures/vs/0 when available,
-    fall back to direct OCF /temperature/desired/ write otherwise.
-
-    Samsung fridges expose both OCF-standard /temperature/desired/* and vendor
-    /temperatures/vs/0. On some models only the vendor path commits the change;
-    on others both work. Using the vendor path when present is always correct.
-    Item IDs follow the Samsung convention: "0" = Freezer, "1" = Fridge/Cooler.
-    """
+    """Prefer vendor /temperatures/vs/0 when present, else the direct OCF
+    /temperature/desired/ write -- on some models only the vendor path
+    commits. Item IDs follow the Samsung convention: "0" = Freezer,
+    "1" = Fridge/Cooler."""
     if not href:
         return None
     if resources and "/temperatures/vs/0" in resources:
@@ -127,18 +118,12 @@ TEMP_SETPOINT = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Discrete cooler setpoint (issue #186) -- some single-door ("cooler only")
-# fridges report no /temperature/current|desired/* pair at all (this href
-# doesn't match TEMP_CURRENT_GENERIC/TEMP_SETPOINT's '/temperature/current/'
-# or '/temperature/desired/' prefixes), only this one vendor resource that
-# bundles the live desired value together with the *specific* values the
-# unit accepts. That supportedList (e.g. ['1','2','3','4','7'] on the issue
-# #186 dump) is not a contiguous range -- 5 and 6 genuinely aren't valid
-# setpoints on this model -- so a NumberDesc with a min/max/step would let a
-# user pick an unsupported value; modeled as a select reading its own live
-# options list instead, same shape as BEVERAGE_ZONE/PANTRY_ZONE above.
-# ---------------------------------------------------------------------------
+# Discrete cooler setpoint (issue #186): single-door "cooler only" fridges
+# report no /temperature/current|desired/* pair, only this vendor resource
+# bundling the live desired value with the specific values the unit
+# accepts. supportedList (e.g. ['1','2','3','4','7']) is not a contiguous
+# range, so this is a select reading its own live options rather than a
+# NumberDesc with min/max/step.
 
 
 def _definite_cooler_write(p, rep, href=None):
@@ -171,11 +156,8 @@ def _definite_freezer_write(p, rep, href=None):
     )
 
 
-# Freezer half of the same discrete-setpoint pattern (issue #229): a
-# fridge/freezer combo reporting no /temperature/current|desired/freezer
-# pair, only this bundled vendor resource -- identical shape to
-# DEFINITE_TEMPERATURE_COOLER above (down to the field names), just negative
-# supportedList values (e.g. ['-23','-21','-19','-17','-15']).
+# Freezer half of the same discrete-setpoint pattern (issue #229) -- same
+# shape as DEFINITE_TEMPERATURE_COOLER, negative supportedList values.
 DEFINITE_TEMPERATURE_FREEZER = Capability(
     href="/temperature/definite/freezer/vs/0",
     poll_tier="warm",
@@ -190,10 +172,6 @@ DEFINITE_TEMPERATURE_FREEZER = Capability(
         ),
     ),
 )
-
-# ---------------------------------------------------------------------------
-# Icemaker nighttime quiet mode
-# ---------------------------------------------------------------------------
 
 ICEMAKER_NIGHTTIME = Capability(
     href="/icemaker/nighttime/vs/0",
@@ -213,18 +191,13 @@ ICEMAKER_NIGHTTIME = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Icemaker (generic — covers /icemaker/one/vs/0, /icemaker/two/vs/0)
-# /icemaker/status/vs/0 is kept as exact-href cap and binds first.
+# Icemaker (generic -- covers /icemaker/one/vs/0, /icemaker/two/vs/0).
+# /icemaker/status/vs/0 is an exact-href cap and binds first;
 # /icemaker/nighttime/vs/0 is excluded by match_fn (lacks iceMaker.state).
-#
 # Entity names interpolate x.com.samsung.da.iceMaker.name ("CUBED_ICE",
-# "ICE_BITES") -- read via name_field, reaching the translated name as the
-# {instance_name} placeholder -- not the href's "one"/"two" segment. These two
-# ice makers are independent on/off toggles that can both be enabled at once
-# (issue #27), so they stay separate entities rather than a single ice-type
-# select, but users still want them labeled with the device's own names.
-# ---------------------------------------------------------------------------
+# "ICE_BITES") via name_field, not the href's "one"/"two" segment -- these
+# two makers can both be enabled at once (issue #27), so they stay
+# separate entities rather than one ice-type select.
 
 
 def _icemaker_write(field):
@@ -273,10 +246,6 @@ ICEMAKER_GENERIC = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Door alert tone
-# ---------------------------------------------------------------------------
-
 DOOR_ALERT = Capability(
     href="/settings/sound/alert/door/vs/0",
     poll_tier="warm",
@@ -295,10 +264,6 @@ DOOR_ALERT = Capability(
         ),
     ),
 )
-
-# ---------------------------------------------------------------------------
-# Status/lock — auto door opener and fridge sound
-# ---------------------------------------------------------------------------
 
 
 def _status_lock_write(field):
@@ -331,18 +296,11 @@ STATUS_LOCK = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Defrost delay / active-defrost status
-#
 # /defrost/delay/vs/0 is the writable toggle to postpone a scheduled
-# defrost. /defrost/block/vs/0 is an unrelated, independently-varying
-# status: despite its "block" naming (originally assumed to mean "defrost
-# is being withheld"), live dumps confirm DEFROST_BLOCK_ON means the
-# defrost cycle is *actively running* right now, seen with defrost_delay
-# off -- i.e. "block" refers to the evaporator/coil block being defrosted,
-# not a blocking/prevention state. Exposed as a read-only diagnostic
-# binary sensor.
-# ---------------------------------------------------------------------------
+# defrost. /defrost/block/vs/0 is unrelated: despite the "block" naming,
+# live dumps confirm DEFROST_BLOCK_ON means the defrost cycle is actively
+# running right now (seen with defrost_delay off) -- "block" refers to the
+# evaporator/coil block being defrosted, not a prevention state.
 
 DEFROST_DELAY = Capability(
     href="/defrost/delay/vs/0",
@@ -362,10 +320,9 @@ DEFROST_DELAY = Capability(
     ),
 )
 
-# OCF-native boolean mirror of DEFROST_DELAY.  The captured TP1X_REF_21K
-# firmware publishes the same state on both hrefs, but only the vendor resource
-# above has a confirmed write contract.  Bind the native mirror without another
-# entity so discovery records it as an intentional duplicate.
+# OCF-native boolean mirror of DEFROST_DELAY -- only the vendor resource
+# above has a confirmed write contract, so bind this without another
+# entity to record it as an intentional duplicate.
 DEFROST_DELAY_NATIVE_DUPLICATE = Capability(
     href="/defrost/delay/0",
 )
@@ -383,10 +340,6 @@ DEFROST_BLOCK_STATUS = Capability(
         ),
     ),
 )
-
-# ---------------------------------------------------------------------------
-# Refrigeration modes (rapid cooling)
-# ---------------------------------------------------------------------------
 
 
 def _refrigeration_write(field_name):
@@ -421,10 +374,6 @@ REFRIGERATION = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Autofill
-# ---------------------------------------------------------------------------
-
 
 def _autofill_write(p, rep, href=None):
     if p not in ("On", "Off"):
@@ -447,10 +396,6 @@ AUTOFILL = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Welcome lighting (proximity-triggered cabinet light)
-# ---------------------------------------------------------------------------
-
 WELCOME_LIGHTING = Capability(
     href="/proximity/vs/0",
     poll_tier="warm",
@@ -469,14 +414,11 @@ WELCOME_LIGHTING = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Enhanced cabinet light — nighttime lighting schedule
-#
-# night.starttime is an ISO datetime; only the time portion is meaningful.
-# night.duration.minute encodes the window length.  End time is derived so
-# both time entities write back to the same resource without stepping on each
-# other: writing start preserves duration; writing end recalculates duration.
-# ---------------------------------------------------------------------------
+# Enhanced cabinet light nighttime schedule: night.starttime is an ISO
+# datetime (only the time portion matters), night.duration.minute is the
+# window length. End time is derived so both time entities write back to
+# the same resource without stepping on each other: writing start
+# preserves duration; writing end recalculates it.
 
 _NIGHT_BRIGHTNESS_OPTIONS = ("33", "66", "100")
 
@@ -600,10 +542,6 @@ CABINET_LIGHT_ENHANCED = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Cabinet light
-# ---------------------------------------------------------------------------
-
 
 def _cabinet_light_write(p, rep, href=None):
     if p not in ("On", "Off"):
@@ -638,10 +576,6 @@ CABINET_LIGHT = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Sabbath mode
-# ---------------------------------------------------------------------------
-
 
 def _sabbath_write(p, rep, href=None):
     if p not in ("On", "Off"):
@@ -664,10 +598,6 @@ SABBATH = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Beverage zone
-# ---------------------------------------------------------------------------
-
 
 def _bzone_write(p, rep, href=None):
     return ["specialzone", "one", "vs", "0"], {"roomDesiredMode": p}
@@ -689,16 +619,11 @@ BEVERAGE_ZONE = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
 # Pantry / Cool Select Zone -- a convertible compartment toggled between
-# wine/deli/drinks temperature presets (issue #20). Same shape as
-# BEVERAGE_ZONE (a controllable named sub-zone with a mode + supported-modes
-# list) but a distinct resource/field set -- x.com.samsung.da.mode /
-# x.com.samsung.da.supportedOptions on /status/pantry/one/vs/0, rather than
-# roomDesiredMode/roomSupportedModes on /specialzone/one/vs/0. Only a "one"
-# instance has been seen; not generalized to a pattern cap until a second
-# instance turns up.
-# ---------------------------------------------------------------------------
+# wine/deli/drinks presets (issue #20). Same shape as BEVERAGE_ZONE but a
+# distinct field set (x.com.samsung.da.mode/supportedOptions vs
+# roomDesiredMode/roomSupportedModes). Only a "one" instance seen; not
+# generalized to a pattern cap until a second instance turns up.
 
 
 def _pantry_write(p, rep, href=None):
@@ -721,18 +646,13 @@ PANTRY_ZONE = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Flex zone (convertible drawer — /mode/vs/0 on RF9000-class fridges)
-#
-# x.com.samsung.da.modes holds multiple orthogonal flags in one list; the
-# flex-zone entry is whichever item is also a member of supportedOptions --
-# the other flags (WATERFILTER_*, DEFROST_BLOCK_*, the CVN_*_ZONE marker)
-# never appear there. The prefix on that item varies by fridge family
-# (CV_TTYPE_RF9000A_ on RF9000-class, CV_FDR_ on Bespoke-class -- issue #27 /
-# #26, where the old CV_TTYPE_RF9000A_-only match left this entity bound but
-# stuck on None), so match by list membership instead of a hardcoded prefix.
-# Write replaces only that item; other flags are preserved.
-# ---------------------------------------------------------------------------
+# Flex zone (convertible drawer -- /mode/vs/0 on RF9000-class fridges):
+# x.com.samsung.da.modes holds several orthogonal flags in one list; the
+# flex-zone entry is whichever item also appears in supportedOptions (the
+# other flags, WATERFILTER_*/DEFROST_BLOCK_*/CVN_*_ZONE, never do). The
+# prefix on that item varies by family (CV_TTYPE_RF9000A_ vs CV_FDR_ on
+# Bespoke, issues #27/#26), so match by list membership instead of a
+# hardcoded prefix. Write replaces only that item.
 
 
 def _flex_zone_supported(rep):
@@ -740,10 +660,9 @@ def _flex_zone_supported(rep):
 
 
 def _flex_zone_current(rep):
-    # Every dump seen has at most one modes/supportedOptions overlap, so
-    # "first match" and "strip all matches" (in the write below) agree. If a
-    # future device ever reports two, this reads the first and the write
-    # would drop both -- revisit if that turns up.
+    # Every dump seen has at most one modes/supportedOptions overlap; a
+    # future device reporting two would read the first and the write below
+    # would drop both.
     modes = rep.get("x.com.samsung.da.modes") or []
     supported = _flex_zone_supported(rep)
     return next((m for m in modes if m in supported), None)
@@ -767,15 +686,11 @@ FLEX_ZONE = Capability(
             entity_category="config",
             options_field="x.com.samsung.da.supportedOptions",
             # A nonempty supportedOptions alone isn't sufficient: the
-            # kimchi-refrigerator family (issue #26) also populates
-            # /mode/vs/0's modes/supportedOptions with real data, but
-            # its tokens carry a "_[n]:[n]" parameter suffix on
-            # supportedOptions that modes never repeats, so no item
-            # ever overlaps -- the RF9000/Bespoke-class overlap this
-            # capability was built for never happens there. Require an
-            # actual resolvable value instead of just a populated
-            # list, so this stays absent on that family rather than
-            # showing a select permanently stuck on "unknown".
+            # kimchi-refrigerator family (issue #26) also populates both
+            # fields, but its tokens carry a "_[n]:[n]" suffix on
+            # supportedOptions that modes never repeats, so nothing ever
+            # overlaps there. Require an actual resolvable value so this
+            # stays absent on that family instead of stuck on "unknown".
             exists_fn=lambda rep, resources: _flex_zone_current(rep) is not None,
             rep_fn=_flex_zone_current,
             write_fn=_flex_zone_write,
@@ -783,18 +698,13 @@ FLEX_ZONE = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Generic door pattern capability (href=None — use as pattern_cap only)
-# ---------------------------------------------------------------------------
+# Generic door pattern capability (href=None -- use as pattern_cap only)
 
 
 def _door_open_state(rep):
     """Most /door/* resources report bare `openState`, but the
-    ARTIK051_DONGLE_REF family's /door/onedoorfreezer/vs/0 (issues #77, #83)
-    reports the vendor-prefixed `x.com.samsung.da.openState` instead. This
-    capability still binds either way (href_prefix match doesn't care about
-    field names), but a plain `field=` lookup against the wrong key means
-    the entity exists and is permanently unavailable -- check both."""
+    ARTIK051_DONGLE_REF family's /door/onedoorfreezer/vs/0 (issues #77,
+    #83) reports `x.com.samsung.da.openState` instead -- check both."""
     v = rep.get("openState")
     if v is None:
         v = rep.get("x.com.samsung.da.openState")
@@ -816,45 +726,27 @@ DOOR_GENERIC = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Kimchi refrigerator compartments (TP2X_REF_20K-class 3-compartment kimchi
-# units, issue #26) -- top/middle/bottom each report their own storage mode
-# plus a ripening status/timer on /status/kimchi/<slot>/vs/0, all three in
-# an identical shape; modeled as a pattern capability the same way
-# DOOR_GENERIC/TEMP_CURRENT_GENERIC above are, deriving the per-compartment
-# key and {instance_name} from the href's top/middle/bottom segment. Only
-# the top compartment's door has been seen reported separately (kimchidoors);
-# middle/bottom apparently have no contact switch of their own, so that's
-# its own narrower pattern cap rather than assumed universal.
+# Kimchi refrigerator compartments (TP2X_REF_20K-class 3-compartment
+# units, issue #26): top/middle/bottom each report their own storage mode
+# plus a ripening status/timer on /status/kimchi/<slot>/vs/0, modeled as a
+# pattern capability the same way DOOR_GENERIC is. Only the top
+# compartment's door is reported separately (kimchidoors); middle/bottom
+# apparently have no contact switch, hence the narrower KIMCHI_DOOR_GENERIC
+# below rather than assuming it's universal.
 #
-# The same state is also mirrored -- packed into single tokens like
-# "KIMCHIT_KIMCHI_STORAGE_NORMAL" (T/M/B prefix per compartment) with
-# bracketed parameters -- on /mode/vs/0, the same resource FLEX_ZONE reads
-# for RF9000-class fridges. /status/kimchi/<slot>/vs/0's plain currentMode/
-# supportMode fields are unpacked and self-describing, so that's what this
-# binds to instead.
+# The same state is also packed into single tokens (e.g.
+# "KIMCHIT_KIMCHI_STORAGE_NORMAL") on /mode/vs/0, the resource FLEX_ZONE
+# reads for RF9000-class fridges -- this binds to /status/kimchi/<slot>/
+# vs/0's plain, self-describing currentMode/supportMode instead.
 #
-# Write path is unconfirmed (no live write against a real unit) -- same
-# "write the same field back to the entity's own href" convention as
-# PANTRY_ZONE/BEVERAGE_ZONE above, first real-world write is also the test.
+# Write path is unconfirmed on real hardware; same "write the field back to
+# the entity's own href" convention as PANTRY_ZONE/BEVERAGE_ZONE.
 #
-# translations/en.json's kimchi_zone_mode state labels were translated
-# directly from the reporter's own (Korean-language) SmartThings app
-# screenshots, not guessed from the codes or from their English paraphrase.
-# Cross-checking the screenshots against supportMode confirms the on-screen
-# option order matches the array order everywhere it's verifiable: the top
-# compartment's freezer triplet (표준/강냉/약냉 = Standard/Strong/Weak, at
-# -19/-21/-17°C) lines up 1:1 with STORAGE_FREEZER_NORMAL/COLD/WARM, and the
-# middle/bottom compartments' full 8-entry kimchi-storage list, 2-entry
-# ripening list, and 4-entry custom-storage list each line up 1:1 with their
-# supportMode order too -- so COLD/WARM consistently means Strong/Weak (a
-# colder or warmer preset around the NORMAL setpoint) everywhere that suffix
-# appears, including on STORAGE_FRIDGE_* and the low-salt kimchi variants,
-# which weren't directly screenshotted but share the same NORMAL/COLD/WARM
-# vocabulary as the two confirmed triplets. CRUNFCH (아삭, "crisp/crunchy")
-# and BUY (구입, "purchased") are also confirmed exact matches, not
-# abbreviation guesses.
-# ---------------------------------------------------------------------------
+# translations/en.json's kimchi_zone_mode labels were translated directly
+# from the reporter's own Korean SmartThings app screenshots (not guessed),
+# and cross-checked against supportMode order to confirm the on-screen
+# option order matches the array order throughout -- so COLD/WARM
+# consistently means Strong/Weak everywhere that suffix appears.
 
 
 def _kimchi_mode_write(p, rep, href=None):
@@ -896,9 +788,8 @@ KIMCHI_ZONE = Capability(
             icon="mdi:timer-sand",
             translation_key="kimchi_ripening_remaining",
             entity_category="diagnostic",
-            # No dump has this nonzero (ripeStatus is always "Off" so
-            # far) -- device-reported unit unconfirmed, so this stays
-            # a bare number rather than asserting minutes or hours.
+            # No dump has this nonzero (ripeStatus is always "Off" so far)
+            # -- unit unconfirmed, so this stays a bare number.
             value_fn=_int,
         ),
         SensorDesc(
@@ -921,12 +812,11 @@ KIMCHI_DOOR_GENERIC = Capability(
     poll_tier="hot",
     entities=(
         # Not deduped against DOORS_FALLBACK below: on the one reporter
-        # (refrigerator_tp2x_ref_20k_kimchi) this binds alongside, the
-        # /doors/vs/0 aggregate carries a single generic item (id "4", no
-        # /door/<instance> siblings for DOORS_FALLBACK's match_fn to see)
-        # that doesn't share this compartment's "top" instance numbering --
-        # a distinct main-cabinet door, not this kimchi drawer's own contact
-        # switch reported twice.
+        # this binds alongside, /doors/vs/0's aggregate carries a single
+        # generic item (id "4", no /door/<instance> siblings) that doesn't
+        # share this compartment's "top" numbering -- a distinct
+        # main-cabinet door, not this drawer's contact switch reported
+        # twice.
         BinarySensorDesc(
             key="open",
             rep_fn=_door_open_state,
@@ -937,19 +827,12 @@ KIMCHI_DOOR_GENERIC = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Aggregate-resource fallbacks
-#
-# /doors/vs/0, /temperatures/vs/0, and /icemaker/status/vs/0 each duplicate
-# information exposed more precisely by per-instance hrefs (DOOR_GENERIC,
-# TEMP_CURRENT_GENERIC/TEMP_SETPOINT_GENERIC, ICEMAKER_GENERIC) on hardware
-# that has them. Not every fridge does — a simpler model may only ever
-# advertise the aggregate resource. Each fallback's match_fn checks the
-# full resource set for the richer sibling hrefs and only binds when
-# they're absent, so it's a no-op (not a gap — see discovery.py) wherever
-# the richer hrefs exist, and a real (if coarser) source of the same data
-# where they don't.
-# ---------------------------------------------------------------------------
+# Aggregate-resource fallbacks: /doors/vs/0, /temperatures/vs/0, and
+# /icemaker/status/vs/0 each duplicate information the per-instance hrefs
+# above expose more precisely, on hardware that has them -- not every
+# fridge does. Each fallback's match_fn checks for the richer sibling
+# hrefs and only binds when they're absent, so it's a no-op wherever the
+# richer hrefs exist and a real (coarser) source where they don't.
 
 
 def _any_door_generic(resources):
@@ -1045,23 +928,19 @@ ICEMAKER_STATUS_FALLBACK = Capability(
     ),
 )
 
-# OCF-native aggregate mirror of ICEMAKER_STATUS_FALLBACK.  On the captured
-# TP1X_REF_21K it duplicates both the vendor aggregate and the richer per-unit
-# /icemaker/one|two/vs/0 resources.  Its write contract is not advertised, so
-# keep the proven per-unit/vendor controls and bind this as a duplicate only.
+# OCF-native aggregate mirror of ICEMAKER_STATUS_FALLBACK. On the captured
+# TP1X_REF_21K it duplicates both the vendor aggregate and the richer
+# per-unit hrefs; its write contract isn't advertised, so bind it as a
+# duplicate only.
 ICEMAKER_STATUS_NATIVE_DUPLICATE = Capability(
     href="/icemaker/status/0",
 )
 
-# OCF-native /refrigeration/0 (issue #7's unbound_hrefs) -- the odd one out
-# in this section: its three fields duplicate two *different* richer
-# hrefs (REFRIGERATION's rapidFridge/rapidFreezing and
-# DEFROST_BLOCK_STATUS's defrost_active), each absent independently, so a
-# single capability-level match_fn can't express it. Gated per-entity
-# (exists_fn) instead: rapid_fridge/rapid_freezing back off only when
-# REFRIGERATION's href is present; defrost_active only when
-# DEFROST_BLOCK_STATUS's is. No write path confirmed for this href, so
-# these are read-only, unlike REFRIGERATION's switches.
+# OCF-native /refrigeration/0 (issue #7): its three fields duplicate two
+# different richer hrefs (REFRIGERATION's rapidFridge/rapidFreezing,
+# DEFROST_BLOCK_STATUS's defrost_active), each absent independently, so
+# gating is per-entity (exists_fn) rather than one capability-level
+# match_fn. No write path confirmed, so these stay read-only.
 REFRIGERATION_FALLBACK = Capability(
     href="/refrigeration/0",
     poll_tier="warm",
