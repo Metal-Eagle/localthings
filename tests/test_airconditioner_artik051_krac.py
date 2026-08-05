@@ -217,6 +217,32 @@ def _desc(resources, key):
     return None
 
 
+def test_good_sleep_is_hours_while_the_token_counts_half_hours():
+    """The appliance's own app pairs its duration picker with the values it sends
+    one to one -- 0:30 -> 1, 1:00 -> 2, 3:00 -> 6, 12:00 -> 24 -- so the token is
+    half hours and the entity, which is in hours, has to halve and double. The
+    fixture's own Sleep_0 is the one value that reads the same either way, hence
+    the injected token here."""
+    resources = _load_device(FIXTURE)
+    mode = resources["/mode/vs/0"]
+    mode["x.com.samsung.da.options"] = [
+        option for option in mode["x.com.samsung.da.options"] if option != "Sleep_0"
+    ] + ["Sleep_5"]
+    bound, _ = _discover(resources)
+    assert flatten(bound, resources)["good_sleep"] == 2.5
+
+    desc = _desc(resources, "good_sleep")
+    assert (desc.native_max, desc.step) == (12, 0.5)
+    assert desc.write_fn(2.5, {}) == (
+        ["mode", "vs", "0"],
+        {"x.com.samsung.da.options": ["Sleep_5"]},
+    )
+    # 12 hours is the app's maximum and has to be reachable -- it was not while
+    # the token was published as hours.
+    assert desc.write_fn(12, {})[1]["x.com.samsung.da.options"] == ["Sleep_24"]
+    assert desc.write_fn(0, {})[1]["x.com.samsung.da.options"] == ["Sleep_0"]
+
+
 def test_filter_alarm_time_reads_the_threshold_and_writes_one_token():
     """The interval FilterTime_ is measured against, offered by the app as a
     180/300/500/700 hour radio. All four were walked on hardware while watching
