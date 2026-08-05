@@ -311,11 +311,18 @@ def _option_switch_write(prefix):
     return write
 
 
-def _option_number_write(prefix):
+def _option_number_write(prefix, factor=1):
+    """Write a numeric options token. `factor` converts the entity's unit into the
+    token's own: good_sleep is offered in hours while the token counts half hours."""
+
     def write(payload, rep, href=None):
         return (
             ["mode", "vs", "0"],
-            {"x.com.samsung.da.options": option_write(prefix, str(round(float(payload))))},
+            {
+                "x.com.samsung.da.options": option_write(
+                    prefix, str(round(float(payload) * factor))
+                )
+            },
         )
 
     return write
@@ -528,16 +535,34 @@ CLIMATE = Capability(
             icon="mdi:air-filter",
             entity_category="config",
         ),
-        # "Good Sleep" timer. 0 = off; the upper bound is a guess (only 0 has
-        # been observed on hardware), so a write above 0 is unverified.
+        # "Good Sleep" timer, offered in hours. 0 = off.
+        #
+        # The token counts *half* hours, so it is halved on the way in and doubled
+        # on the way out. The appliance's own app pairs a picker of durations with
+        # the values it puts on the wire, one to one:
+        #
+        #   0:00 0:30 1:00 1:30 2:00 2:30 3:00 4:00 5:00 ... 12:00
+        #      0    1    2    3    4    5    6    8   10  ...    24
+        #
+        # which also pins the maximum at 12 hours (its own help text says so:
+        # "will be turned off after a selected period of time (Max. 12 hours)").
+        # Before this the token was published as if it were hours: the entity
+        # capped at 12, which set six, and twelve hours could not be asked for at
+        # all.
+        #
+        # Half-hour steps are what the app offers below three hours; above that it
+        # offers whole hours only, and a half hour up there is untested rather than
+        # known-bad. A Number cannot change step part-way, and turning this into a
+        # Select of the app's sixteen values would change the entity's domain on
+        # every unit that already has it, so the step stays 0.5 throughout.
         NumberDesc(
             key="good_sleep",
-            rep_fn=_option_token_num("Sleep"),
+            rep_fn=_option_token_num("Sleep", divisor=2),
             exists_fn=_has_option_token("Sleep"),
-            write_fn=_option_number_write("Sleep"),
+            write_fn=_option_number_write("Sleep", factor=2),
             native_min=0,
             native_max=12,
-            step=1,
+            step=0.5,
             unit="h",
             icon="mdi:sleep",
             entity_category="config",
