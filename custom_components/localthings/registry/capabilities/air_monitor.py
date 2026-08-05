@@ -31,6 +31,12 @@ from ..entities import BinarySensorDesc, SensorDesc, SwitchDesc, TimeDesc
 from .air_purifier import _AIR_QUALITY_SENSORS
 from .common import int_or_none, sensor_item_value
 
+# _AIR_QUALITY_SENSORS' fourth column (state_class) is deliberately discarded
+# here: air_purifier leaves Odor/CleanLevel unstamped because they read as
+# graded indices on that family, while this board has stamped all five as
+# `measurement` since it was added (issue #210). Consuming the column would
+# silently drop long-term statistics for two sensors on shipped devices, so
+# the shared rows supply only the key/icon/type here.
 SENSORS = Capability(
     href="/sensors/vs/0",
     poll_tier="warm",
@@ -43,7 +49,7 @@ SENSORS = Capability(
                 state_class="measurement",
                 value_fn=lambda items, t=sensor_type: sensor_item_value(items, t),
             )
-            for key, icon, sensor_type in _AIR_QUALITY_SENSORS
+            for key, icon, sensor_type, _ in _AIR_QUALITY_SENSORS
         ),
         SensorDesc(
             key="co2",

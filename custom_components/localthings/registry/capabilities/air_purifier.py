@@ -51,12 +51,31 @@ def _has_top_level_modes(rep, resources):
     return isinstance(rep.get("x.com.samsung.da.supportedModes"), (list, tuple))
 
 
+# The fourth column is state_class, which is what makes Home Assistant keep
+# long-term statistics for a sensor -- without one, a reading is only in the
+# short-term recorder history and disappears with the next purge (10 days by
+# default), so it can't back a long-range air-quality graph. The values are
+# already numeric (sensor_item_value returns int), so nothing else was in the
+# way; three sensors in this same module (filter_progress, fan_speed_level,
+# hepa_filter_usage) already declare one.
+#
+# Only the three particulate readings get it. They fall monotonically with
+# particle size on three independent board families -- 11/9/5 on ARTIK051_TVTL
+# (issue #56), 10/9/6 on AVT-WW-TP1 (issue #190), 18/14/9 on the range hood --
+# which is concentration behaviour, and an average over time is meaningful for
+# it. Odor and CleanLevel read 0-2 on every fixture and look like graded
+# indices instead, where the mean of a grade isn't obviously meaningful; left
+# without a state_class rather than guessing.
+#
+# Deliberately no device_class/unit here: pm1/pm25/pm10 would assert the
+# reading is a µg/m³ concentration, and the dumps never say so. That's a
+# separate call from making the series recordable at all.
 _AIR_QUALITY_SENSORS = (
-    ("dust", "mdi:blur", "Dust"),
-    ("fine_dust", "mdi:blur", "FineDust"),
-    ("super_fine_dust", "mdi:blur", "SuperFineDust"),
-    ("odor", "mdi:scent", "Odor"),
-    ("clean_level", "mdi:air-filter", "CleanLevel"),
+    ("dust", "mdi:blur", "Dust", "measurement"),
+    ("fine_dust", "mdi:blur", "FineDust", "measurement"),
+    ("super_fine_dust", "mdi:blur", "SuperFineDust", "measurement"),
+    ("odor", "mdi:scent", "Odor", None),
+    ("clean_level", "mdi:air-filter", "CleanLevel", None),
 )
 
 AIR_QUALITY = Capability(
@@ -67,9 +86,10 @@ AIR_QUALITY = Capability(
             key=key,
             field="x.com.samsung.da.items",
             icon=icon,
+            state_class=state_class,
             value_fn=lambda items, t=sensor_type: sensor_item_value(items, t),
         )
-        for key, icon, sensor_type in _AIR_QUALITY_SENSORS
+        for key, icon, sensor_type, state_class in _AIR_QUALITY_SENSORS
     ),
 )
 
