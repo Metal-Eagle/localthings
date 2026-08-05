@@ -555,9 +555,9 @@ CLIMATE = Capability(
         ),
         # Filter time in tenths of an hour, counting UP since last filter
         # reset; scale and direction confirmed against the Samsung app and
-        # the /alarms/vs/0 threshold crossing (500h). No reset entity: no
-        # local write path has been found -- see
-        # docs/investigations/ac-filter-reset.md for what's been tried.
+        # the /alarms/vs/0 threshold crossing (500h). Resettable via the
+        # FilterCleanAlarm_Clear trigger token below -- see
+        # docs/investigations/ac-filter-reset.md for how that was found.
         SensorDesc(
             key="filter_time",
             rep_fn=_option_token_num("FilterTime", divisor=10),
@@ -566,6 +566,26 @@ CLIMATE = Capability(
             unit="h",
             state_class="measurement",
             icon="mdi:air-filter",
+        ),
+        # Resets the counter above via the FilterCleanAlarm_Clear token, the
+        # same single-token options merge as every other /mode/vs/0 setting.
+        # It's a trigger, not a stored setting -- the board zeroes the
+        # counter on receipt and never reports this token back, which is why
+        # it doesn't show up in exists_fn like the others. Confirmed on an
+        # ARTIK051_KRAC_18K: FilterTime_95 -> FilterTime_0, stable across a
+        # fresh DTLS session and every poll after (see the investigation doc
+        # for why this was believed cloud-only until now).
+        ButtonDesc(
+            key="filter_time_reset",
+            field="",
+            payload="FilterCleanAlarm_Clear",
+            icon="mdi:restart",
+            entity_category="config",
+            exists_fn=_has_option_token("FilterTime"),
+            write_fn=lambda p, rep, href=None: (
+                ["mode", "vs", "0"],
+                {"x.com.samsung.da.options": [p]},
+            ),
         ),
         # FilterTime_'s threshold, exposed as a static 4-way radio
         # (180/300/500/700h, matching the app) since options[] tokens carry

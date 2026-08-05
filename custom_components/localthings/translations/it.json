@@ -120,6 +120,9 @@
       "auto_clean_stop": {
         "name": "Arresta autopulizia"
       },
+      "filter_time_reset": {
+        "name": "Azzera il contatore del filtro"
+      },
       "pause": {
         "name": "Pausa"
       },

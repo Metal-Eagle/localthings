@@ -1,20 +1,28 @@
-# AC filter-time counter reset: not solved
+# AC filter-time counter reset: solved
 
 `registry/capabilities/airconditioner.py`'s `filter_time` sensor
-(`FilterTime_<N>` option token, tenths of an hour) has no reset entity. This
-is where the failed attempts to find one are kept, so the next attempt starts
-from the evidence instead of from scratch. Not finding a mechanism is not the
-same as it not existing.
+(`FilterTime_<N>` option token, tenths of an hour) has a reset entity now
+(`filter_time_reset`, issue-tracked as PR #289): a single-token options write
+of `FilterCleanAlarm_Clear` to `/mode/vs/0`, the same merge every other
+setting on that href uses. Measured on an ARTIK051_KRAC_18K: `FilterTime_95`
+(9h30m) → `FilterTime_0`, still zero on a fresh DTLS session and every poll
+after; none of the other 17 tokens moved and the `/alarms/vs/0` entries
+stayed `Deleted`.
+
+The rest of this file is kept as-is: the failed attempts below are still the
+best record of what *doesn't* work on this generation, and the reasoning
+that follows them explains why the reset looked cloud-only for as long as it
+did — a genuine trap worth knowing about before the next reset-adjacent
+mystery on this board family.
 
 ## What the reset actually is
 
-Samsung models it as a **command**, not a value write: capability
+A **command**, not a value write. Samsung's cloud models it as capability
 `custom.dustFilter`, command `resetDustFilter`, no arguments (implemented in
-several SmartThings HA forks; not in the core integration). That reframes
-every attempt below — nothing changes the counter by writing to it, because
-the board zeroes it itself on receiving a command.
+several SmartThings HA forks; not in the core integration) — that command
+name is real, but see below for why POSTing it directly went nowhere.
 
-## Tried, all against a live unit, all failed
+## Tried, all against a live unit, all failed (before the token above was found)
 
 - `FilterTime_0` via the single-token options merge that works for every
   other setting on this href — accepted with no error, then discarded. Tried
@@ -50,7 +58,18 @@ on `/rm/state/vs/0` was accepted (2.04 Changed, value held, restored
 afterwards), and `FilterAlarmTime_` is written through the very same options
 merge and kept. Writes work; this one value just isn't driven that way.
 
-## Where to look next
+## The token, and why the dead ends below missed it
+
+`FilterCleanAlarm_Clear` is not derived from anything in this file's earlier
+attempts — how it was originally identified isn't recorded here. What is
+recorded is why the standard technique (diff the appliance's reported state
+before/after triggering the action in Samsung's app) couldn't have found it
+on its own: the token is a trigger, never stored and never echoed back in
+`x.com.samsung.da.options`, so a before/after diff of stored state shows
+only the *effects* (counter zeroing, alarm clearing) and never the token
+that caused them.
+
+## Dead ends tried before the token was known (kept for the next unrelated mystery)
 
 - The `/actions/vs/0` action vocabulary from an independent source (a
   firmware image, or a capture of what the cloud sends the device).

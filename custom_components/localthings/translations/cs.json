@@ -120,6 +120,9 @@
       "auto_clean_stop": {
         "name": "Zastavit samočištění"
       },
+      "filter_time_reset": {
+        "name": "Vynulovat počítadlo filtru"
+      },
       "pause": {
         "name": "Pozastavit"
       },
