@@ -23,25 +23,19 @@ def _serial_from_unique_id(entry: ConfigEntry) -> str:
 
     The config flow has always keyed the entry's unique_id on the serial the
     probe read (`localthings_<serial>`), so that string is the identity the
-    entry's registry entries were minted from -- there is no need to reach the
-    device to recover it. Anything we can't recover one from resolves to the
-    host, which is what the coordinator seeded such an entry with anyway.
+    entry's registry entries were minted from -- no need to reach the device
+    to recover it. Anything unrecoverable resolves to the host, matching
+    what the coordinator seeded such an entry with anyway.
 
     The recovered string goes back through resolve_serial rather than being
-    taken at face value, because the unique_id records what the flow believed
-    at the time it ran, not what the registry holds now. Entries created
-    before the placeholder rules landed (issues #83/#189) were keyed on the
-    placeholder itself -- `localthings_Nothing(SVC)`, `localthings_FFFF...` --
-    while the coordinator has since been resolving those same boards to the
-    host. Re-keying the registry onto the placeholder to match the unique_id
-    would reintroduce the collision those issues are about: two units of that
-    family report the *same* placeholder, so they'd share entity unique_ids
-    again.
-
-    A later wrinkle, same root cause: for a stretch the two sides disagreed on
-    which fallback to use, the flow writing `host:port` while the coordinator
-    wrote `host`. Collapse that to the coordinator's form too -- the registry
-    is what has to keep working.
+    taken at face value: entries created before the placeholder rules
+    (issues #83/#189) were keyed on the placeholder itself, while the
+    coordinator has since resolved those same boards to the host.
+    Re-keying onto the placeholder would reintroduce the collision those
+    issues are about -- two units of a family sharing the same placeholder
+    would share entity unique_ids again. A later wrinkle, same root cause:
+    for a stretch the flow wrote `host:port` while the coordinator wrote
+    `host`; collapsed here to the coordinator's form too.
     """
     host = entry.data[CONF_HOST]
     prefix = f"{DOMAIN}_"
@@ -59,24 +53,24 @@ def _repair_placeholder_keys(hass: HomeAssistant, entry: ConfigEntry, serial: st
     """Re-key registry entries this entry minted from the placeholder identity.
 
     Before the identity moved onto the config entry, the coordinator seeded
-    `device_serial` with the host and only replaced it after the first
-    successful poll. Anything that registered in between -- the connection-mode
-    sensor especially, since it is added unconditionally rather than from
-    `bound` -- was written into the registry keyed on the IP address
-    permanently, and was orphaned the moment the serial-keyed identity
-    appeared (issue #236). Deleting the orphans by hand didn't help: the next
-    restart that lost the same race recreated them.
+    `device_serial` with the host and only replaced it after the first poll.
+    Anything that registered in between -- the connection-mode sensor
+    especially, added unconditionally rather than from `bound` -- was
+    written into the registry keyed on the IP permanently, orphaned the
+    moment the serial-keyed identity appeared (issue #236). Deleting the
+    orphans by hand didn't help: the next restart that lost the same race
+    recreated them.
 
-    Rewriting beats deleting where it's possible -- an entity keeps its
-    entity_id, name, area and every automation that references it. It's only
-    possible when the serial-keyed key is still free, though; where both exist
-    the placeholder-keyed one is the dead duplicate (it has been unavailable
-    since the restart that created it), so it goes.
+    Rewriting beats deleting where possible -- an entity keeps its
+    entity_id, name, area and automations. Only possible when the
+    serial-keyed key is still free; where both exist the placeholder-keyed
+    one is the dead duplicate (unavailable since the restart that created
+    it), so it goes.
     """
     host = entry.data[CONF_HOST]
     if serial == host:
-        # A board with no usable serial resolves *to* the host, so its keys
-        # were never placeholders -- there is nothing here to re-key.
+        # A board with no usable serial resolves to the host, so its keys
+        # were never placeholders.
         return
 
     ent_reg = er.async_get(hass)
@@ -106,11 +100,9 @@ def _repair_placeholder_keys(hass: HomeAssistant, entry: ConfigEntry, serial: st
         existing = dev_reg.async_get_device(identifiers=fresh)
         if existing is not None and existing.id != device.id:
             # Removing a device takes its entities with it. Anything still
-            # attached here came through the pass above re-keyed rather than
-            # removed -- i.e. it's the surviving copy, not a duplicate -- so
-            # move it onto the device it now belongs to first. Otherwise the
-            # rewrite that was supposed to preserve an entity_id, name and
-            # area destroys them a few lines later.
+            # attached here was re-keyed rather than removed above -- the
+            # surviving copy, not a duplicate -- so move it onto the device
+            # it now belongs to before the removal destroys it too.
             for entity in er.async_entries_for_device(
                 ent_reg, device.id, include_disabled_entities=True
             ):
@@ -127,13 +119,13 @@ def _repair_placeholder_keys(hass: HomeAssistant, entry: ConfigEntry, serial: st
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate an entry to the current version.
 
-    v1 -> v2 stores the device's identity on the entry so the coordinator can
-    key its registry entries before the first poll (issue #236), and repairs
-    whatever the old placeholder-keyed registration already orphaned.
+    v1 -> v2 stores the device's identity on the entry so the coordinator
+    can key its registry entries before the first poll (issue #236), and
+    repairs whatever the old placeholder-keyed registration already
+    orphaned.
     """
     if entry.version > 2:
-        # Downgrade: this release doesn't know the newer entry's shape.
-        return False
+        return False  # downgrade: this release doesn't know the newer shape
 
     if entry.version == 1:
         serial = entry.data.get(CONF_SERIAL) or _serial_from_unique_id(entry)
@@ -155,31 +147,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
-        # `_poll_once` deliberately leaves the session up on a `TimeoutError`
-        # (the transfer may just be slow -- see its docstring), so a refresh
-        # that fails that way ends here with a live, bound UDP socket that
-        # nothing would ever close. HA retries setup on its own backoff with
-        # a *new* coordinator, and each device's source port is fixed by
-        # design (`_local_source_port`), so an abandoned socket squats the
-        # exact port the next attempt binds -- SO_REUSEADDR lets that bind
-        # succeed, leaving two sockets racing for the device's datagrams.
+        # `_poll_once` deliberately leaves the session up on a TimeoutError
+        # (see its docstring), so a refresh failing that way leaves a live,
+        # bound UDP socket nothing would ever close. HA retries setup with a
+        # new coordinator, and the source port is fixed by design
+        # (`_local_source_port`), so an abandoned socket would squat the
+        # exact port the next attempt binds.
         await coordinator.async_close()
         raise ConfigEntryNotReady(f"Cannot connect to device: {err}") from err
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
     # Send the DTLS close_notify on Core shutdown, not just on unload (issue
-    # #254). `async_close` otherwise only runs via `async_unload_entry`, and
-    # HA does not unload entries on a plain Core restart -- so a restart left
-    # the previous run's association orphaned on the appliance, which is what
-    # makes the *next* run's handshake time out. Complements the fixed source
-    # port, which covers the unclean-exit case this cannot (see
-    # `_local_source_port`).
+    # #254): HA doesn't unload entries on a plain Core restart, so a restart
+    # left the previous run's association orphaned, making the next
+    # handshake time out. Complements the fixed source port, which covers
+    # the unclean-exit case this can't.
     #
     # A coroutine listener, not one that spawns its own task: the event bus
-    # runs it as a hass-tracked job, so the close is awaited by the
-    # `async_block_till_done()` inside `hass.async_stop`. A detached task
-    # would likely be cancelled mid-shutdown -- the exact no-close_notify
-    # case this exists to prevent.
+    # runs it as a hass-tracked job, awaited by `async_block_till_done()`
+    # inside `hass.async_stop`. A detached task would likely be cancelled
+    # mid-shutdown -- the exact case this exists to prevent.
     async def _async_close_on_stop(_event: Event) -> None:
         await coordinator.async_close()
 
@@ -198,31 +185,26 @@ async def async_remove_config_entry_device(
 ) -> bool:
     """Allow deleting a device this entry no longer provides (issue #214).
 
-    Defining this at all is what makes Home Assistant offer the "Delete
-    device" action for our devices; without it a device registry entry
-    belonging to a loaded config entry can never be removed from the UI. That
-    matters because a subdevice's HA device outlives the discovery that
-    created it: a candidate that materialized under an older release (issue
-    #214's phantom second air conditioner, born from an unused /device/1 slot
-    reporting the appliance's energy counter -- see
-    registry/subdevices.py's liveness gate) leaves a device entry behind that
-    nothing recreates and nothing cleans up once the gate stops materializing
-    it. Same for a sibling that a firmware update stops exposing.
+    Defining this at all is what makes HA offer the "Delete device" action;
+    without it, a device belonging to a loaded config entry can never be
+    removed from the UI. That matters because a subdevice's HA device
+    outlives the discovery that created it: a candidate materialized under
+    an older release (issue #214's phantom second air conditioner, born
+    from an unused slot reporting the appliance's energy counter -- see
+    registry/subdevices.py's liveness gate) leaves a device entry nothing
+    recreates or cleans up once the gate stops materializing it. Same for a
+    sibling a firmware update stops exposing.
 
-    Removal is refused for devices this entry *does* currently provide --
-    HA would recreate them on the next entity add, so allowing it would look
-    like the delete silently failed. Deliberately no automatic pruning at
-    discovery time: subdevice enumeration is one-shot and a sibling can fail
-    to answer for a poll (issue #205 is exactly that on the reference
-    hardware), so auto-removal would throw away a real subdevice's name,
-    area and automation references on a transient miss. The user gets the
-    button; the integration doesn't guess.
+    Removal is refused for devices this entry does currently provide -- HA
+    would recreate them on the next entity add. Deliberately no automatic
+    pruning at discovery time: a sibling can fail to answer for a single
+    poll (issue #205), so auto-removal would throw away a real subdevice's
+    name/area/automations on a transient miss. The user gets the button;
+    the integration doesn't guess.
     """
     coordinator: LocalThingsCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     if coordinator is None:
-        # Entry not loaded (or already unloaded) -- nothing is claiming this
-        # device, so there's nothing to protect it from being removed.
-        return True
+        return True  # entry not loaded -- nothing claims this device
     live = set(coordinator.device_info.get("identifiers") or set())
     for subdevice in coordinator.subdevices:
         live |= set(coordinator.device_info_for(subdevice).get("identifiers") or set())

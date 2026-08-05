@@ -33,10 +33,10 @@ class SamsungEntityDescription:
     # here, so a descriptor only sets this to share one catalog entry across
     # several descriptors, or to point at a differently-named one.
     translation_key: Any = None  # str | Callable[[dict[str, dict]], Optional[str]]
-    # callable form receives the coordinator's full href->rep resource
-    # snapshot and returns the key to use -- for a descriptor shared across
-    # board generations whose state-code meaning isn't guaranteed consistent
-    # between them; see laundry.cycle_select's table-id-gated resolver.
+    # callable form receives the full href->rep snapshot and returns the key
+    # to use -- for a descriptor shared across board generations whose
+    # state-code meaning isn't consistent between them; see
+    # laundry.cycle_select's table-id-gated resolver.
     translation_placeholders: Mapping[str, str] | None = None
     # Dynamic resources such as fridge compartments and ice makers use a
     # device-provided or href-derived instance label inside a translated name.
@@ -59,10 +59,9 @@ class SensorDesc(SamsungEntityDescription):
     unit: str | None = None
     unit_fn: Callable[[dict], str] | None = None  # overrides `unit` from the live rep, when set
     options: tuple | None = None  # required by HA when device_class == 'enum'
-    # Opt-in: gate this sensor's reported value behind the user-configurable
-    # CONF_FINISH_TIME_HYSTERESIS_MINUTES threshold (see sensor.py). Only for
-    # values that are expected to jitter around their "true" value between
-    # device-side revisions -- not a general-purpose flag every sensor should set.
+    # Opt-in: gate this value behind CONF_FINISH_TIME_HYSTERESIS_MINUTES
+    # (see sensor.py). Only for values expected to jitter between
+    # device-side revisions -- not a general-purpose flag.
     hysteresis: bool = False
 
 
@@ -102,10 +101,9 @@ class NumberDesc(SamsungEntityDescription):
     native_min: float | None = None
     native_max: float | None = None
     step: float | None = None
-    # Override native_min/native_max/step from the live rep, when set --
-    # same "static default, live override" shape as unit_fn, for resources
-    # whose sane bounds depend on a per-device value (e.g. a temperature
-    # setpoint reported in Celsius on one device, Fahrenheit on another).
+    # Override native_min/max/step from the live rep, when set -- same
+    # "static default, live override" shape as unit_fn, for resources whose
+    # bounds depend on a per-device value (e.g. Celsius vs. Fahrenheit).
     native_min_fn: Callable[[dict], float] | None = None
     native_max_fn: Callable[[dict], float] | None = None
     step_fn: Callable[[dict], float] | None = None
@@ -120,27 +118,23 @@ class TimeDesc(SamsungEntityDescription):
 
 @dataclass(frozen=True, kw_only=True)
 class ClimateDesc(SamsungEntityDescription):
-    # A composite entity: it binds one *primary* resource (its href) but the
-    # climate platform reads sibling resources (power, temperature, wind) from
-    # the coordinator snapshot and writes to several of them. write_fn takes a
-    # (kind, value) payload from the platform and returns the (path_segs, body)
-    # for that one sub-write, so a single desc drives multi-resource writes.
+    # Composite entity: binds one primary resource (its href) but the
+    # climate platform reads sibling resources from the coordinator
+    # snapshot and writes to several of them. write_fn takes a (kind,
+    # value) payload and returns the (path_segs, body) for that sub-write.
     write_fn: WriteFn = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class FanDesc(SamsungEntityDescription):
     # Composite fan entity: reads power from /power/0 and speed/support data
-    # from its bound href.  Payloads are (kind, value), like ClimateDesc.
+    # from its bound href. Payloads are (kind, value), like ClimateDesc.
     write_fn: WriteFn = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class WaterHeaterDesc(SamsungEntityDescription):
-    # Composite water_heater entity: binds one primary resource (its href,
-    # typically an operation-mode resource) but the water_heater platform
-    # reads sibling resources (power, temperature) from the coordinator
-    # snapshot and writes to several of them. Same (kind, value) -> (path_segs,
+    # Composite water_heater entity, same (kind, value) -> (path_segs,
     # body) write_fn shape as ClimateDesc/FanDesc.
     write_fn: WriteFn = None
 

@@ -77,15 +77,10 @@ class CannotConnect(Exception):
     """Base for every probe failure.
 
     `error_key` selects which message the user sees. The subclasses below
-    exist because "cannot connect" covered wildly different situations -- an
-    IP with nothing on it, an appliance on cloud-only firmware, a device
-    that's simply still holding a session from the last attempt, and a device
-    that answered and rejected our certificate all told the user the same
-    thing ("check the IP and the CA credentials"), which is only actionable
-    advice for one of them.
-
-    Raising this base class directly is still valid for a failure we can't
-    narrow down; it maps to that same generic message.
+    exist because "cannot connect" used to cover wildly different situations
+    (nothing at that IP, cloud-only firmware, a stale held session, a
+    rejected certificate) all under one unhelpful message. Raising this base
+    class directly is still valid for a failure that can't be narrowed down.
     """
 
     error_key = "cannot_connect"
@@ -144,11 +139,9 @@ class InvalidCA(Exception):
 
 
 def _fetch_samsung_uuid() -> str:
-    """Connect to Samsung's cloud gateway and extract the UUID from its TLS cert.
-
-    Verification is disabled because Samsung's chain contains a self-signed cert.
-    We only need to read the UUID from the cert subject, not verify its trust.
-    """
+    """Connect to Samsung's cloud gateway and extract the UUID from its TLS
+    cert. Verification is disabled: Samsung's chain has a self-signed cert,
+    and we only need to read the UUID from the subject, not verify trust."""
     from cryptography import x509 as _x509
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -251,13 +244,11 @@ def _order_candidates(ports: list[int]) -> list[int]:
     return preferred + rest
 
 
-# The kernel's way of saying the datagram never had anywhere to go: no route
-# to the network, or the host never answered ARP on our own LAN. Distinct from
-# ECONNREFUSED, which is a *response* -- the host is there and told us the port
-# is closed. Both leave a port "not live", but they mean opposite things about
-# whether anything exists at that address, which is the difference between
-# telling a user to check the IP and telling them their appliance is on
-# cloud-only firmware.
+# The kernel's way of saying the datagram never had anywhere to go: no route,
+# or the host never answered ARP. Distinct from ECONNREFUSED, which is a
+# response -- the host is there and told us the port is closed. Both leave a
+# port "not live", but mean opposite things about whether anything exists at
+# that address.
 _UNREACHABLE_ERRNOS = frozenset({errno.EHOSTUNREACH, errno.ENETUNREACH, errno.ENETDOWN})
 
 
@@ -273,24 +264,17 @@ class _SweepResult:
 def _find_live_ports(host: str, ports: list[int], timeout: float) -> _SweepResult:
     """Fast UDP liveness sweep -- the sweep's own verdict, nothing added.
 
-    UDP is connectionless, but a *connected* UDP socket surfaces the ICMP
-    port-unreachable that a closed port returns as ECONNREFUSED on its next
-    recv. So we send one probe datagram per port and watch for that error:
+    UDP is connectionless, but a connected UDP socket surfaces the ICMP
+    port-unreachable a closed port returns as ECONNREFUSED on its next recv.
+    So we send one probe datagram per port and watch for that error:
+    ECONNREFUSED means closed; silence/data means possibly live. The
+    in-process equivalent of ``nmap -sU``: takes a nine-port range down to
+    the one or two worth a full DTLS handshake, bounded to ``timeout``.
 
-      * ECONNREFUSED       -> port is closed (device actively rejected it)
-      * silence / any data -> port may be live (open|filtered); a candidate
-
-    This is the in-process equivalent of ``nmap -sU``: it lets us take a
-    nine-port range down to the one or two ports actually worth a full DTLS
-    handshake + /device/0 GET, and bounds the total wait to ``timeout``
-    instead of stalling on every dead port when a firewall swallows the ICMP
-    replies.
-
-    The result is deliberately the raw verdict, with no preferred-port rescue
-    folded in (that's `_sweep_ports`): its *shape* is evidence about the host,
-    and mixing a rescue into it would destroy that. Which is also why a
-    refusal and an unreachable are counted apart rather than both just being
-    "not live" -- see _SweepResult.
+    Deliberately the raw verdict, with no preferred-port rescue folded in
+    (that's `_sweep_ports`) -- its shape is evidence about the host, and a
+    refusal vs. an unreachable are counted apart rather than both "not
+    live" for that reason (see _SweepResult).
     """
     sockets: dict[int, socket.socket] = {}
     sel = selectors.DefaultSelector()
@@ -312,7 +296,7 @@ def _find_live_ports(host: str, ports: list[int], timeout: float) -> _SweepResul
                 sock.send(probe)
             except OSError as exc:
                 # Failing on the way out means the kernel already knows the
-                # datagram can't get there (no route, ARP never resolved).
+                # datagram can't get there.
                 _rule_out(port, exc)
                 sock.close()
                 continue
@@ -329,8 +313,7 @@ def _find_live_ports(host: str, ports: list[int], timeout: float) -> _SweepResul
             for key, _ in sel.select(timeout=remaining):
                 sock = sockets[key.data]
                 try:
-                    # Data back means live; an error means the port is
-                    # closed or the host isn't there — either way, rule it out.
+                    # Data back means live; an error rules the port out.
                     sock.recv(1)
                 except OSError as exc:
                     _rule_out(key.data, exc)
@@ -349,18 +332,17 @@ def _sweep_ports(host: str, ports: list[int], timeout: float) -> tuple[_SweepRes
     """`(sweep, candidates)` -- what the host said, and what to actually try.
 
     The sweep's ICMP-based verdict isn't reliable on every network path --
-    issue #192 captured a segregated-VLAN device where it called three ports
-    live that a concurrent nmap scan showed as closed, while the port nmap
-    found genuinely open|filtered (49154, one of our historically confirmed
-    ports) never showed up as live at all. Rather than trust a wrong "not
-    live" verdict on a port we already have strong prior evidence for, always
-    give the historically-confirmed ports a real handshake attempt too.
-    Bounded cost: at most len(PREFERRED_PROBE_PORTS) extra handshakes, only
-    when the sweep disagrees with the prior.
+    issue #192 captured a segregated-VLAN device where it called live ports
+    that nmap showed closed, while the port nmap found genuinely open never
+    showed up as live at all. Rather than trust a wrong "not live" verdict
+    on a port with strong prior evidence, the historically-confirmed ports
+    always get a real handshake attempt too (bounded cost: at most
+    len(PREFERRED_PROBE_PORTS) extra handshakes, only when the sweep
+    disagrees with the prior).
 
-    Both halves are returned rather than just the union because they answer
-    different questions: `candidates` is what to hand a handshake, `sweep` is
-    what the host actually told us about itself.
+    Both halves are returned, not just the union, since they answer
+    different questions: `candidates` is what to hand a handshake, `sweep`
+    is what the host actually told us about itself.
     """
     sweep = _find_live_ports(host, ports, timeout)
     rescued = [p for p in PREFERRED_PROBE_PORTS if p in ports and p not in sweep.live]
@@ -371,10 +353,10 @@ def _sweep_ports(host: str, ports: list[int], timeout: float) -> tuple[_SweepRes
 class _PortScan:
     """What port detection learned about a host.
 
-    `candidates` is what gets a full DTLS handshake. The other two are kept
-    because they're the evidence behind a failure message: `confirmed` names
-    ports a DTLS server was *proven* on, and `swept` is the UDP sweep's own
-    verdict (None when the sweep never had to run).
+    `candidates` is what gets a full DTLS handshake. The other two are the
+    evidence behind a failure message: `confirmed` names ports a DTLS
+    server was proven on, `swept` is the UDP sweep's own verdict (None
+    when the sweep never had to run).
     """
 
     candidates: list[int]
@@ -383,12 +365,10 @@ class _PortScan:
 
 
 def _clienthello_probe(host: str, port: int):
-    """One stateless DTLS ClientHello against `host:port`.
-
-    Imported lazily so an install whose smartthings-local predates the probe
-    (< 0.1.2) degrades to the UDP sweep at scan time rather than failing to
-    load the config flow at all.
-    """
+    """One stateless DTLS ClientHello against `host:port`. Imported lazily
+    so an install whose smartthings-local predates the probe (< 0.1.2)
+    degrades to the UDP sweep at scan time rather than failing to load the
+    config flow at all."""
     from smartthings_local.protocol.dtls_probe import probe
 
     return probe(
@@ -406,17 +386,14 @@ def _clienthello_scan(host: str, ports: list[int]) -> list[int]:
 
     smartthings-local's stateless probe sends one ClientHello and stops the
     moment the server proves itself with a HelloVerifyRequest, which per RFC
-    6347 §4.2.1 the server answers *without* allocating association state. So
-    this identifies the device's real port in ~1 RTT, leaves nothing behind on
-    the appliance, and costs it far less than the alternative of throwing N
-    full certificate handshakes at it to find out.
+    6347 §4.2.1 the server answers without allocating association state --
+    identifies the device's real port in ~1 RTT, far cheaper than throwing N
+    full certificate handshakes at it.
 
-    The whole range goes out at once. That's safe in a way racing real
-    handshakes is not: each probe is bounded by CLIENTHELLO_PROBE_TIMEOUT_S
-    rather than DtlsCoapSession's 12s handshake timeout, so the pool's
-    shutdown-and-wait on exit costs one probe's budget, not the sum of the
-    range -- no `shutdown(wait=False)` and no losing threads left running
-    behind us.
+    The whole range goes out at once, safely: each probe is bounded by
+    CLIENTHELLO_PROBE_TIMEOUT_S rather than DtlsCoapSession's 12s handshake
+    timeout, so the pool's shutdown-and-wait on exit costs one probe's
+    budget, not the sum of the range.
     """
     with ThreadPoolExecutor(max_workers=min(len(ports), PROBE_MAX_WORKERS)) as ex:
         results = list(ex.map(lambda port: _clienthello_probe(host, port), ports))
@@ -432,19 +409,16 @@ def _clienthello_scan(host: str, ports: list[int]) -> list[int]:
 def _scan_ports(host: str) -> _PortScan:
     """Find the device's DTLS port, preferring proof over absence of evidence.
 
-    The ClientHello probe is authoritative when it finds something: a port
-    that answered one is running a DTLS server, so exactly one port gets the
-    expensive certificate handshake instead of every port the old UDP sweep
-    couldn't rule out (each of which cost a full 12s handshake timeout --
-    issue #211's 30-40s adds).
+    The ClientHello probe is authoritative when it finds something: exactly
+    one port gets the expensive certificate handshake instead of every port
+    the old UDP sweep couldn't rule out (issue #211's 30-40s of 12s handshake
+    timeouts).
 
-    It stays a *gate*, not a replacement: when it confirms nothing we fall
-    back to the ICMP-based sweep, which is wrong in the opposite direction
-    (it reports everything it can't rule out) and so still surfaces a device
-    the probe couldn't reach -- e.g. a network path that drops our
-    ClientHello outright, or an install still on smartthings-local < 0.1.2.
-    Issue #192's segregated-VLAN device is the reason that fallback keeps its
-    own preferred-port rescue.
+    It's a gate, not a replacement: when it confirms nothing, we fall back
+    to the ICMP-based sweep, which still surfaces a device the probe
+    couldn't reach (a network path dropping the ClientHello, or an install
+    on smartthings-local < 0.1.2). Issue #192's segregated-VLAN device is
+    why that fallback keeps its own preferred-port rescue.
     """
     try:
         confirmed = _clienthello_scan(host, PROBE_PORT_RANGE)
@@ -472,12 +446,10 @@ def _scan_ports(host: str) -> _PortScan:
     return _PortScan(candidates, [], sweep)
 
 
-# TLS alerts (RFC 5246 §7.2) that mean "I looked at your certificate and said
-# no", as opposed to a protocol/cipher disagreement. decrypt_error belongs
-# here: it's what a peer sends when CertificateVerify fails. These are the
-# alerts an appliance sends when the CA behind the leaf isn't one it trusts --
-# the single most common real setup mistake, and the one the old blanket
-# "check the IP and the CA credentials" message could never call out.
+# TLS alerts (RFC 5246 §7.2) that mean "I looked at your certificate and
+# said no", as opposed to a protocol/cipher disagreement -- what an
+# appliance sends when the CA behind the leaf isn't one it trusts, the
+# single most common real setup mistake.
 _CERT_ALERTS = frozenset(
     {
         "bad_certificate",
@@ -493,15 +465,13 @@ _CERT_ALERTS = frozenset(
 )
 
 # OpenSSL renders a received fatal alert into its error text as e.g.
-# "tlsv1 alert unknown ca" / "sslv3 alert bad certificate", which
-# DtlsCoapSession.connect() wraps in a ConnectionError. Reading it back out
-# tells us what the appliance actually objected to.
+# "tlsv1 alert unknown ca", which DtlsCoapSession.connect() wraps in a
+# ConnectionError. Reading it back tells us what the appliance objected to.
 #
-# Deliberately not the library's diagnostic probe (stateless=False), which
-# would report the alert authoritatively: that mode drives the handshake far
-# enough to commit association state on the device, and an orphaned
-# association is exactly what makes the *next* attempt time out (RFC 6347
-# §4.2.8) -- a bad trade on a path the user is about to retry.
+# Deliberately not the library's diagnostic probe (stateless=False): that
+# mode commits association state on the device, and an orphaned association
+# makes the next attempt time out (RFC 6347 §4.2.8) -- a bad trade on a
+# path the user is about to retry.
 _ALERT_RE = re.compile(r"alert ([a-z0-9 ]+)")
 
 
@@ -516,16 +486,12 @@ def _classify_handshake_failure(
     scan: _PortScan,
     failures: list[tuple[int, Exception]],
 ) -> CannotConnect:
-    """Turn "no port worked" into the most specific thing we can honestly say.
-
-    In rough order of how much the evidence tells us:
-
-    * An alert means the appliance is there, speaks DTLS, and refused us on
-      purpose -- and the alert says whether it was about our certificate.
-    * A confirmed DTLS port that then timed out is a device that is present
-      and healthy but wouldn't finish. Usually it's still holding the session
-      from a previous attempt, which clears on its own.
-    * Otherwise the sweep's own shape is the evidence -- see the rules below.
+    """Turn "no port worked" into the most specific thing we can honestly
+    say, in rough order of how much the evidence tells us: an alert means
+    the appliance refused us on purpose (and says whether it was our
+    certificate); a confirmed DTLS port that then timed out is likely still
+    holding a session from a previous attempt; otherwise the sweep's own
+    shape is the evidence.
     """
     alerts = [name for name in (_alert_name(exc) for _, exc in failures) if name]
     cert_alerts = [name for name in alerts if name in _CERT_ALERTS]
@@ -542,18 +508,18 @@ def _classify_handshake_failure(
     if sweep is None:
         return CannotConnect(f"no port on {host} completed a handshake")
     if sweep.unreachable and not sweep.refused:
-        # The kernel never got the datagrams off the host, so nothing was
-        # ever asked. Reporting "ports closed" here would be exactly wrong.
+        # Nothing was ever asked -- the kernel never got the datagrams off
+        # the host, so "ports closed" would be exactly wrong.
         return NoResponse(f"{host} is unreachable (ports {sweep.unreachable})")
     if not sweep.live:
-        # Every port answered ICMP port-unreachable: something is at that
-        # address and it is not exposing the local API.
+        # Every port answered ICMP port-unreachable: something is there and
+        # not exposing the local API.
         return PortsClosed(
             f"{host} refused every port in {PROBE_PORT_RANGE[0]}-{PROBE_PORT_RANGE[-1]}"
         )
     if len(sweep.live) == len(PROBE_PORT_RANGE):
-        # Not one refusal came back across a nine-port ephemeral range. A host
-        # that is actually there answers for at least some of it.
+        # Not one refusal across a nine-port range -- a host that's
+        # actually there answers for at least some of it.
         return NoResponse(f"nothing at {host} responded on any probed port")
     return NoDtlsServer(f"ports on {host} are reachable but none answered a DTLS handshake")
 
@@ -586,15 +552,15 @@ def _read_device(sess, host: str, port: int) -> dict:
 
     /oic/d before /device/0, deliberately: the device's own OCF device-type
     declaration is the primary detection signal when a board populates it
-    (see registry/by_type's resolve()), and read_identity's three small GETs
-    settle it long before the blockwise /device/0 dump lands. read_identity is
-    defensive on every GET it makes, so a device that answers neither /oic/p
-    nor /oic/d just yields an empty device_types tuple and detection falls
-    through to the model-string/resource-signature path.
+    (see registry/by_type's resolve()), and read_identity's three small
+    GETs settle it long before the blockwise /device/0 dump lands.
+    read_identity is defensive on every GET, so a device answering neither
+    /oic/p nor /oic/d falls through to the model-string/resource-signature
+    path.
 
-    Everything the entry needs to name and key the device comes from here --
-    resolved serial, model, manufacturer, device type -- so the coordinator
-    never has to mint a registry key from a placeholder (issue #236).
+    Everything the entry needs to name and key the device comes from here,
+    so the coordinator never has to mint a registry key from a placeholder
+    (issue #236).
     """
     import cbor2
 
@@ -665,17 +631,15 @@ def _probe_and_validate(
 ) -> dict:
     """Find the device's port, authenticate to it, and resolve its identity.
 
-    Port detection runs first and needs no credentials at all, so an
-    unreachable host fails here rather than after a round trip to Samsung's
-    cloud.
+    Port detection runs first and needs no credentials, so an unreachable
+    host fails here rather than after a round trip to Samsung's cloud.
 
     `existing_leaf` is another entry's already-minted leaf (issue #211).
-    Every appliance accepts the same leaf -- CA `AC14K_M` plus the UUID from
-    Samsung's cloud cert -- so adding a second device can skip the fetch and
-    mint entirely, which makes it independent of Samsung-cloud reachability
-    rather than merely faster. If that reused leaf turns out to be stale (the
-    UUID does rotate), a confirmed-live device rejecting it is unambiguous
-    enough to re-mint and try once more, so the reuse stays self-correcting.
+    Every appliance accepts the same leaf, so adding a second device can
+    skip the fetch and mint entirely -- independent of Samsung-cloud
+    reachability, not merely faster. If that reused leaf turns out to be
+    stale (the UUID does rotate), a confirmed-live device rejecting it
+    re-mints and retries once, so the reuse stays self-correcting.
     """
     scan = _scan_ports(host)
 
@@ -718,11 +682,10 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _create_entry(self, info: dict) -> ConfigFlowResult:
         """Persist everything the probe resolved, identity included.
 
-        The identity fields are not decoration: the coordinator seeds
-        `device_serial` and its DeviceInfo from them at construction time, so
-        entity unique_ids and device identifiers are correct from the very
-        first entity that registers -- even if the first poll is slow, or
-        fails outright (issue #236).
+        The identity fields aren't decoration: the coordinator seeds
+        `device_serial` and its DeviceInfo from them at construction time,
+        so entity unique_ids are correct from the first entity that
+        registers, even if the first poll is slow or fails (issue #236).
         """
         from .registry.identity import device_display_name
 
@@ -772,8 +735,7 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             except (CannotConnect, InvalidCA) as exc:
                 # Every probe failure carries the message that fits it (see
-                # CannotConnect); the log line is where the specifics live,
-                # since the messages point users at it.
+                # CannotConnect); the log line is where the specifics live.
                 _LOGGER.warning("Probe of %s failed [%s]: %s", self._host, exc.error_key, exc)
                 errors["base"] = exc.error_key
             except Exception:
@@ -836,14 +798,11 @@ class LocalThingsOptionsFlow(config_entries.OptionsFlow):
     arbitrary resource href, so a user can pin down device-specific write
     behavior without waiting on a new release.
 
-    The remote-control override exists because most devices reject writes
-    outright while remote control is off and a clear error beats a silent
-    device-side rejection -- but not every model actually enforces that,
-    so this lets a user who's confirmed their device accepts writes anyway
-    turn the block off for just that device rather than it being
-    hardcoded on for everyone. The debug panel goes further: it bypasses
-    that block (and every write_fn/validate_fn) entirely, sending exactly
-    the body the user types to whatever href they pick.
+    The remote-control override exists because not every model actually
+    enforces the block most devices do, so a user who's confirmed their
+    device accepts writes anyway can turn it off for just that device. The
+    debug panel goes further, bypassing that block (and every write_fn/
+    validate_fn) entirely.
     """
 
     def __init__(self) -> None:

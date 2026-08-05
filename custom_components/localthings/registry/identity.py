@@ -22,24 +22,19 @@ def is_placeholder_serial(serial: str) -> bool:
 
     The ARTIK051_DONGLE_REF firmware family reports the literal string
     'Nothing(SVC)' for every unit -- non-empty, so a plain `if not serial`
-    check doesn't catch it, and the resolved serial feeds both the HA
-    device-registry identifier and every entity's unique_id (entity.py), so
-    two such units on the same install silently collide and the second one's
-    entities get dropped (issue #83).
+    check doesn't catch it, and two such units on the same install silently
+    collide, dropping the second one's entities (issue #83).
 
-    Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry board family
-    reports a flash-unset sentinel instead -- every character the same
-    repeated hex digit (a washer and a dryer, two different physical units,
-    both reported the literal serialNum 'FFFFFFFFFFFFFFF') -- which the
-    'nothing' check above doesn't catch either, so the second unit's config
-    flow aborted as already configured.
+    Issue #189: the DA_WM_A51_20_COMMON (ARTIK051) laundry family reports a
+    flash-unset sentinel instead -- every character the same repeated hex
+    digit -- which the 'nothing' check doesn't catch either, aborting the
+    second unit's config flow as already configured.
 
-    Lives here, rather than being duplicated in config_flow.py and
-    coordinator.py as it once was, because the config flow now resolves the
-    serial once and persists it on the entry for the coordinator to seed its
-    registry keys from (issue #236). Two copies of this rule meant the two
-    sides could disagree about what a device's identity is -- and a
-    disagreement is exactly what orphans a registry entry.
+    Lives here rather than duplicated in config_flow.py/coordinator.py: the
+    config flow resolves the serial once and persists it for the
+    coordinator to seed its registry keys from (issue #236), so two copies
+    of this rule could let the two sides disagree and orphan a registry
+    entry.
     """
     s = serial.strip()
     if s.lower().startswith("nothing"):
@@ -65,15 +60,12 @@ def resolve_serial(raw_serial: str | None, host: str) -> str:
 def resolve_model(model_num: str, identity: DeviceIdentity | None) -> str:
     """The model string to name and register a device under.
 
-    `model_num` is /information/vs/0's x.com.samsung.da.modelNum, which many
-    boards report as `<model>|<board>` -- only the part before the pipe is the
-    model a user would recognize. A board that reports no modelNum at all
-    falls back to /oic/p's mnmo, which read_identity already parsed.
-
-    Shared with resolve_serial's motivation: the config flow resolves this
-    once and persists it on the entry, and the coordinator recomputes it after
-    the first poll. Two copies of the split rule would let those two disagree,
-    and a device that renames itself on the first poll is the visible symptom.
+    `model_num` is /information/vs/0's modelNum, which many boards report
+    as `<model>|<board>` -- only the part before the pipe is recognizable.
+    A board reporting no modelNum falls back to /oic/p's mnmo. Shared with
+    resolve_serial's motivation: two copies of this split rule could let
+    the config flow and the coordinator's post-poll recompute disagree, and
+    a device renaming itself after the first poll is the visible symptom.
     """
     if model_num:
         return model_num.split("|", 1)[0]
@@ -81,13 +73,11 @@ def resolve_model(model_num: str, identity: DeviceIdentity | None) -> str:
 
 
 def device_display_name(device_type_name: str | None, model: str) -> str:
-    """The HA device name for a resolved device type + model.
-
-    Shared by the config flow (which builds the entry's stored identity) and
-    the coordinator's post-discovery rebuild, so the name a device is first
-    registered under is the same string discovery would produce later --
-    otherwise every setup would rename the device once the first poll landed.
-    """
+    """The HA device name for a resolved device type + model. Shared by the
+    config flow and the coordinator's post-discovery rebuild, so the name a
+    device is first registered under matches what discovery produces later
+    -- otherwise every setup would rename the device once the first poll
+    landed."""
     device_type = device_type_name.replace("_", " ").title() if device_type_name else "Appliance"
     return f"Samsung {device_type} ({model})" if model else f"Samsung {device_type}"
 
@@ -120,15 +110,13 @@ def _get_links(sess, path) -> list:
 def _device_types(d: dict) -> tuple[str, ...]:
     """/oic/d's `rt` -- the device's own OCF device-type declaration.
 
-    In OCF this is the one standardized "what am I" field: alongside the
-    generic 'oic.wk.d' it carries a concrete type such as 'oic.d.airconditioner'
-    or a SmartThings 'x.com.st.d.*' equivalent. `registry/by_type/resolve()`
-    now consults this first, ahead of board-part-number parsing, via
-    `for_device_by_oic_type` and its `_OIC_TYPE_TO_KEY` table -- but only a
-    minority of dumps populate it, so the modelNum/description path stays
-    load-bearing for everything else. It's also kept whole in diagnostics
-    (see `raw` below) so incoming issue reports keep surfacing types that
-    table doesn't know about yet.
+    The one standardized "what am I" field in OCF: alongside the generic
+    'oic.wk.d' it carries a concrete type like 'oic.d.airconditioner' or a
+    SmartThings 'x.com.st.d.*' equivalent. `registry/by_type/resolve()`
+    consults this first, via `for_device_by_oic_type`, but only a minority
+    of dumps populate it, so the modelNum/description path stays
+    load-bearing. Kept whole in diagnostics (see `raw` below) so issue
+    reports keep surfacing types the table doesn't know about yet.
     """
     rt = d.get("rt")
     if isinstance(rt, str):
@@ -142,17 +130,13 @@ def read_identity(sess, serial: str | None) -> DeviceIdentity:
     p = _get(sess, ["oic", "p"])
     d = _get(sess, ["oic", "d"])
     # /oic/res is OCF's baseline resource-discovery endpoint: a unicast
-    # RETRIEVE on it returns every Resource/Collection href this endpoint
-    # hosts, not just the one /device/0 seed path the coordinator polls.
-    # Relevant for the OCF "Composite Device" model (issue #177: a single
-    # physical device -- one IP, one /oic/p -- exposing more than one logical
-    # subdevice, each as its own Collection resource, same rt shape as our own
-    # /device/0). This is what registry.subdevices.enumerate_subdevices reads
-    # to find a board's `/device/<n>` siblings (Pattern A -- the reporter's
-    # ARTIK051_DONGLE_FAC_18K) -- that probing, plus the /device/1 and
-    # /device/2 speculative fallback it used to run right here on every
-    # _connect_session (including every reconnect), moved to that module so
-    # it only runs once, at first discovery, instead of on every reconnect.
+    # RETRIEVE returns every Resource/Collection href this endpoint hosts,
+    # not just /device/0. Relevant for the "Composite Device" model (issue
+    # #177: one physical device exposing more than one logical subdevice,
+    # each its own Collection). registry.subdevices.enumerate_subdevices
+    # reads this to find a board's `/device/<n>` siblings -- that probing
+    # used to run right here on every _connect_session/reconnect and moved
+    # to that module so it only runs once, at first discovery.
     res = _get_links(sess, ["oic", "res"])
     return DeviceIdentity(
         manufacturer=p.get("mnmn") or "Samsung",
@@ -160,8 +144,8 @@ def read_identity(sess, serial: str | None) -> DeviceIdentity:
         name=d.get("n") or "",
         serial=serial,
         device_types=_device_types(d),
-        # Kept whole rather than field-by-field: these resources are outside
-        # the /device/0 dump diagnostics already captures, and we don't yet
-        # know which of their fields will turn out to identify a device type.
+        # Kept whole rather than field-by-field: outside the /device/0 dump
+        # diagnostics already captures, and we don't yet know which fields
+        # will turn out to identify a device type.
         raw={"/oic/p": p, "/oic/d": d, "/oic/res": res},
     )

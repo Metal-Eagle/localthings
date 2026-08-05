@@ -18,28 +18,23 @@ from .registry.discovery import BoundEntity, _snake_to_title
 def _is_included(bound: BoundEntity, coordinator: LocalThingsCoordinator) -> bool:
     """Return False if the entity should not be registered for this device.
 
-    Explicit exists_fn takes priority. Otherwise, if the entity has a field,
-    require that field to be present in the resource rep so that optional
-    fields on shared resources don't create phantom entities.
+    Explicit exists_fn takes priority. Otherwise, if the entity has a
+    field, require that field to be present in the resource rep so that
+    optional fields on shared resources don't create phantom entities.
 
-    A stub rep (is_stub_rep — /device/0's "resource exists, no data fetched
-    yet" marker) is included anyway so it can be populated by sub-polls. A
-    genuinely empty {} rep is included too by this default gate -- whether
-    empty means "not populated yet" or "permanently unsupported" needs
-    per-field domain knowledge this generic gate doesn't have: /alarms/vs/0's
-    {} is fridge.py's documented *normal* no-alarm state (see
-    _active_alarm_codes), not an absence signal, and it's far from the only
-    resource like that. Only a capability whose author has actually verified
-    a field is genuinely never populated on unsupported hardware opts into
-    stricter gating with its own is_stub_rep-based exists_fn (see
-    common.ENERGY_METER, issue #127) -- this default stays permissive.
+    A stub rep (is_stub_rep) is included anyway so it can be populated by
+    sub-polls. A genuinely empty {} rep is included too by this default
+    gate: whether empty means "not populated yet" or "permanently
+    unsupported" needs per-field domain knowledge this generic gate
+    doesn't have (e.g. /alarms/vs/0's {} is fridge.py's documented normal
+    no-alarm state, not an absence signal). Only a capability whose author
+    has verified a field is genuinely never populated opts into stricter
+    gating with its own exists_fn (see common.ENERGY_METER, issue #127).
 
-    `bound.href` is already the *actual* href (issue #177 -- see
-    BoundEntity/Subdevice), so the direct cache lookup below is correct as-is;
-    `exists_fn` gets `bound`'s own subdevice's *canonical* view instead of the
-    raw snapshot, same rule as everywhere else a whole-resources-dict scan
-    happens (coordinator.canonical_resources) -- this is a free function, not
-    an LocalThingsEntity method, so it can't use self._resources.
+    `bound.href` is already the actual href (issue #177); `exists_fn` gets
+    `bound`'s own subdevice's canonical view instead of the raw snapshot,
+    same rule as everywhere else a whole-resources-dict scan happens --
+    this is a free function, so it can't use self._resources.
     """
     rep = coordinator.last_resources.get(bound.href)
     if rep is None:
@@ -97,12 +92,10 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
                 "instance_name": _instance_display_name(bound, self._state_key)
             }
 
-        # _attr_name is deliberately left unset: Home Assistant gives an
-        # explicitly-set name precedence over the translation catalog, so
-        # setting it here would make every entity untranslatable. Every
-        # descriptor resolves to a catalog entry (see translation_key below);
-        # a platform that wants the bare device name instead sets
-        # _attr_name = None itself, as fan.py does for the hood's main entity.
+        # _attr_name is deliberately left unset: HA gives an explicitly-set
+        # name precedence over the translation catalog, so setting it here
+        # would make every entity untranslatable. A platform that wants the
+        # bare device name sets _attr_name = None itself (see fan.py).
         self._attr_icon = bound.desc.icon
         raw_cat = bound.desc.entity_category
         self._attr_entity_category = EntityCategory(raw_cat) if raw_cat else None
@@ -112,18 +105,12 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
     def translation_key(self) -> str | None:
         """The descriptor's catalog key, defaulting to its own `key`.
 
-        Overrides Entity.translation_key (a property upstream, not a plain
-        attribute) so a callable descriptor -- e.g. laundry.cycle_select's
-        table-id-gated resolver -- is re-evaluated against live coordinator
-        data on every access, not resolved once at construction time.
-
-        Discovery runs on the first /device/0 poll, which the entity
-        registry already documents can hand a sibling resource an empty
-        stub rep before it's actually been fetched (see _is_included's
-        docstring) -- a static one-time resolution here would risk baking
-        in a permanent None (no translation) for the entity's whole
-        lifetime if that stub hadn't populated yet, even once the real
-        value arrives on a later poll.
+        Overrides Entity.translation_key so a callable descriptor (e.g.
+        laundry.cycle_select's table-id-gated resolver) is re-evaluated
+        against live coordinator data on every access, not resolved once
+        at construction time -- a static resolution would risk baking in
+        a permanent None if the first poll handed a sibling an empty stub
+        rep (see _is_included's docstring) before it populated.
         """
         tk = self._bound.desc.translation_key
         if callable(tk):
@@ -133,12 +120,11 @@ class LocalThingsEntity(CoordinatorEntity[LocalThingsCoordinator]):
     @property
     def _resources(self) -> dict:
         """This entity's own subdevice's canonical resources view (issue
-        #177) -- see coordinator.canonical_resources. Every platform
-        property that needs the *whole* resources dict, as opposed to one
-        href via `coordinator.resource(href)`, must read through this
-        instead of `coordinator.last_resources`, or a sibling subdevice's own
-        actual hrefs would leak into (or be missing from) this entity's
-        view. For MAIN (every device with no subdevices) this is exactly
+        #177) -- see coordinator.canonical_resources. Any platform property
+        needing the whole resources dict, not one href via
+        `coordinator.resource(href)`, must read through this instead of
+        `coordinator.last_resources`, or a sibling subdevice's own hrefs
+        could leak into this entity's view. For MAIN this is exactly
         `coordinator.last_resources`."""
         return self.coordinator.canonical_resources(self._bound.subdevice)
 

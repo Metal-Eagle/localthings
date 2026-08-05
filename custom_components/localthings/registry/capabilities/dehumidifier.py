@@ -15,8 +15,8 @@ from .common import int_or_none
 
 def _first_mode(rep):
     """Representative scalar for the operating-mode select. `modes` is a
-    single-element list on every dump seen so far, mirroring
-    airconditioner._first_mode's handling of the same field shape."""
+    single-element list on every dump seen, mirroring
+    airconditioner._first_mode."""
     modes = rep.get("x.com.samsung.da.modes")
     if isinstance(modes, (list, tuple)):
         return modes[0] if modes else None
@@ -40,14 +40,11 @@ MODE = Capability(
     ),
 )
 
-# Target humidity is this device's primary control (the issue-#88 dump's
-# equivalent of a thermostat setpoint). No min/max range field is present in
-# any dump seen so far -- native_min/native_max are deliberately left unset
-# so the number entity falls back to HA's own 0-100 default, the natural
-# bound for a percentage field, rather than a bound guessed from one unit's
-# spec sheet (see the adding-device-support skill's "never hard-code the one
-# dump's values" section). Step comes live from the device's own `increment`
-# field.
+# Target humidity is this device's primary control (issue #88's equivalent
+# of a thermostat setpoint). No min/max range field is present in any dump
+# seen, so native_min/native_max are left unset, falling back to HA's own
+# 0-100 default rather than a bound guessed from one unit's spec sheet.
+# Step comes live from the device's own `increment` field.
 HUMIDITY = Capability(
     href="/humidity/vs/0",
     poll_tier="warm",
@@ -77,15 +74,13 @@ HUMIDITY = Capability(
     ),
 )
 
-# Water-tank ambient light (issues #271/#231, TP1X_DA_AC_DHM_01001_0000):
-# on/off, color, and brightness are three independent controls on this one
-# resource. `waterfullAlarmStatus` differs between the two dumps that
-# reported this href (On vs. Off) so it's a real live flag, not a constant --
-# but its exact meaning (tank actually full vs. the chime feature merely
-# enabled) isn't confirmed by either dump alone, and /alarms/vs/0's
-# alarm_code already surfaces a live WaterTankFull condition when one fires
-# (see common._active_alarm_codes), so this is exposed read-only as a plain
-# diagnostic value rather than guessed at as a binary_sensor.
+# Water-tank ambient light (issues #271/#231): on/off, color, and
+# brightness are three independent controls on this one resource.
+# `waterfullAlarmStatus` differs between the two dumps that reported this
+# href, so it's a real live flag, but its exact meaning (tank full vs. the
+# chime feature merely enabled) isn't confirmed, and /alarms/vs/0 already
+# surfaces a live WaterTankFull condition -- exposed read-only as a plain
+# diagnostic rather than guessed at as a binary_sensor.
 WATERTANK_LIGHTING = Capability(
     href="/watertank/lighting/vs/0",
     poll_tier="cold",
@@ -131,13 +126,10 @@ WATERTANK_LIGHTING = Capability(
     ),
 )
 
-# ---------------------------------------------------------------------------
-# Dehumidifier-scoped coverage: vendor plumbing with no user-actionable state
-# or no documented write contract, following the same 'don't guess' rule as
-# airconditioner._AC_IGNORED (this is the same DA_AC_ board family). Not in
-# the global ignored.IGNORED since some of these hrefs collide with other
-# families' schemas.
-# ---------------------------------------------------------------------------
+# Dehumidifier-scoped coverage: vendor plumbing with no user-actionable
+# state, following the same rule as airconditioner._AC_IGNORED (same
+# DA_AC_ board family). Not in the global ignored.IGNORED since some hrefs
+# collide with other families' schemas.
 _DHM_IGNORED = [
     "/availablecontrolsets/vs/0",  # opaque hex-encoded control-set bitmap (id: DHM)
     "/da/softreset/vs/0",  # soft-reset trigger plumbing

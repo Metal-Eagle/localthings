@@ -30,19 +30,12 @@ _SENSITIVE_SUBSTRINGS = (
     "secret",
 )
 
-# Matched whole, not as substrings. OCF's /oic/d and /oic/p identify the unit
-# with bare one- and two-letter keys that the rules above cannot see, being
-# far too short to match on -- 'di' alone is a substring of 'condition',
-# 'display', 'dispenser' and plenty of other ordinary appliance fields:
-#
-#   'di' -- device UUID, 'pi' -- platform UUID. As identifying as the serial
-#           number above.
-#   'n'  -- /oic/d's device name. Free text the owner can set from the
-#           SmartThings app, so it may well carry a person's name. Nothing
-#           in the /device/0 dump has ever exposed it; it only became
-#           reachable when diagnostics started reporting /oic/d, and the
-#           device-type signal we actually want from that resource is `rt`,
-#           which is not redacted.
+# Matched whole, not as substrings: OCF's /oic/d and /oic/p identify the
+# unit with bare one/two-letter keys too short for the substring rules above
+# ('di' is a substring of 'condition', 'display', ...). 'di'/'pi' are the
+# device/platform UUIDs; 'n' is /oic/d's free-text device name, which may
+# carry a person's name -- the device-type signal we actually want from
+# that resource is `rt`, which is not redacted.
 _SENSITIVE_EXACT = frozenset({"di", "pi", "n"})
 
 

@@ -1,38 +1,29 @@
 """Water heater platform for Local Things.
 
 Second composite entity in this integration (see climate.py's module
-docstring for the general pattern this follows): a single HA water_heater
-card for a Samsung EHS heat pump's domestic hot water (DHW) loop. It binds
-the primary `WaterHeaterDesc` (the `/mode/dhw/vs/0` capability, DHW.entities
-in registry/capabilities/ehs.py) so the registry still tracks it, and reads
-the sibling `/power/dhw/vs/0` and `/temperatures/dhw/vs/0` resources straight
-from the coordinator snapshot -- the same cross-resource read climate.py uses
-for the AC's power/temperature/wind siblings.
+docstring for the general pattern): a single HA water_heater card for a
+Samsung EHS heat pump's domestic hot water (DHW) loop. It binds the primary
+`WaterHeaterDesc` (the `/mode/dhw/vs/0` capability, DHW.entities in
+registry/capabilities/ehs.py) and reads the sibling `/power/dhw/vs/0` and
+`/temperatures/dhw/vs/0` resources straight from the coordinator snapshot,
+the same cross-resource read climate.py uses.
 
-Writes go through `coordinator.async_send_command(bound, (kind, value))`:
-DHW's `write_fn` (ehs._dhw_write) maps each `(kind, value)` payload to the
-right `(path_segs, body)`, and `async_send_command` POSTs to those path_segs
-and applies the optimistic value/settle guard to that same href -- not the
-bound `/mode/dhw/vs/0` href -- so one descriptor drives writes to, and gets
-fresh state back for, power, mode and temperature alike.
+Writes go through `coordinator.async_send_command`: DHW's `write_fn`
+(ehs._dhw_write) maps each `(kind, value)` payload to the right
+`(path_segs, body)`, applying the optimistic value/settle guard to that
+resource's own href rather than the bound `/mode/dhw/vs/0` href.
 
 Operation-mode vocabulary: the DHW loop's four device modes (Eco/Std/Force/
-Power) map onto HA's own standard water_heater states -- the same mapping
-Home Assistant's core `smartthings` integration uses for this exact Samsung
-capability over the cloud API (`samsungce.ehsThermostat` /
-`airConditionerMode`: eco/std/force/power -> STATE_ECO/STATE_HEAT_PUMP/
-STATE_HIGH_DEMAND/STATE_PERFORMANCE), just title-cased to match this OCF
-resource's own code spelling. Reusing HA's standard states means no *state*
-translation catalog entry is needed for them (see the entity_component
-fallback in homeassistant.components.water_heater.strings.json).
+Power) map onto HA's own standard water_heater states, the same mapping
+HA core's `smartthings` integration uses for this exact Samsung capability
+(`samsungce.ehsThermostat`), just title-cased to match this OCF resource's
+spelling. Reusing HA's standard states means no state translation catalog
+entry is needed for them.
 
-Naming is a separate question from that, and the answer here differs from
-climate.py's: the AC *is* the device, so its climate card takes the bare
-device name (`_attr_name = None`). An EHS unit has two loops, and the DHW
-one is not "the device" -- its siblings are named "Zone Mode"/"Zone Target
-Temperature", so a card labelled just "EHS" would misrepresent which loop
-it drives. This entity is named through the catalog like every other
-descriptor here, via the DHW descriptor's `translation_key='dhw'`
+Naming differs from climate.py's: the AC *is* the device, so its card takes
+the bare device name. An EHS unit has two loops, and DHW isn't "the
+device" (siblings are named "Zone Mode"/"Zone Target Temperature"), so this
+entity is named through the catalog via `translation_key='dhw'`
 (entity.water_heater.dhw.name -> "Hot water").
 """
 
@@ -73,8 +64,7 @@ _LOGGER = logging.getLogger(__name__)
 _MODES_FIELD = "x.com.samsung.da.modes"
 _SUPPORTED_FIELD = "x.com.samsung.da.supportedModes"
 
-# Device mode <-> HA water_heater operation state -- see the module
-# docstring above for the SmartThings-cloud precedent this mirrors.
+# Device mode <-> HA water_heater operation state -- see module docstring.
 _DEVICE_TO_STATE: dict[str, str] = {
     "Eco": STATE_ECO,
     "Std": STATE_HEAT_PUMP,
@@ -83,12 +73,10 @@ _DEVICE_TO_STATE: dict[str, str] = {
 }
 _STATE_TO_DEVICE = {v: k for k, v in _DEVICE_TO_STATE.items()}
 
-# Read-side lookup, case-folded. climate.py resolves write codes from the
-# unit's own supportedModes because two spellings there mean one HA value
-# ('Wind'/'Fan' -> FAN_ONLY); this map is bijective, so the write side can
-# use _STATE_TO_DEVICE directly. Only the read side is exposed to a board
-# spelling the same code differently ('eco'/'ECO'), and case is the one
-# variation worth absorbing rather than warning about.
+# Read-side lookup, case-folded: this map is bijective (unlike climate.py's
+# 'Wind'/'Fan' -> FAN_ONLY), so the write side uses _STATE_TO_DEVICE
+# directly; only the read side needs to absorb a board spelling the same
+# code differently ('eco'/'ECO').
 _DEVICE_TO_STATE_CI = {k.lower(): v for k, v in _DEVICE_TO_STATE.items()}
 
 
@@ -132,21 +120,18 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
     def __init__(self, coordinator: LocalThingsCoordinator, bound) -> None:
         super().__init__(coordinator, bound)
         # No _attr_name here: unlike climate.py's AC, this is one loop of a
-        # two-loop device and takes a catalog name ("Hot water") through the
-        # descriptor's translation_key -- see the module docstring.
+        # two-loop device and takes a catalog name through translation_key.
         self._attr_supported_features = (
             WaterHeaterEntityFeature.TARGET_TEMPERATURE
             | WaterHeaterEntityFeature.OPERATION_MODE
             | WaterHeaterEntityFeature.ON_OFF
         )
-        # Raw device codes already logged by _warn_unmapped -- these
-        # properties are read on every coordinator refresh, so an un-deduped
-        # warning would spam the log for any unit reporting a genuinely
-        # unrecognized code.
+        # Raw device codes already logged by _warn_unmapped -- read on every
+        # refresh, so un-deduped would spam the log for an unrecognized code.
         self._warned_unmapped: set[str] = set()
 
     def _rep(self, href: str) -> dict:
-        """`href` is one of this module's canonical HREF_* constants --
+        """`href` is one of this module's canonical HREF_* constants,
         translated through this bound entity's own subdevice (issue #177),
         same as climate.py's identical helper."""
         return self.coordinator.resource(self._bound.subdevice.to_actual(href)) or {}
@@ -188,14 +173,10 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
         return _num(self._rep(TEMPERATURE_HREF).get("x.com.samsung.da.desired"))
 
     def _range(self) -> list | None:
-        """The device's own (minimum, maximum) pair, or None.
-
-        Both ends together or neither, deliberately -- same rule as
-        climate._range(). A board reporting minimum but not maximum would
-        otherwise pair a device minimum (40) with HA's own default maximum
-        (140 °F), which looks plausible and is silently wrong on a unit
-        that really allows 62.
-        """
+        """The device's own (minimum, maximum) pair, or None. Both ends
+        together or neither -- same rule as climate._range(); a board
+        reporting only minimum would otherwise pair it with HA's own
+        default maximum, silently wrong."""
         rep = self._rep(TEMPERATURE_HREF)
         lo = _num(rep.get("x.com.samsung.da.minimum"))
         hi = _num(rep.get("x.com.samsung.da.maximum"))
@@ -213,8 +194,7 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
 
     @property
     def target_temperature_step(self) -> float:
-        # `is None`, not `or` -- see issue #160: `or` collapses a genuine 0
-        # into the fallback.
+        # `is None`, not `or` -- `or` would collapse a genuine 0 (issue #160).
         step = _num(self._rep(TEMPERATURE_HREF).get("x.com.samsung.da.increment"))
         return 0.5 if step is None else step
 
@@ -245,13 +225,11 @@ class LocalThingsWaterHeater(LocalThingsEntity, WaterHeaterEntity):
     # -- writes ---------------------------------------------------------------
 
     async def async_set_temperature(self, **kwargs) -> None:
-        # HA's water_heater.set_temperature service takes an optional
-        # operation_mode and forwards it here (SET_TEMPERATURE_SCHEMA), same
-        # as climate.set_temperature does with hvac_mode. Honour it, and set
-        # it first -- that also powers the loop on when it was off -- so a
-        # dashboard "boost to 55" button that carries a mode actually changes
-        # mode, instead of only moving the setpoint. Same fix as the AC's
-        # (see climate.async_set_temperature).
+        # HA's water_heater.set_temperature service can carry an optional
+        # operation_mode; honor it, setting the mode first (which also
+        # powers the loop on) so a dashboard "boost to 55" button that
+        # carries a mode actually changes mode, not just the setpoint. Same
+        # fix as climate.async_set_temperature.
         operation_mode = kwargs.get("operation_mode")
         if operation_mode is not None:
             await self.async_set_operation_mode(operation_mode)

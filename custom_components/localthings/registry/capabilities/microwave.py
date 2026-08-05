@@ -8,33 +8,25 @@ oven.py in by_type/microwave.py rather than duplicated. What's genuinely
 different from an oven, and defined fresh here:
 
   * Cooking-mode vocabulary: MicroWave/MicroWaveGrill/MicroWaveConvection/
-    KeepWarm never appear on an oven's /mode/vs/0, and this family spells
-    some shared-sounding modes differently than oven.py's own constants
-    (e.g. 'AirFryer', not oven.py's 'AirFry') -- a distinct SelectDesc and
-    mode list, not oven.OVEN_MODE.
+    KeepWarm never appear on an oven's /mode/vs/0, and some shared-sounding
+    modes are spelled differently (e.g. 'AirFryer', not oven.py's
+    'AirFry') -- a distinct SelectDesc and mode list, not oven.OVEN_MODE.
   * Setpoint bounds: this family's Convection/MicroWaveConvection modeSpec
-    (issue #121's MW7300B dump) reports 40-200 C / step 5, not oven.py's
-    30-270 C range (verified against a different, bake-oven-class board).
-  * Cavity: /oven/vs/0 here also carries a `powerLevel` field (100W-900W
-    on the MicroWave mode's powerListData) that plain ovens don't report --
-    exposed as its own sensor.
-  * Lamp: this family's option-array token is bare 'Lamp' (issue #137's
-    'Lamp_Off'), not oven.py's 'UpperLamp' -- and it's genuinely absent on
-    the combi dump (issue #121), so it's gated with exists_fn rather than
-    assumed universal like oven.py's lamp switch. Issue #137's dump only
-    ever showed 'Off', so 'On' was a guess at the paired value; issue #152's
-    ME7500D dump is the first to show a real non-Off value, and it's 'High'
-    (a brightness level, not literally 'On') -- the switch now treats any
-    non-Off/non-None value as "on" for reads, and writes back 'High'/'Off'
-    (the two confirmed tokens) rather than the never-confirmed 'On'.
+    (issue #121) reports 40-200°C / step 5, not oven.py's 30-270°C range.
+  * Cavity: /oven/vs/0 here also carries a `powerLevel` field (100W-900W)
+    that plain ovens don't report -- exposed as its own sensor.
+  * Lamp: this family's option-array token is bare 'Lamp' (issue #137), not
+    oven.py's 'UpperLamp', and genuinely absent on the combi dump (issue
+    #121), so it's exists_fn-gated rather than assumed universal. 'On' has
+    never been observed as a value; the only confirmed non-Off token is
+    'High' (issue #152) -- the switch treats any non-Off/non-None value as
+    "on" for reads and writes back 'High'/'Off'.
   * Filter reminder / end signal reminder: bare 'FilterRemind'/'RemindBeep'
-    option-array tokens (issue #181), both with On and Off observed live
-    (issue #152's ME7500D fixtures) -- gated with exists_fn like Lamp since
+    option-array tokens (issue #181), gated with exists_fn like Lamp since
     the MW7300B combi dump has neither.
 
-Note: cooking-mode writes are unproven here, same caveat as oven.py's
-OVEN_MODE -- exposed as a SelectDesc for fidelity, first real-world write
-is also the test.
+Cooking-mode writes are unproven here, same caveat as oven.py's OVEN_MODE
+-- exposed as a SelectDesc for fidelity, first real-world write is the test.
 """
 
 from ..capability import Capability
@@ -46,13 +38,10 @@ from .laundry import option_value, option_write
 # Constants
 # ---------------------------------------------------------------------------
 
-# Union of every mode seen across the two known dumps: issue #121's combi
-# MW7300B (NoOperation/Autocook/AutocookCustom/Convection/AirFryer/Grill/
-# MicroWave/MicroWaveGrill/MicroWaveConvection/Deodorization) and issue #137's
-# plain ME7500D (NoOperation/MicroWave/Autocook/KeepWarm). No dump has shown
-# every mode below on one device -- the select surfaces whatever a given
-# board's own /mode/vs/0 supportedModes reports; an entry here that a device
-# never sends just never gets picked.
+# Union of every mode seen across the two known dumps (issues #121, #137).
+# No dump has shown every mode below on one device -- the select surfaces
+# whatever a given board's own supportedModes reports; an entry here a
+# device never sends just never gets picked.
 _MICROWAVE_MODES = (
     "NoOperation",
     "MicroWave",
@@ -67,22 +56,18 @@ _MICROWAVE_MODES = (
     "KeepWarm",
 )
 
-# Convection/MicroWaveConvection modeSpec on issue #121's dump: tempMinC 40,
-# tempMaxC 200, tempIntervalC 5. No Fahrenheit dump exists for this family;
-# unlike oven.py's own SETPOINT_MIN_F/MAX_F/STEP_F (independently verified
-# against issue #44's range dump), there's nothing to verify a microwave's
-# Fahrenheit bounds against, so this module only exposes the setpoint
-# control when the live unit is Celsius (see _microwave_temp_unit below).
+# Convection/MicroWaveConvection modeSpec on issue #121's dump: 40-200°C,
+# step 5. No Fahrenheit dump exists for this family, unlike oven.py's own
+# independently-verified F bounds, so this module only exposes the
+# setpoint control when the live unit is Celsius (see _microwave_temp_unit).
 SETPOINT_MIN_C = 40
 SETPOINT_MAX_C = 200
 SETPOINT_STEP_C = 5
 
 
 def _microwave_temp_unit(rep):
-    """Same shape as oven.py's _oven_temp_unit: /temperatures/vs/0 items[]
-    carries a per-item x.com.samsung.da.unit field. Both known dumps for
-    this family report 'Celsius'; kept live rather than hardcoded per the
-    fridge/oven convention (issue #7)."""
+    """Same shape as oven.py's _oven_temp_unit. Both known dumps report
+    'Celsius'; kept live rather than hardcoded (issue #7)."""
     items = rep.get("x.com.samsung.da.items") or []
     unit = items[0].get("x.com.samsung.da.unit") if items else None
     return normalize_temp_unit(unit, default="°C")
@@ -90,8 +75,7 @@ def _microwave_temp_unit(rep):
 
 def _setpoint_write(p, rep, href=None):
     """RMW write to /temperatures/vs/0 items array -- unproven for this
-    family (no live write confirmed against a real unit), same "exposed for
-    fidelity" caveat as the mode select."""
+    family, same "exposed for fidelity" caveat as the mode select."""
     try:
         temp = float(p)
     except (TypeError, ValueError):
@@ -118,12 +102,11 @@ def _power_level_watts(v):
 
 
 def _cooking_mode_options(resources):
-    """Live mode list from the device's own /mode/vs/0 supportedModes when
-    it reports one (both known dumps do); the union-of-all-dumps
-    _MICROWAVE_MODES guess otherwise. Same live-first, static-fallback
-    pattern as oven._oven_mode_options -- a fixed list here would offer
-    users modes their own unit doesn't have (issue #152's ME7500D reports
-    only 4 of _MICROWAVE_MODES' 11)."""
+    """Live mode list from the device's own supportedModes when reported
+    (both known dumps do); the union-of-all-dumps _MICROWAVE_MODES guess
+    otherwise. Same live-first, static-fallback pattern as
+    oven._oven_mode_options -- a fixed list would offer modes a unit
+    doesn't have (issue #152 reports only 4 of _MICROWAVE_MODES' 11)."""
     rep = resources.get("/mode/vs/0") or {}
     live = rep.get("x.com.samsung.da.supportedModes")
     return list(live) if live else list(_MICROWAVE_MODES)
@@ -163,9 +146,8 @@ def _lamp_write(p, rep, href=None):
         return None
     if not rep.get("x.com.samsung.da.options"):
         return None
-    # 'High' and 'Off' are the two tokens actually confirmed on live dumps
-    # (issues #137/#152) -- 'On' has never been observed and the device
-    # likely doesn't recognize it (see module docstring).
+    # 'High'/'Off' are the two confirmed tokens (see module docstring);
+    # 'On' has never been observed and likely isn't recognized.
     token = "High" if p == "On" else "Off"
     return ["mode", "vs", "0"], {
         "x.com.samsung.da.options": option_write("Lamp", token),
@@ -271,11 +253,9 @@ MICROWAVE_MODE = Capability(
             value_fn=lambda opts: option_value(opts, "Lamp") not in (None, "Off"),
             write_fn=_lamp_write,
         ),
-        # issue #181: Filter Reminder / End Signal Reminder toggles,
-        # confirmed present (both On and Off observed across dumps -- see
-        # issue #152's ME7500D fixtures) but only on boards that carry the
-        # FilterRemind_*/RemindBeep_* tokens; gated off elsewhere (e.g. the
-        # MW7300B combi dump has neither) rather than assumed universal.
+        # issue #181: Filter Reminder / End Signal Reminder toggles, only on
+        # boards carrying the FilterRemind_*/RemindBeep_* tokens; gated off
+        # elsewhere (the MW7300B combi dump has neither).
         SwitchDesc(
             key="filter_remind",
             field="x.com.samsung.da.options",
