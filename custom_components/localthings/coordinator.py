@@ -204,6 +204,14 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._consecutive_poll_timeouts = 0
         self._unbound_hrefs: list[str] = []
         self._reconnect_times: list[float] = []
+        # See _maybe_retry_observe_mode: last_mode_change_ts alone doesn't
+        # move on a failed attempt, so this tracks attempts too.
+        self._last_observe_attempt_ts = 0.0
+        # Set by both reconnect paths (poll and command) that hand back a
+        # session with zero OBSERVE registrations while mode was still
+        # observe; consumed once to trigger an immediate resubscribe
+        # instead of waiting out _RECOVERY_RETRY_S.
+        self._resubscribe_due = False
 
     # ------------------------------------------------------------------
     # Session management (all blocking — must run in executor)
@@ -731,29 +739,62 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
 
     async def _attempt_observe_mode(self) -> None:
-        """Called once, right after first discovery. Blocking (sleeps for
-        the whole grace period) — must run in an executor."""
+        """Called once, right after first discovery, after a reconnect
+        downgrades from observe, and periodically while polling. Two
+        phases: subscribing holds `_session_lock` (each send is fire-and-
+        forget, not a network round trip); the grace wait that follows
+        does not, so a concurrent command write isn't blocked for the
+        whole ~15s wait (issue #294) -- only the brief subscribe burst.
+
+        The wait can outlast a reconnect elsewhere (the poll path's own
+        recovery, or a command retry), which would otherwise let a stale
+        success commit observe mode against a session that's already been
+        replaced -- claiming "Push" with nothing left to notice it's dead.
+        `self._session is sess` re-checked under the lock right before
+        committing closes that: `sess` keeps the old object alive, so
+        identity can't be recycled onto a new one.
+        """
         hrefs = self._hot_hrefs + self._warm_hrefs
         if not hrefs:
             return
-        if self._session is None:
-            # _poll_once already connects on a real poll; only fires if the
-            # session was closed out from under us concurrently.
-            await self.hass.async_add_executor_job(self._connect_session)
-        sess = self._session
-        if sess is None:
+        self._last_observe_attempt_ts = time.monotonic()
+        async with self._session_lock:
+            if self._session is None:
+                # _poll_once already connects on a real poll; only fires if
+                # the session was closed out from under us concurrently.
+                await self.hass.async_add_executor_job(self._connect_session)
+            sess = self._session
+            if sess is None:
+                return
+            subscribed = await self.hass.async_add_executor_job(
+                self._observe.subscribe_hrefs, sess, hrefs
+            )
+        if not subscribed:
+            self._observe.abandon_observe_attempt()
             return
-        await self.hass.async_add_executor_job(
-            self._observe.try_enter_observe_mode,
-            sess,
-            hrefs,
-            self._OBSERVE_GRACE_PERIOD_S,
+        reached = await self.hass.async_add_executor_job(
+            self._observe.await_observe_notifies, subscribed, self._OBSERVE_GRACE_PERIOD_S
         )
+        async with self._session_lock:
+            if not reached or self._session is not sess:
+                self._observe.abandon_observe_attempt()
+                return
+            self._observe.enter_observe_mode(sess, subscribed)
 
     async def _maybe_retry_observe_mode(self) -> None:
         """While in poll-only mode, periodically re-attempt observe mode
-        so a device that gains internet access recovers push automatically."""
-        if time.monotonic() - self._observe.last_mode_change_ts < _RECOVERY_RETRY_S:
+        so a device that gains internet access recovers push automatically.
+
+        Gated on the more recent of the two timestamps, not just
+        `last_mode_change_ts`: `_set_mode` only stamps that on an actual
+        transition, so a device that never successfully enters observe
+        mode would otherwise leave this throttle open forever after the
+        first `_RECOVERY_RETRY_S` window -- re-attempting (and paying the
+        subscribe-burst lock) on every single poll cycle instead of every
+        `_RECOVERY_RETRY_S`.
+        """
+        last_attempt = max(self._observe.last_mode_change_ts, self._last_observe_attempt_ts)
+        if time.monotonic() - last_attempt < _RECOVERY_RETRY_S:
             return
         await self._attempt_observe_mode()
 
@@ -805,7 +846,6 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._subpoll_task.cancel()
             self._subpoll_task = None
 
-        just_downgraded_from_observe = False
         async with self._session_lock:
             try:
                 resources = await self.hass.async_add_executor_job(self._poll_once)
@@ -862,7 +902,7 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "poll and resubscribing on the new session"
                         )
                         self._observe.downgrade_to_poll()
-                        just_downgraded_from_observe = True
+                        self._resubscribe_due = True
 
         if not self._discovered:
             # One-time (issue #177): find sibling subdevices before the
@@ -895,7 +935,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for href, rep in resources.items():
             self._observe.apply(href, rep, source=source)
 
-        if first_cycle or just_downgraded_from_observe:
+        if first_cycle or self._resubscribe_due:
+            self._resubscribe_due = False
             await self._attempt_observe_mode()
         elif self._observe.mode == MODE_POLL:
             await self._maybe_retry_observe_mode()
@@ -1056,6 +1097,14 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._observe.mark_write_pending(
                     write_href, settle_s=self._POST_TIMEOUT_S + self._POLL_TIMEOUT_S
                 )
+                # A reconnect hands back a session with zero OBSERVE
+                # registrations, same as the poll path's own reconnect --
+                # keeping observe mode here would leave those subscriptions
+                # claimed on the closed session with no poll failure left
+                # to notice (issue #294).
+                if self._observe.mode == MODE_OBSERVE:
+                    self._observe.downgrade_to_poll()
+                    self._resubscribe_due = True
         await self.async_request_refresh()
 
     # ------------------------------------------------------------------

@@ -171,17 +171,16 @@ class ObserveManager:
             self._last_notify_ts is not None and time.monotonic() - self._last_notify_ts < window_s
         )
 
-    def try_enter_observe_mode(
-        self,
-        session,
-        hrefs: list[str],
-        grace_period_s: float = GRACE_PERIOD_S,
-        success_fraction: float = SUCCESS_FRACTION,
-    ) -> bool:
-        """Blocking — subscribes to every href then waits up to
-        `grace_period_s`, returning early once `success_fraction` of hrefs
-        have notified. Caller must run this in an executor, never on the
-        event loop."""
+    def subscribe_hrefs(self, session, hrefs: list[str]) -> set[str]:
+        """Register OBSERVE on every href; returns the ones that took.
+        Blocking — run in an executor.
+
+        Split from the grace wait below (issue #294) so the coordinator can
+        hold its session lock for just these sends -- each is a fire-and-
+        forget UDP datagram (DtlsCoapSession.subscribe doesn't wait for the
+        device's ack), unlike the wait, which can block for the whole grace
+        period and must not hold a lock a command write is also waiting on.
+        """
         with self._notify_cond:
             self._notified.clear()
         subscribed: set[str] = set()
@@ -192,30 +191,65 @@ class ObserveManager:
                 subscribed.add(href)
             except Exception as e:
                 self.log.warning("subscribe %s failed: %s", href, e)
+        return subscribed
+
+    def await_observe_notifies(
+        self,
+        subscribed: set[str],
+        grace_period_s: float = GRACE_PERIOD_S,
+        success_fraction: float = SUCCESS_FRACTION,
+    ) -> bool:
+        """Blocking — waits up to `grace_period_s`, returning early once
+        `success_fraction` of `subscribed` have notified. Touches no
+        session; safe to run without holding a session lock."""
         if not subscribed:
-            self._stop_refresh_task()
-            self._set_mode(MODE_POLL)
-            self.subscribed_hrefs = set()
             return False
 
         def _fraction_reached() -> bool:
             return len(set(self._notified) & subscribed) / len(subscribed) >= success_fraction
 
         with self._notify_cond:
-            reached = self._notify_cond.wait_for(
-                _fraction_reached,
-                timeout=grace_period_s,
-            )
+            return self._notify_cond.wait_for(_fraction_reached, timeout=grace_period_s)
 
-        if reached:
-            self.subscribed_hrefs = subscribed
-            self._set_mode(MODE_OBSERVE)
-            self.start_refresh_task(session)
-            return True
+    def enter_observe_mode(self, session, subscribed: set[str]) -> None:
+        """Commit a successful attempt. Caller must have re-confirmed
+        `session` is still the live one under its session lock (issue
+        #294) -- committing against a session a reconnect already replaced
+        would claim observe mode with nothing left to notice it's dead."""
+        self.subscribed_hrefs = set(subscribed)
+        self._set_mode(MODE_OBSERVE)
+        self.start_refresh_task(session)
 
+    def abandon_observe_attempt(self) -> None:
+        """Drop a failed or stale attempt: no subscriptions worth keeping."""
         self._stop_refresh_task()
         self.subscribed_hrefs = set()
         self._set_mode(MODE_POLL)
+
+    def try_enter_observe_mode(
+        self,
+        session,
+        hrefs: list[str],
+        grace_period_s: float = GRACE_PERIOD_S,
+        success_fraction: float = SUCCESS_FRACTION,
+    ) -> bool:
+        """Blocking — subscribes to every href then waits up to
+        `grace_period_s`, returning early once `success_fraction` of hrefs
+        have notified. Caller must run this in an executor, never on the
+        event loop.
+
+        Single-threaded convenience wrapper around the phase split above
+        (subscribe_hrefs / await_observe_notifies / enter_observe_mode /
+        abandon_observe_attempt) for callers -- direct and most existing
+        tests -- that don't need the lock-scoping those phases exist for."""
+        subscribed = self.subscribe_hrefs(session, hrefs)
+        if not subscribed:
+            self.abandon_observe_attempt()
+            return False
+        if self.await_observe_notifies(subscribed, grace_period_s, success_fraction):
+            self.enter_observe_mode(session, subscribed)
+            return True
+        self.abandon_observe_attempt()
         return False
 
     def _set_mode(self, mode: str) -> None:

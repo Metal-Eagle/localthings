@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -21,6 +22,7 @@ from custom_components.localthings.const import (
     SUMMARY_INTERVAL_S,
 )
 from custom_components.localthings.coordinator import (
+    _RECOVERY_RETRY_S,
     LocalThingsCoordinator,
     _local_source_port,
 )
@@ -30,7 +32,7 @@ from custom_components.localthings.registry.capabilities.common import (
     remote_control_required_for_write,
 )
 
-from .conftest import ENTRY_DATA, MOCK_MODEL, MOCK_SERIAL
+from .conftest import ENTRY_DATA, MOCK_MODEL, MOCK_SERIAL, FakeObserveSession
 from .conftest import _load_fridge_resources as _load_fridge
 
 
@@ -742,6 +744,95 @@ async def test_reconnect_from_observe_mode_resubscribes_immediately(
     assert coordinator.observe_mode == MODE_OBSERVE
 
 
+async def test_attempt_observe_mode_discards_stale_commit_after_session_swap(
+    hass: HomeAssistant, mock_entry, mock_coordinator_observe_session
+) -> None:
+    """A reconnect (the poll path's own, or a command's retry) can swap
+    self._session while this attempt's grace wait is in flight -- it runs
+    without holding _session_lock precisely so a write isn't blocked behind
+    it (issue #294). Committing observe mode against the now-stale local
+    `sess` reference would claim "Push" on a session that's already gone,
+    with nothing left to notice -- the identity re-check under the lock
+    right before committing must catch this and abandon instead.
+
+    Simulates the swap from inside await_observe_notifies itself rather
+    than via real concurrency: subscribe_hrefs (and its lock) has already
+    returned by the time that call runs, so this lands exactly in the
+    window the identity check exists to cover, deterministically."""
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+
+    other = FakeObserveSession()
+
+    def _swap_session_mid_wait(subscribed, grace_period_s, success_fraction=None):
+        coordinator._session = other
+        return True
+
+    with patch.object(
+        coordinator._observe, "await_observe_notifies", side_effect=_swap_session_mid_wait
+    ):
+        await coordinator._attempt_observe_mode()
+
+    assert coordinator.observe_mode == MODE_POLL
+    assert coordinator._observe.subscribed_hrefs == set()
+    assert coordinator._observe._refresh_thread is None
+
+
+async def test_maybe_retry_observe_mode_uses_most_recent_attempt_not_just_mode_change(
+    hass: HomeAssistant, mock_entry, mock_coordinator_observe_session
+) -> None:
+    """_set_mode only stamps last_mode_change_ts on an actual transition,
+    so a device that never successfully enters observe mode leaves that
+    timestamp stuck at construction time forever -- a failed attempt keeps
+    calling _set_mode(MODE_POLL) while already in MODE_POLL, a no-op.
+    Gating solely on that timestamp would make the 600s throttle open once
+    and then never close again, re-attempting (and paying the subscribe
+    burst) on every single poll cycle instead of every _RECOVERY_RETRY_S."""
+    fake = mock_coordinator_observe_session
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    assert coordinator.observe_mode == MODE_POLL  # never notified during setup
+
+    # Simulate exactly the scenario above: mode_change_ts is old (as it
+    # would be forever, for a device that never gets push), but an attempt
+    # really did just run.
+    coordinator._observe.last_mode_change_ts = time.monotonic() - _RECOVERY_RETRY_S - 1
+    coordinator._last_observe_attempt_ts = time.monotonic()
+
+    with patch.object(fake, "subscribe") as mock_subscribe:
+        await coordinator._maybe_retry_observe_mode()
+
+    mock_subscribe.assert_not_called()
+
+
+async def test_attempt_observe_mode_releases_lock_before_the_grace_wait(
+    hass: HomeAssistant, mock_entry, mock_coordinator_observe_session
+) -> None:
+    """The subscribe burst holds _session_lock (it touches the session);
+    the grace wait after it must not, or a command write could stall
+    behind up to _OBSERVE_GRACE_PERIOD_S of an unrelated observe-mode-entry
+    attempt (issue #294). By construction, subscribe_hrefs's own
+    `async with self._session_lock:` has already exited by the time
+    await_observe_notifies is even called -- checked here rather than
+    inferred from timing."""
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+
+    locked_during_wait = {"value": None}
+
+    def _check_lock(subscribed, grace_period_s, success_fraction=None):
+        locked_during_wait["value"] = coordinator._session_lock.locked()
+        return True
+
+    with patch.object(coordinator._observe, "await_observe_notifies", side_effect=_check_lock):
+        await coordinator._attempt_observe_mode()
+
+    assert locked_during_wait["value"] is False
+
+
 async def test_sweep_mismatch_never_downgrades_a_live_observe_session(
     hass: HomeAssistant, mock_entry, mock_coordinator_observe_session
 ) -> None:
@@ -1108,6 +1199,69 @@ async def test_send_command_raises_after_reconnect_retry_also_fails(
     ):
         fake.post = _post
         await coordinator.async_send_command(bound, 5)
+
+
+async def test_send_command_reconnect_downgrades_observe_mode(
+    hass: HomeAssistant,
+    mock_entry,
+    mock_coordinator_observe_session,
+) -> None:
+    """A command's own successful reconnect hands back a session with zero
+    OBSERVE registrations too, same as the poll path's reconnect -- must
+    downgrade the same way and flag a resubscribe, or observe mode stays
+    claimed against a session the write just replaced underneath it
+    (issue #294)."""
+    from custom_components.localthings.registry.discovery import BoundEntity
+    from custom_components.localthings.registry.entities import NumberDesc
+
+    fake = mock_coordinator_observe_session
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    hrefs = coordinator._hot_hrefs + coordinator._warm_hrefs
+
+    fake.notify_on_subscribe = {"notified": True}
+    entered = await hass.async_add_executor_job(
+        coordinator._observe.try_enter_observe_mode,
+        fake,
+        hrefs,
+        0.02,
+        0.8,
+    )
+    assert entered is True
+    assert coordinator.observe_mode == MODE_OBSERVE
+
+    def _write_fn(payload, rep, href=None):
+        return (["test", "vs", "0"], {"value": payload})
+
+    desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
+    bound = BoundEntity(href="/test/vs/0", capability=coordinator.bound[0].capability, desc=desc)
+
+    calls = {"n": 0}
+
+    def _post(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ConnectionError("socket closed")
+        return (0x44, b"")
+
+    with (
+        patch.object(fake, "subscribe") as mock_subscribe,
+        patch(
+            "custom_components.localthings.coordinator.asyncio.sleep",
+            new=AsyncMock(),
+        ),
+    ):
+        fake.post = _post
+        await coordinator.async_send_command(bound, 5)
+
+        # _resubscribe_due is consumed by this same call's own trailing
+        # refresh (async_request_refresh is awaited, not fire-and-forget),
+        # so the visible effect is a resubscribe attempt, not a lingering
+        # flag value to assert on afterward.
+        assert mock_subscribe.called
+
+    assert coordinator.observe_mode == MODE_POLL
 
 
 async def test_second_write_to_same_href_lands_during_first_writes_settle_window(
