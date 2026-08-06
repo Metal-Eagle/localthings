@@ -834,18 +834,11 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     resources = await self.hass.async_add_executor_job(self._poll_once)
                 except Exception as e2:
                     self._log.error("poll failed after reconnect: %s", e2)
-                    # The reconnect itself proved the old session is gone, so
-                    # any OBSERVE subscription on it is too -- this cycle has
-                    # no live session to resubscribe on, unlike the success
-                    # branch below, so downgrade without setting
-                    # just_downgraded_from_observe (that would attempt a
-                    # resubscribe this same cycle against a session we just
-                    # confirmed is unreachable). Without this, a device that
-                    # drops off the network entirely leaves the connection-mode
-                    # sensor reporting "Push" forever, since only the success
-                    # path below ever changed it (issue #287) -- the poll-mode
-                    # retry timer (_maybe_retry_observe_mode) still re-attempts
-                    # observe once the device is actually reachable again.
+                    # Without this, a fully unreachable device left the
+                    # connection-mode sensor stuck on "Push" forever -- only
+                    # the success branch below ever downgraded it (issue
+                    # #287). No just_downgraded_from_observe here: there's no
+                    # live session this cycle to resubscribe on.
                     if self._observe.mode == MODE_OBSERVE:
                         self._observe.downgrade_to_poll()
                     snapshot = self._cache.snapshot()
@@ -924,7 +917,8 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     # ------------------------------------------------------------------
 
     async def async_send_command(self, bound_entity: BoundEntity, payload: Any) -> None:
-        """Write a value to the device. Fire-and-forget.
+        """Write a value to the device. Retries once on a dead session
+        (issue #294); raises HomeAssistantError if that retry fails too.
 
         A description-level validate_fn (SwitchDesc only, currently) rejects
         a write with a user-facing message ahead of write_fn's silent
@@ -1034,17 +1028,9 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             code, _ = sess.post(path_segs, cbor2.dumps(body), timeout=self._POST_TIMEOUT_S)
             self._log.info("PUT %s → code %#04x", write_href, code)
 
-        # A session Samsung's firmware closed between polls (the same "known
-        # device behavior" _async_update_data reconnects around) previously
-        # sank the PUT here with nothing but a log line -- no retry, no
-        # user-facing error, so the command was silently lost until the next
-        # manual reload (issue #294). Mirror the poll path's own recovery:
-        # one reconnect, one retry, and this time raise on final failure so
-        # the user gets a red toast instead of nothing.
-        #
-        # Locked the same as the poll path so a write landing mid-reconnect
-        # doesn't tear down a session _async_update_data is simultaneously
-        # rebuilding (or vice versa).
+        # Mirrors the poll path's reconnect-and-retry (issue #294): a PUT
+        # landing on a session Samsung's firmware closed between polls used
+        # to be silently lost -- no retry, no user-facing error.
         async with self._session_lock:
             try:
                 await self.hass.async_add_executor_job(_do_put)
@@ -1061,6 +1047,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         translation_key="command_failed",
                         translation_placeholders={"href": write_href, "error": str(e2)},
                     ) from e2
+                # The retry's own reconnect pause + second PUT can eat well
+                # into the settle window armed above, leaving too little of
+                # it for the confirming poll below and reviving the
+                # revert-then-reapply symptom settle_s exists to prevent
+                # (issue #9). Re-arm it fresh now that the write actually
+                # landed.
+                self._observe.mark_write_pending(
+                    write_href, settle_s=self._POST_TIMEOUT_S + self._POLL_TIMEOUT_S
+                )
         await self.async_request_refresh()
 
     # ------------------------------------------------------------------

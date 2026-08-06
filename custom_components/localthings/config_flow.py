@@ -164,19 +164,10 @@ def _fetch_samsung_uuid() -> str:
 
 
 def _normalize_pem(text: str) -> str:
-    """Clean up a pasted PEM blob before handing it to `cryptography`'s
-    parser (issue #291).
-
-    A PEM copied out of a text editor can carry a few bytes `cryptography`
-    refuses outright: a UTF-8 BOM some Windows editors silently prepend, CR
-    line endings (or CRLF), and blank lines a paste can introduce between
-    the header/body/footer. Any of those surfaces as an opaque
-    `InvalidHeader` with no hint of what's actually wrong -- which is why
-    the same certificate pasted from `type` (no BOM, no stray blank lines)
-    loads fine while the editor's copy doesn't. None of the stripped bytes
-    are meaningful in PEM: the format is BOM-free, line-ending-agnostic, and
-    has no blank-line syntax of its own.
-    """
+    """Strip a pasted PEM's BOM, CRLF endings, and blank lines before
+    `cryptography` sees it -- a text editor's copy carries all three and
+    fails with an opaque InvalidHeader, while the same file dumped via
+    `type` doesn't (issue #291)."""
     text = text.lstrip("\ufeff")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = [line for line in text.split("\n") if line.strip()]
@@ -742,12 +733,8 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if leaf_cert and leaf_key:
                     existing_leaf = (leaf_cert, leaf_key)
             else:
-                # Normalized before the probe even runs (issue #291), not
-                # just before minting: the same pasted blob is also what
-                # gets stored in the config entry and reused to re-mint the
-                # leaf on a future reconfigure, so a raw copy with a BOM or
-                # CRLF line endings would keep failing every time it's read
-                # back, not just this once.
+                # Normalized here, not just before minting: this is also
+                # what gets stored and reused to re-mint the leaf later.
                 self._ca_cert_pem = _normalize_pem(user_input[CONF_CA_CERT_PEM])
                 self._ca_key_pem = _normalize_pem(user_input[CONF_CA_KEY_PEM])
 

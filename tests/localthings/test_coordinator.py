@@ -1015,7 +1015,14 @@ async def test_send_command_reconnects_and_retries_after_socket_closed(
     """A command lost to a session Samsung's firmware closed between polls
     must not just vanish (issue #294): `_do_put` failing once is now
     followed by a reconnect and a single retry, mirroring the poll path's
-    own recovery in `_async_update_data`."""
+    own recovery in `_async_update_data`.
+
+    `mock_coordinator_observe_session` patches `_close_session` to a no-op,
+    which would leave `self._session` never actually going `None` -- and
+    with it, `_do_put`'s own `if self._session is None: self._connect_session()`
+    guard never exercised, so a broken reconnect could still pass. Overridden
+    here to actually drop the session, so the retry only succeeds if that
+    guard really rebuilds it."""
     from custom_components.localthings.registry.discovery import BoundEntity
     from custom_components.localthings.registry.entities import NumberDesc
 
@@ -1038,8 +1045,19 @@ async def test_send_command_reconnects_and_retries_after_socket_closed(
             raise ConnectionError("socket closed")
         return (0x44, b"")
 
+    def _drop_session():
+        coordinator._session = None
+
+    reconnects = {"n": 0}
+
+    def _reconnect():
+        reconnects["n"] += 1
+        coordinator._session = fake
+
     with (
         patch.object(fake, "subscribe"),
+        patch.object(coordinator, "_close_session", side_effect=_drop_session),
+        patch.object(coordinator, "_connect_session", side_effect=_reconnect),
         patch(
             "custom_components.localthings.coordinator.asyncio.sleep",
             new=AsyncMock(),
@@ -1047,6 +1065,8 @@ async def test_send_command_reconnects_and_retries_after_socket_closed(
     ):
         fake.post = _post
         await coordinator.async_send_command(bound, 5)
+
+    assert reconnects["n"] == 1
 
     assert calls["n"] == 2
     assert coordinator._cache.get("/test/vs/0") == {"value": 5}
