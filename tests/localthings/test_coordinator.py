@@ -478,6 +478,57 @@ async def test_reconnect_while_observe_mode_downgrades_to_poll(
     assert coordinator._observe.mode == MODE_POLL
 
 
+async def test_total_poll_failure_downgrades_observe_mode_to_poll(
+    hass: HomeAssistant, mock_entry, mock_coordinator_observe_session, fridge_resources
+) -> None:
+    """A device that drops off the network entirely -- both the poll and its
+    reconnect retry fail -- must not leave the connection-mode sensor
+    reporting 'Push' forever (issue #287). Only the *successful* reconnect
+    branch used to touch observe mode (see
+    test_reconnect_while_observe_mode_downgrades_to_poll); this covers the
+    branch where the device stays unreachable."""
+    fake = mock_coordinator_observe_session
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    hrefs = coordinator._hot_hrefs + coordinator._warm_hrefs
+
+    fake.notify_on_subscribe = {"notified": True}
+    entered = await hass.async_add_executor_job(
+        coordinator._observe.try_enter_observe_mode,
+        fake,
+        hrefs,
+        0.02,
+        0.8,
+    )
+    assert entered is True
+    assert coordinator.observe_mode == MODE_OBSERVE
+
+    last_notify_ts = coordinator._observe._last_notify_ts
+    assert last_notify_ts is not None
+    coordinator._observe._last_notify_ts = last_notify_ts - (PUSH_HEALTH_WINDOW_S + 1)
+
+    with (
+        patch(
+            "custom_components.localthings.coordinator.LocalThingsCoordinator._poll_once",
+            side_effect=[RuntimeError("connection lost"), RuntimeError("still lost")],
+        ),
+        patch(
+            "custom_components.localthings.coordinator.asyncio.sleep",
+            new=AsyncMock(),
+        ),
+    ):
+        await coordinator.async_request_refresh()
+        await hass.async_block_till_done()
+
+    # The update still "succeeds" with the last-known snapshot (issue #254's
+    # degraded-data path) -- but the connection mode must reflect reality
+    # now, not the stale OBSERVE state from before the outage.
+    assert coordinator.observe_mode == MODE_POLL
+    assert coordinator.last_update_success is True
+
+
 async def test_poll_timeout_skips_reconnect_when_push_is_healthy(
     hass: HomeAssistant, mock_entry, mock_coordinator_observe_session
 ) -> None:

@@ -834,6 +834,20 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     resources = await self.hass.async_add_executor_job(self._poll_once)
                 except Exception as e2:
                     self._log.error("poll failed after reconnect: %s", e2)
+                    # The reconnect itself proved the old session is gone, so
+                    # any OBSERVE subscription on it is too -- this cycle has
+                    # no live session to resubscribe on, unlike the success
+                    # branch below, so downgrade without setting
+                    # just_downgraded_from_observe (that would attempt a
+                    # resubscribe this same cycle against a session we just
+                    # confirmed is unreachable). Without this, a device that
+                    # drops off the network entirely leaves the connection-mode
+                    # sensor reporting "Push" forever, since only the success
+                    # path below ever changed it (issue #287) -- the poll-mode
+                    # retry timer (_maybe_retry_observe_mode) still re-attempts
+                    # observe once the device is actually reachable again.
+                    if self._observe.mode == MODE_OBSERVE:
+                        self._observe.downgrade_to_poll()
                     snapshot = self._cache.snapshot()
                     # Same precondition as _defer_reconnect_for (issue #254):
                     # degraded-but-successful data only makes sense once
