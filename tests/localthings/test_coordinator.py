@@ -1007,6 +1007,89 @@ async def test_send_command_survives_stale_confirm_poll(
     assert coordinator._cache.get("/test/vs/0") == {"value": 5}
 
 
+async def test_send_command_reconnects_and_retries_after_socket_closed(
+    hass: HomeAssistant,
+    mock_entry,
+    mock_coordinator_observe_session,
+) -> None:
+    """A command lost to a session Samsung's firmware closed between polls
+    must not just vanish (issue #294): `_do_put` failing once is now
+    followed by a reconnect and a single retry, mirroring the poll path's
+    own recovery in `_async_update_data`."""
+    from custom_components.localthings.registry.discovery import BoundEntity
+    from custom_components.localthings.registry.entities import NumberDesc
+
+    fake = mock_coordinator_observe_session
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+
+    def _write_fn(payload, rep, href=None):
+        return (["test", "vs", "0"], {"value": payload})
+
+    desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
+    bound = BoundEntity(href="/test/vs/0", capability=coordinator.bound[0].capability, desc=desc)
+
+    calls = {"n": 0}
+
+    def _post(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ConnectionError("socket closed")
+        return (0x44, b"")
+
+    with (
+        patch.object(fake, "subscribe"),
+        patch(
+            "custom_components.localthings.coordinator.asyncio.sleep",
+            new=AsyncMock(),
+        ),
+    ):
+        fake.post = _post
+        await coordinator.async_send_command(bound, 5)
+
+    assert calls["n"] == 2
+    assert coordinator._cache.get("/test/vs/0") == {"value": 5}
+
+
+async def test_send_command_raises_after_reconnect_retry_also_fails(
+    hass: HomeAssistant,
+    mock_entry,
+    mock_coordinator_observe_session,
+) -> None:
+    """If the command still fails on the reconnected session, the user must
+    see it -- previously this was swallowed into a log line with no
+    feedback at all (issue #294)."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.localthings.registry.discovery import BoundEntity
+    from custom_components.localthings.registry.entities import NumberDesc
+
+    fake = mock_coordinator_observe_session
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+
+    def _write_fn(payload, rep, href=None):
+        return (["test", "vs", "0"], {"value": payload})
+
+    desc = NumberDesc(key="test", field="value", write_fn=_write_fn)
+    bound = BoundEntity(href="/test/vs/0", capability=coordinator.bound[0].capability, desc=desc)
+
+    def _post(*args, **kwargs):
+        raise ConnectionError("socket closed")
+
+    with (
+        patch(
+            "custom_components.localthings.coordinator.asyncio.sleep",
+            new=AsyncMock(),
+        ),
+        pytest.raises(HomeAssistantError),
+    ):
+        fake.post = _post
+        await coordinator.async_send_command(bound, 5)
+
+
 async def test_second_write_to_same_href_lands_during_first_writes_settle_window(
     hass: HomeAssistant,
     mock_entry,

@@ -1356,6 +1356,9 @@
     },
     "intensive_unavailable_for_cycle": {
       "message": "Intenzivní není u vybraného cyklu k dispozici."
+    },
+    "command_failed": {
+      "message": "Příkaz pro {href} selhal i po opětovném připojení: {error}"
     }
   }
 }

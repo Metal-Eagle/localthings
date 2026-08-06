@@ -15,7 +15,7 @@ from typing import Any
 import cbor2
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -1026,18 +1026,42 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         def _do_put():
+            if self._session is None:
+                self._connect_session()
             sess = self._session
             if sess is None:
                 raise RuntimeError("no session")
             code, _ = sess.post(path_segs, cbor2.dumps(body), timeout=self._POST_TIMEOUT_S)
             self._log.info("PUT %s → code %#04x", write_href, code)
 
-        try:
-            await self.hass.async_add_executor_job(_do_put)
-        except Exception as e:
-            self._log.error("command failed for %s: %s", write_href, e)
-        else:
-            await self.async_request_refresh()
+        # A session Samsung's firmware closed between polls (the same "known
+        # device behavior" _async_update_data reconnects around) previously
+        # sank the PUT here with nothing but a log line -- no retry, no
+        # user-facing error, so the command was silently lost until the next
+        # manual reload (issue #294). Mirror the poll path's own recovery:
+        # one reconnect, one retry, and this time raise on final failure so
+        # the user gets a red toast instead of nothing.
+        #
+        # Locked the same as the poll path so a write landing mid-reconnect
+        # doesn't tear down a session _async_update_data is simultaneously
+        # rebuilding (or vice versa).
+        async with self._session_lock:
+            try:
+                await self.hass.async_add_executor_job(_do_put)
+            except Exception as e:
+                self._log.warning("command failed for %s, reconnecting: %s", write_href, e)
+                await self.hass.async_add_executor_job(self._close_session)
+                await asyncio.sleep(self._RECONNECT_PAUSE_S)
+                try:
+                    await self.hass.async_add_executor_job(_do_put)
+                except Exception as e2:
+                    self._log.error("command failed for %s after reconnect: %s", write_href, e2)
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN,
+                        translation_key="command_failed",
+                        translation_placeholders={"href": write_href, "error": str(e2)},
+                    ) from e2
+        await self.async_request_refresh()
 
     # ------------------------------------------------------------------
     # Debug raw write (issue #54): a power-user escape hatch for the

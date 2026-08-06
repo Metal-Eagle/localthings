@@ -119,6 +119,9 @@
     },
     "intensive_unavailable_for_cycle": {
       "message": "El modo intensivo no está disponible en el ciclo seleccionado."
+    },
+    "command_failed": {
+      "message": "El comando para {href} falló incluso después de reconectar: {error}"
     }
   },
   "entity": {
