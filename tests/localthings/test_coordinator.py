@@ -755,6 +755,11 @@ async def test_attempt_observe_mode_discards_stale_commit_after_session_swap(
     with nothing left to notice -- the identity re-check under the lock
     right before committing must catch this and abandon instead.
 
+    The new session is never-tried, though, not just abandoned: it must
+    flag an immediate resubscribe rather than let _last_observe_attempt_ts
+    (stamped for the now-abandoned attempt) throttle it for up to
+    _RECOVERY_RETRY_S.
+
     Simulates the swap from inside await_observe_notifies itself rather
     than via real concurrency: subscribe_hrefs (and its lock) has already
     returned by the time that call runs, so this lands exactly in the
@@ -762,6 +767,7 @@ async def test_attempt_observe_mode_discards_stale_commit_after_session_swap(
     await hass.config_entries.async_setup(mock_entry.entry_id)
     await hass.async_block_till_done()
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    assert coordinator._resubscribe_due is False
 
     other = FakeObserveSession()
 
@@ -777,6 +783,7 @@ async def test_attempt_observe_mode_discards_stale_commit_after_session_swap(
     assert coordinator.observe_mode == MODE_POLL
     assert coordinator._observe.subscribed_hrefs == set()
     assert coordinator._observe._refresh_thread is None
+    assert coordinator._resubscribe_due is True
 
 
 async def test_maybe_retry_observe_mode_uses_most_recent_attempt_not_just_mode_change(
@@ -800,6 +807,30 @@ async def test_maybe_retry_observe_mode_uses_most_recent_attempt_not_just_mode_c
     # really did just run.
     coordinator._observe.last_mode_change_ts = time.monotonic() - _RECOVERY_RETRY_S - 1
     coordinator._last_observe_attempt_ts = time.monotonic()
+
+    with patch.object(fake, "subscribe") as mock_subscribe:
+        await coordinator._maybe_retry_observe_mode()
+
+    mock_subscribe.assert_not_called()
+
+
+async def test_maybe_retry_observe_mode_also_respects_a_mode_change_outside_an_attempt(
+    hass: HomeAssistant, mock_entry, mock_coordinator_observe_session
+) -> None:
+    """The mirror of the case above: last_mode_change_ts can be the more
+    recent of the two as well, e.g. right after the poll or command path's
+    own downgrade (neither goes through _attempt_observe_mode, so neither
+    stamps _last_observe_attempt_ts). Dropping last_mode_change_ts from the
+    max() would let a device that was *just* downgraded get re-attempted
+    immediately instead of respecting _RECOVERY_RETRY_S."""
+    fake = mock_coordinator_observe_session
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    assert coordinator.observe_mode == MODE_POLL
+
+    coordinator._last_observe_attempt_ts = time.monotonic() - _RECOVERY_RETRY_S - 1
+    coordinator._observe.last_mode_change_ts = time.monotonic()
 
     with patch.object(fake, "subscribe") as mock_subscribe:
         await coordinator._maybe_retry_observe_mode()
@@ -831,6 +862,29 @@ async def test_attempt_observe_mode_releases_lock_before_the_grace_wait(
         await coordinator._attempt_observe_mode()
 
     assert locked_during_wait["value"] is False
+
+
+async def test_attempt_observe_mode_holds_lock_during_the_subscribe_burst(
+    hass: HomeAssistant, mock_entry, mock_coordinator_observe_session
+) -> None:
+    """The other half of the split above: the subscribe burst does touch
+    the session, so it must hold _session_lock -- that's what actually
+    stops a concurrent close from landing mid-subscribe (issue #294)."""
+    await hass.config_entries.async_setup(mock_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+
+    locked_during_subscribe = {"value": None}
+    real_subscribe_hrefs = coordinator._observe.subscribe_hrefs
+
+    def _check_lock(session, hrefs):
+        locked_during_subscribe["value"] = coordinator._session_lock.locked()
+        return real_subscribe_hrefs(session, hrefs)
+
+    with patch.object(coordinator._observe, "subscribe_hrefs", side_effect=_check_lock):
+        await coordinator._attempt_observe_mode()
+
+    assert locked_during_subscribe["value"] is True
 
 
 async def test_sweep_mismatch_never_downgrades_a_live_observe_session(
@@ -1170,7 +1224,13 @@ async def test_send_command_raises_after_reconnect_retry_also_fails(
 ) -> None:
     """If the command still fails on the reconnected session, the user must
     see it -- previously this was swallowed into a log line with no
-    feedback at all (issue #294)."""
+    feedback at all (issue #294).
+
+    Also covers a sibling bug the fix for that same issue introduced: the
+    session is closed the moment the first attempt fails, so any OBSERVE
+    subscriptions on it are already dead regardless of whether the retry
+    that follows succeeds -- a failed retry must still downgrade mode, or
+    it's left claiming "Push" on a session that no longer exists."""
     from homeassistant.exceptions import HomeAssistantError
 
     from custom_components.localthings.registry.discovery import BoundEntity
@@ -1180,6 +1240,18 @@ async def test_send_command_raises_after_reconnect_retry_also_fails(
     await hass.config_entries.async_setup(mock_entry.entry_id)
     await hass.async_block_till_done()
     coordinator: LocalThingsCoordinator = hass.data[DOMAIN][mock_entry.entry_id]
+    hrefs = coordinator._hot_hrefs + coordinator._warm_hrefs
+
+    fake.notify_on_subscribe = {"notified": True}
+    entered = await hass.async_add_executor_job(
+        coordinator._observe.try_enter_observe_mode,
+        fake,
+        hrefs,
+        0.02,
+        0.8,
+    )
+    assert entered is True
+    assert coordinator.observe_mode == MODE_OBSERVE
 
     def _write_fn(payload, rep, href=None):
         return (["test", "vs", "0"], {"value": payload})
@@ -1199,6 +1271,8 @@ async def test_send_command_raises_after_reconnect_retry_also_fails(
     ):
         fake.post = _post
         await coordinator.async_send_command(bound, 5)
+
+    assert coordinator.observe_mode == MODE_POLL
 
 
 async def test_send_command_reconnect_downgrades_observe_mode(

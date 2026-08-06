@@ -776,8 +776,18 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._observe.await_observe_notifies, subscribed, self._OBSERVE_GRACE_PERIOD_S
         )
         async with self._session_lock:
-            if not reached or self._session is not sess:
+            stale_session = self._session is not sess
+            if not reached or stale_session:
                 self._observe.abandon_observe_attempt()
+                if stale_session:
+                    # A reconnect elsewhere replaced the session while this
+                    # attempt waited -- that session has never been tried,
+                    # so retry it next cycle instead of leaving it
+                    # unsubscribed for up to _RECOVERY_RETRY_S, which
+                    # _last_observe_attempt_ts (already stamped above, for
+                    # the now-abandoned session) would otherwise throttle
+                    # for (issue #294).
+                    self._resubscribe_due = True
                 return
             self._observe.enter_observe_mode(sess, subscribed)
 
@@ -1078,6 +1088,15 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except Exception as e:
                 self._log.warning("command failed for %s, reconnecting: %s", write_href, e)
                 await self.hass.async_add_executor_job(self._close_session)
+                # The session is dead the moment it's closed, so any OBSERVE
+                # subscriptions on it are too -- downgrade here, before the
+                # retry, so a retry that also fails doesn't leave mode
+                # claiming "Push" on a session that no longer exists
+                # (issue #294; the poll path handles the same fact for its
+                # own reconnect the same way, unconditionally on close).
+                if self._observe.mode == MODE_OBSERVE:
+                    self._observe.downgrade_to_poll()
+                    self._resubscribe_due = True
                 await asyncio.sleep(self._RECONNECT_PAUSE_S)
                 try:
                     await self.hass.async_add_executor_job(_do_put)
@@ -1097,14 +1116,6 @@ class LocalThingsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._observe.mark_write_pending(
                     write_href, settle_s=self._POST_TIMEOUT_S + self._POLL_TIMEOUT_S
                 )
-                # A reconnect hands back a session with zero OBSERVE
-                # registrations, same as the poll path's own reconnect --
-                # keeping observe mode here would leave those subscriptions
-                # claimed on the closed session with no poll failure left
-                # to notice (issue #294).
-                if self._observe.mode == MODE_OBSERVE:
-                    self._observe.downgrade_to_poll()
-                    self._resubscribe_due = True
         await self.async_request_refresh()
 
     # ------------------------------------------------------------------
