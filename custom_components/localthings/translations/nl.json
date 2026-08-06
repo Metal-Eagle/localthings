@@ -1356,6 +1356,9 @@
     },
     "intensive_unavailable_for_cycle": {
       "message": "Intensief is niet beschikbaar voor het geselecteerde programma."
+    },
+    "command_failed": {
+      "message": "Het commando naar {href} is ook na opnieuw verbinden mislukt: {error}"
     }
   }
 }

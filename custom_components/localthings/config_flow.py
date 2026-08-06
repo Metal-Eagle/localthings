@@ -163,6 +163,17 @@ def _fetch_samsung_uuid() -> str:
     raise RuntimeError(f"UUID not found in {_SAMSUNG_CLOUD_HOST} certificate subject")
 
 
+def _normalize_pem(text: str) -> str:
+    """Strip a pasted PEM's BOM, CRLF endings, and blank lines before
+    `cryptography` sees it -- a text editor's copy carries all three and
+    fails with an opaque InvalidHeader, while the same file dumped via
+    `type` doesn't (issue #291)."""
+    text = text.lstrip("\ufeff")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [line for line in text.split("\n") if line.strip()]
+    return "\n".join(lines)
+
+
 def _mint_leaf_cert(ca_cert_pem: str, ca_key_pem: str, uuid: str) -> tuple[str, str]:
     """Mint a fresh RSA-2048 leaf cert signed by the CA.
 
@@ -722,8 +733,10 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if leaf_cert and leaf_key:
                     existing_leaf = (leaf_cert, leaf_key)
             else:
-                self._ca_cert_pem = user_input[CONF_CA_CERT_PEM].strip()
-                self._ca_key_pem = user_input[CONF_CA_KEY_PEM].strip()
+                # Normalized here, not just before minting: this is also
+                # what gets stored and reused to re-mint the leaf later.
+                self._ca_cert_pem = _normalize_pem(user_input[CONF_CA_CERT_PEM])
+                self._ca_key_pem = _normalize_pem(user_input[CONF_CA_KEY_PEM])
 
             try:
                 info = await self.hass.async_add_executor_job(

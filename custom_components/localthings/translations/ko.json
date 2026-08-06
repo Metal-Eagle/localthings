@@ -1356,6 +1356,9 @@
     },
     "intensive_unavailable_for_cycle": {
       "message": "선택한 코스에서는 강력 세탁을 사용할 수 없습니다."
+    },
+    "command_failed": {
+      "message": "재연결 후에도 {href} 명령이 실패했습니다: {error}"
     }
   }
 }

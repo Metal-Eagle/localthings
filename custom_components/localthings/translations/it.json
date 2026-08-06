@@ -1356,6 +1356,9 @@
     },
     "intensive_unavailable_for_cycle": {
       "message": "Intensivo non è disponibile per il ciclo selezionato."
+    },
+    "command_failed": {
+      "message": "Il comando per {href} è fallito anche dopo la riconnessione: {error}"
     }
   }
 }

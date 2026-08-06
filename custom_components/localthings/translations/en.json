@@ -1356,6 +1356,9 @@
     },
     "intensive_unavailable_for_cycle": {
       "message": "Intensive isn't available on the selected cycle."
+    },
+    "command_failed": {
+      "message": "The command to {href} failed even after reconnecting: {error}"
     }
   }
 }
