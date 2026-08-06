@@ -75,6 +75,41 @@ async def test_successful_setup(hass: HomeAssistant, mock_probe) -> None:
     assert result["data"][CONF_CA_CERT_PEM] == MOCK_CA_CERT_PEM
 
 
+async def test_setup_normalizes_messy_pasted_pem(hass: HomeAssistant, mock_probe) -> None:
+    """A PEM with a leading UTF-8 BOM, CRLF line endings, and a stray blank
+    line -- the kind a Windows text editor's copy produces, as opposed to a
+    `type` dump (issue #291) -- must still be accepted and stored in its
+    normalized form, not rejected with an opaque InvalidHeader."""
+    messy_cert = "\ufeff" + MOCK_CA_CERT_PEM.replace("\n", "\r\n") + "\r\n\r\n"
+    messy_key = "\ufeff" + MOCK_CA_KEY_PEM.replace("\n", "\r\n")
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: MOCK_HOST,
+            CONF_CA_CERT_PEM: messy_cert,
+            CONF_CA_KEY_PEM: messy_key,
+        },
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_CA_CERT_PEM] == MOCK_CA_CERT_PEM
+    assert result["data"][CONF_CA_KEY_PEM] == MOCK_CA_KEY_PEM
+
+
+def test_normalize_pem_strips_bom_crlf_and_blank_lines() -> None:
+    """Unit-level check of the helper itself, isolated from the flow."""
+    from custom_components.localthings.config_flow import _normalize_pem
+
+    messy = "\ufeff-----BEGIN CERTIFICATE-----\r\nTEST-CA\r\n\r\n-----END CERTIFICATE-----\r\n"
+    assert _normalize_pem(messy) == (
+        "-----BEGIN CERTIFICATE-----\nTEST-CA\n-----END CERTIFICATE-----"
+    )
+    # A clean PEM (the `type`-dump case) passes through unchanged.
+    clean = "-----BEGIN CERTIFICATE-----\nTEST-CA\n-----END CERTIFICATE-----"
+    assert _normalize_pem(clean) == clean
+
+
 def test_order_candidates_prefers_known_ports() -> None:
     """Live ports are ordered with the historically known DTLS ports first,
     then the rest ascending."""

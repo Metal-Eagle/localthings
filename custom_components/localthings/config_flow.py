@@ -163,6 +163,26 @@ def _fetch_samsung_uuid() -> str:
     raise RuntimeError(f"UUID not found in {_SAMSUNG_CLOUD_HOST} certificate subject")
 
 
+def _normalize_pem(text: str) -> str:
+    """Clean up a pasted PEM blob before handing it to `cryptography`'s
+    parser (issue #291).
+
+    A PEM copied out of a text editor can carry a few bytes `cryptography`
+    refuses outright: a UTF-8 BOM some Windows editors silently prepend, CR
+    line endings (or CRLF), and blank lines a paste can introduce between
+    the header/body/footer. Any of those surfaces as an opaque
+    `InvalidHeader` with no hint of what's actually wrong -- which is why
+    the same certificate pasted from `type` (no BOM, no stray blank lines)
+    loads fine while the editor's copy doesn't. None of the stripped bytes
+    are meaningful in PEM: the format is BOM-free, line-ending-agnostic, and
+    has no blank-line syntax of its own.
+    """
+    text = text.lstrip("\ufeff")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [line for line in text.split("\n") if line.strip()]
+    return "\n".join(lines)
+
+
 def _mint_leaf_cert(ca_cert_pem: str, ca_key_pem: str, uuid: str) -> tuple[str, str]:
     """Mint a fresh RSA-2048 leaf cert signed by the CA.
 
@@ -722,8 +742,14 @@ class LocalThingsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if leaf_cert and leaf_key:
                     existing_leaf = (leaf_cert, leaf_key)
             else:
-                self._ca_cert_pem = user_input[CONF_CA_CERT_PEM].strip()
-                self._ca_key_pem = user_input[CONF_CA_KEY_PEM].strip()
+                # Normalized before the probe even runs (issue #291), not
+                # just before minting: the same pasted blob is also what
+                # gets stored in the config entry and reused to re-mint the
+                # leaf on a future reconfigure, so a raw copy with a BOM or
+                # CRLF line endings would keep failing every time it's read
+                # back, not just this once.
+                self._ca_cert_pem = _normalize_pem(user_input[CONF_CA_CERT_PEM])
+                self._ca_key_pem = _normalize_pem(user_input[CONF_CA_KEY_PEM])
 
             try:
                 info = await self.hass.async_add_executor_job(
