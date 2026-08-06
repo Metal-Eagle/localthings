@@ -772,7 +772,7 @@ async def test_attempt_observe_mode_discards_stale_commit_after_session_swap(
     other = FakeObserveSession()
 
     def _swap_session_mid_wait(subscribed, grace_period_s, success_fraction=None):
-        coordinator._session = other
+        coordinator._session = other  # ty: ignore[invalid-assignment]
         return True
 
     with patch.object(
